@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "TuneBoss Inventory",
+    "slug": "tuneboss-inventory",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "platforms": ["ios", "android", "web"],
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "id.tuneboss.inventory"
+    },
+    "android": {
+      "package": "id.tuneboss.inventory",
+      "adaptiveIcon": {
+        "backgroundColor": "#070707"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "backgroundColor": "#070707"
+    }
+  }
+}

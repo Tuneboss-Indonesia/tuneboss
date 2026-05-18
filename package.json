@@ -1,0 +1,30 @@
+{
+  "name": "tuneboss-inventory",
+  "version": "1.0.0",
+  "private": true,
+  "main": "expo/AppEntry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "expo": "latest",
+    "expo-font": "latest",
+    "expo-linear-gradient": "~55.0.14",
+    "expo-status-bar": "latest",
+    "lucide-react-native": "^1.16.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "0.83.6",
+    "react-native-gifted-charts": "^1.4.76",
+    "react-native-svg": "15.15.3",
+    "react-native-web": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "typescript": "latest"
+  }
+}
