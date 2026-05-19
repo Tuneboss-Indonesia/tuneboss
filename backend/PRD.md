@@ -2,13 +2,13 @@
 
 ## TL;DR
 
-Backend TuneBoss Inventory adalah REST API self-hosted untuk mendukung aplikasi React Native/Expo inventory internal TuneBoss.ID. Backend menggunakan NestJS, PostgreSQL, dan Prisma. Fokus fase awal adalah autentikasi, master data produk/kategori, pergerakan stok, dashboard summary, scan barcode lookup, dan laporan dasar.
+Backend TuneBoss Inventory adalah REST API untuk mendukung aplikasi React Native/Expo inventory internal TuneBoss.ID. Backend menggunakan Laravel dan MariaDB/MySQL agar realistis dijalankan di shared hosting. Fokus fase awal adalah autentikasi, master data produk/kategori, pergerakan stok, dashboard summary, scan barcode lookup, penjualan sederhana, dan laporan dasar.
 
 ## 1. Konteks Produk
 
 TuneBoss membutuhkan sistem inventory internal untuk memonitor stok ECU, kabel, aksesoris, dan barang operasional lain. Frontend saat ini sudah berbasis React Native/Expo dengan data dummy. Backend ini akan menggantikan dummy data menjadi data real dari database.
 
-Backend harus bisa berjalan di VPS milik sendiri, tidak bergantung pada Supabase/Firebase sebagai layanan utama.
+Backend harus bisa berjalan di shared hosting yang mendukung PHP, MariaDB/MySQL, HTTPS, dan konfigurasi document root ke folder `public`. Backend tidak bergantung pada Supabase/Firebase sebagai layanan utama.
 
 ## 2. Goals
 
@@ -52,19 +52,20 @@ Backend harus bisa berjalan di VPS milik sendiri, tidak bergantung pada Supabase
 
 ### Backend
 
-- NestJS.
-- Prisma ORM.
-- PostgreSQL.
-- JWT authentication.
+- Laravel.
+- Eloquent ORM.
+- MariaDB/MySQL.
+- Token/JWT authentication.
 - REST API.
 
 ### Deployment
 
-- VPS Ubuntu.
-- Docker Compose atau PM2.
-- Nginx reverse proxy.
-- HTTPS dengan Let's Encrypt.
-- Backup PostgreSQL berkala.
+- Shared hosting/cPanel dengan PHP 8.2+.
+- MariaDB/MySQL dari hosting.
+- Document root diarahkan ke folder `public` Laravel.
+- HTTPS aktif.
+- Cron job hosting untuk backup/maintenance ringan jika tersedia.
+- Backup database berkala dari cPanel/hosting.
 
 ### Client
 
@@ -77,7 +78,7 @@ Backend harus bisa berjalan di VPS milik sendiri, tidak bergantung pada Supabase
 
 - Login dengan email/username dan password.
 - Endpoint `me` untuk mengambil profil user aktif.
-- JWT access token.
+- Token/JWT access token.
 - Role `admin` dan `staff`.
 
 ### Kategori
@@ -158,6 +159,8 @@ Backend harus bisa berjalan di VPS milik sendiri, tidak bergantung pada Supabase
 - Advanced analytics.
 
 ## 8. Data Model Awal
+
+Catatan implementasi Laravel: gunakan struktur bawaan Laravel semaksimal mungkin. Model tetap di `app/Models`, controller di `app/Http/Controllers`, request validation di `app/Http/Requests`, route API di `routes/api.php`, migration di `database/migrations`, dan seeder di `database/seeders`. Jangan membuat struktur folder custom yang besar sebelum ada kebutuhan nyata.
 
 ### User
 
@@ -301,7 +304,7 @@ Response:
 
 #### GET /auth/me
 
-Mengembalikan user aktif berdasarkan JWT.
+Mengembalikan user aktif berdasarkan token autentikasi.
 
 ### Dashboard
 
@@ -422,8 +425,8 @@ Request:
 
 ## 11. Security Requirements
 
-- Semua endpoint selain login wajib pakai JWT.
-- Password wajib di-hash dengan Argon2 atau bcrypt.
+- Semua endpoint selain login wajib pakai token/JWT.
+- Password wajib di-hash dengan Argon2 atau bcrypt melalui fasilitas Laravel.
 - Validasi semua input request.
 - Batasi CORS hanya untuk origin yang diizinkan.
 - Jangan expose stack trace di production.
@@ -436,11 +439,13 @@ Request:
 - Dashboard summary target response di bawah 500ms untuk data normal.
 - Endpoint list wajib mendukung pagination.
 - Search produk minimal mendukung filter nama, SKU, barcode, dan kategori.
-- Index database wajib disiapkan untuk SKU, barcode, tanggal movement, dan invoice number.
+- Index database wajib disiapkan untuk SKU, barcode, tanggal movement, relasi produk/kategori, dan invoice number.
+- Simpan current stock di `product_stocks` agar dashboard dan lookup tidak menghitung ulang seluruh ledger setiap request.
+- Gunakan database transaction untuk stok masuk, stok keluar, adjustment, dan penjualan.
 
 ## 13. Acceptance Criteria Fase 1
 
-- User bisa login dan mendapatkan JWT.
+- User bisa login dan mendapatkan token/JWT.
 - Frontend React Native bisa mengambil dashboard summary dari API.
 - Admin bisa CRUD kategori dan produk.
 - Staff bisa lookup produk dari barcode/SKU.
@@ -452,4 +457,4 @@ Request:
 
 ## 14. Definition Of Done
 
-Backend fase 1 dianggap selesai jika aplikasi React Native TuneBoss dapat login, menampilkan dashboard stok real, mencari produk via SKU/barcode, mengelola produk/kategori, mencatat stok masuk/keluar, dan menampilkan laporan dasar dari PostgreSQL melalui NestJS API.
+Backend fase 1 dianggap selesai jika aplikasi React Native TuneBoss dapat login, menampilkan dashboard stok real, mencari produk via SKU/barcode, mengelola produk/kategori, mencatat stok masuk/keluar, dan menampilkan laporan dasar dari MariaDB/MySQL melalui Laravel API.
