@@ -1,6 +1,6 @@
 # TuneBoss Inventory Backend
 
-Backend API untuk aplikasi inventory internal TuneBoss.ID. Backend ini dirancang menggunakan Laravel dan MariaDB/MySQL agar mudah dijalankan di shared hosting dan mudah diintegrasikan dengan aplikasi React Native/Expo.
+Backend API untuk aplikasi inventory internal TuneBoss.ID. Backend ini dirancang menggunakan Laravel dan MariaDB/MySQL agar mudah dijalankan di hosting dan mudah diintegrasikan dengan aplikasi React Native/Expo.
 
 ## Tujuan
 
@@ -33,6 +33,11 @@ Laravel API
         v
 MariaDB/MySQL Database
 ```
+
+Dokumen pendukung:
+
+- `ERD.md` untuk rancangan database dan relasi tabel.
+- `FLOWCHART.md` untuk alur login, dashboard, stok, penjualan, laporan, dan role access.
 
 ## Struktur Project
 

@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-Backend TuneBoss Inventory adalah REST API untuk mendukung aplikasi React Native/Expo inventory internal TuneBoss.ID. Backend menggunakan Laravel dan MariaDB/MySQL agar realistis dijalankan di shared hosting. Fokus fase awal adalah autentikasi, master data produk/kategori, pergerakan stok, dashboard summary, scan barcode lookup, penjualan sederhana, dan laporan dasar.
+Backend TuneBoss Inventory adalah REST API untuk mendukung aplikasi React Native/Expo inventory internal TuneBoss.ID. Backend menggunakan Laravel dan MariaDB/MySQL agar realistis dijalankan di hosting. Fokus fase awal adalah autentikasi, master data produk/kategori, pergerakan stok, dashboard summary, scan barcode lookup, penjualan sederhana, dan laporan dasar.
 
 ## 1. Konteks Produk
 
