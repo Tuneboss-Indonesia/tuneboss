@@ -25,6 +25,29 @@ Authorization: Bearer <accessToken>
 Accept: application/json
 ```
 
+## Error Response
+
+Error JSON memakai format konsisten:
+
+```json
+{
+  "message": "Validation failed.",
+  "code": "validation_failed",
+  "errors": {
+    "field": ["Pesan error"]
+  }
+}
+```
+
+Kode umum:
+
+- `validation_failed` untuk request tidak valid.
+- `unauthenticated` untuk token kosong/tidak valid.
+- `forbidden` untuk role tidak cukup.
+- `not_found` untuk resource tidak ditemukan.
+- `insufficient_stock` untuk stok tidak cukup.
+- `too_many_requests` untuk rate limit.
+
 ## Response List
 
 Endpoint list memakai pagination:
@@ -235,9 +258,15 @@ Request void sale:
 
 - `GET /reports/summary?from=&to=`
 - `GET /reports/stock?category_id=&product_id=&status=&per_page=15`
+- `GET /reports/stock/export?category_id=&product_id=&status=` CSV
 - `GET /reports/sales?search=&status=&cashier_id=&from=&to=&per_page=15`
+- `GET /reports/sales/export?search=&status=&cashier_id=&from=&to=` CSV
 - `GET /reports/inbound?product_id=&operator_id=&from=&to=&per_page=15`
+- `GET /reports/inbound/export?product_id=&operator_id=&from=&to=` CSV
 - `GET /reports/outbound?product_id=&operator_id=&from=&to=&per_page=15`
+- `GET /reports/outbound/export?product_id=&operator_id=&from=&to=` CSV
+
+Endpoint export memakai filter yang sama dengan endpoint list, tetapi mengembalikan file `text/csv` tanpa pagination.
 
 ## Users Admin-Only
 
@@ -252,31 +281,4 @@ Request void sale:
 
 - `GET /audit-logs?action=&entity=&user_id=&from=&to=&per_page=15`
 
-## Error Response
-
-Validation error memakai format Laravel standar:
-
-```json
-{
-  "message": "The given data was invalid.",
-  "errors": {
-    "field": ["Pesan error"]
-  }
-}
-```
-
-Unauthorized:
-
-```json
-{
-  "message": "Unauthenticated."
-}
-```
-
-Forbidden:
-
-```json
-{
-  "message": "Forbidden"
-}
-```
+Audit log `metadata` menyimpan detail penting seperti `before`, `after`, `reason`, item penjualan, dan perubahan quantity stok untuk membantu investigasi operasional.

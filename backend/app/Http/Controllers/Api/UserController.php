@@ -39,7 +39,7 @@ class UserController extends Controller
         ]);
 
         $user = User::create($data);
-        $this->audit($request, 'user.created', $user);
+        $this->audit($request, 'user.created', $user, after: $this->auditPayload($user));
 
         return (new UserResource($user))->response()->setStatusCode(201);
     }
@@ -58,8 +58,9 @@ class UserController extends Controller
             'is_active' => ['required', 'boolean'],
         ]);
 
+        $before = $this->auditPayload($user);
         $user->update($data);
-        $this->audit($request, 'user.updated', $user);
+        $this->audit($request, 'user.updated', $user, $before, $this->auditPayload($user));
 
         if (! $user->is_active) {
             $user->tokens()->delete();
@@ -76,7 +77,7 @@ class UserController extends Controller
 
         $user->update(['password' => $data['password']]);
         $user->tokens()->delete();
-        $this->audit($request, 'user.password_updated', $user);
+        $this->audit($request, 'user.password_updated', $user, metadata: ['passwordChanged' => true]);
 
         return response()->json(['message' => 'Password user diperbarui.']);
     }
@@ -84,23 +85,30 @@ class UserController extends Controller
     public function deactivate(Request $request, User $user)
     {
         if ($request->user()->is($user)) {
-            return response()->json(['message' => 'Admin tidak bisa menonaktifkan akun sendiri.'], 422);
+            return response()->json(['message' => 'Admin tidak bisa menonaktifkan akun sendiri.', 'code' => 'cannot_deactivate_self'], 422);
         }
 
+        $before = $this->auditPayload($user);
         $user->update(['is_active' => false]);
         $user->tokens()->delete();
-        $this->audit($request, 'user.deactivated', $user);
+        $this->audit($request, 'user.deactivated', $user, $before, $this->auditPayload($user));
 
         return response()->json(['message' => 'User dinonaktifkan.']);
     }
 
-    private function audit(Request $request, string $action, User $user): void
+    private function audit(Request $request, string $action, User $user, ?array $before = null, ?array $after = null, ?array $metadata = null): void
     {
         AuditLog::create([
             'user_id' => $request->user()?->id,
             'action' => $action,
             'entity' => 'users',
             'entity_id' => $user->id,
+            'metadata' => $metadata ?? array_filter(['before' => $before, 'after' => $after]),
         ]);
+    }
+
+    private function auditPayload(User $user): array
+    {
+        return $user->only(['name', 'email', 'role', 'is_active']);
     }
 }

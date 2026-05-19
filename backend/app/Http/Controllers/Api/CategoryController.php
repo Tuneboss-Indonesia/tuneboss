@@ -24,7 +24,7 @@ class CategoryController extends Controller
         ]);
 
         $category = Category::create($data);
-        $this->audit($request, 'category.created', $category);
+        $this->audit($request, 'category.created', $category, after: $category->only(['name', 'description']));
 
         return (new CategoryResource($category))->response()->setStatusCode(201);
     }
@@ -41,8 +41,9 @@ class CategoryController extends Controller
             'description' => ['nullable', 'string'],
         ]);
 
+        $before = $category->only(['name', 'description']);
         $category->update($data);
-        $this->audit($request, 'category.updated', $category);
+        $this->audit($request, 'category.updated', $category, $before, $category->only(['name', 'description']));
 
         return new CategoryResource($category);
     }
@@ -50,22 +51,24 @@ class CategoryController extends Controller
     public function destroy(Request $request, Category $category)
     {
         if ($category->products()->exists()) {
-            return response()->json(['message' => 'Kategori masih dipakai produk.'], 422);
+            return response()->json(['message' => 'Kategori masih dipakai produk.', 'code' => 'category_in_use'], 422);
         }
 
+        $before = $category->only(['name', 'description']);
         $category->delete();
-        $this->audit($request, 'category.deleted', $category);
+        $this->audit($request, 'category.deleted', $category, $before);
 
         return response()->json(['message' => 'Kategori dihapus.']);
     }
 
-    private function audit(Request $request, string $action, Category $category): void
+    private function audit(Request $request, string $action, Category $category, ?array $before = null, ?array $after = null): void
     {
         AuditLog::create([
             'user_id' => $request->user()?->id,
             'action' => $action,
             'entity' => 'categories',
             'entity_id' => $category->id,
+            'metadata' => array_filter(['before' => $before, 'after' => $after]),
         ]);
     }
 }

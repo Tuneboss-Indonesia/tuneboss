@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Product;
 use App\Models\ProductStock;
 use App\Models\StockMovement;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -101,7 +102,10 @@ class StockController extends Controller
             $after = $type === 'inbound' ? $before + $data['quantity'] : $before - $data['quantity'];
 
             if ($after < 0) {
-                abort(422, 'Stok tidak cukup.');
+                throw new HttpResponseException(response()->json([
+                    'message' => 'Stok tidak cukup.',
+                    'code' => 'insufficient_stock',
+                ], 422));
             }
 
             $stock->update(['quantity' => $after]);
@@ -130,6 +134,13 @@ class StockController extends Controller
             'action' => $action,
             'entity' => 'stock_movements',
             'entity_id' => $movement->id,
+            'metadata' => [
+                'productId' => $movement->product_id,
+                'type' => $movement->type,
+                'quantity' => $movement->quantity,
+                'before' => ['quantity' => $movement->before_quantity],
+                'after' => ['quantity' => $movement->after_quantity],
+            ],
         ]);
     }
 }

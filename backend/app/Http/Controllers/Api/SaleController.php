@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\ProductStock;
 use App\Models\Sale;
 use App\Models\StockMovement;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -52,7 +53,10 @@ class SaleController extends Controller
                 $after = $before - $item['quantity'];
 
                 if ($after < 0) {
-                    abort(422, "Stok {$product->name} tidak cukup.");
+                    throw new HttpResponseException(response()->json([
+                        'message' => "Stok {$product->name} tidak cukup.",
+                        'code' => 'insufficient_stock',
+                    ], 422));
                 }
 
                 $subtotal = $product->sale_price * $item['quantity'];
@@ -84,6 +88,11 @@ class SaleController extends Controller
                 'action' => 'sale.created',
                 'entity' => 'sales',
                 'entity_id' => $sale->id,
+                'metadata' => [
+                    'invoiceNumber' => $sale->invoice_number,
+                    'totalAmount' => (float) $total,
+                    'items' => $sale->items()->get(['product_id', 'quantity', 'price', 'subtotal'])->toArray(),
+                ],
             ]);
 
             return $sale;
@@ -104,11 +113,12 @@ class SaleController extends Controller
         ]);
 
         if ($sale->status === 'void') {
-            return response()->json(['message' => 'Penjualan sudah dibatalkan.'], 422);
+            return response()->json(['message' => 'Penjualan sudah dibatalkan.', 'code' => 'sale_already_void'], 422);
         }
 
         $sale = DB::transaction(function () use ($request, $sale, $data) {
             $sale->load('items.product');
+            $before = $sale->only(['status', 'voided_by', 'voided_at', 'void_reason']);
 
             foreach ($sale->items as $item) {
                 $stock = ProductStock::where('product_id', $item->product_id)->lockForUpdate()->firstOrFail();
@@ -141,7 +151,11 @@ class SaleController extends Controller
                 'action' => 'sale.voided',
                 'entity' => 'sales',
                 'entity_id' => $sale->id,
-                'metadata' => ['reason' => $data['reason']],
+                'metadata' => [
+                    'reason' => $data['reason'],
+                    'before' => $before,
+                    'after' => $sale->only(['status', 'voided_by', 'voided_at', 'void_reason']),
+                ],
             ]);
 
             return $sale;

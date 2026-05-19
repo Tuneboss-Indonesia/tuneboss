@@ -39,7 +39,7 @@ class ProductController extends Controller
         $product = DB::transaction(function () use ($request, $data) {
             $product = Product::create($data);
             $product->stock()->create(['quantity' => 0]);
-            $this->audit($request, 'product.created', $product);
+            $this->audit($request, 'product.created', $product, after: $this->auditPayload($product));
 
             return $product;
         });
@@ -57,8 +57,9 @@ class ProductController extends Controller
         $data = $this->validated($request, $product);
 
         $product = DB::transaction(function () use ($request, $product, $data) {
+            $before = $this->auditPayload($product);
             $product->update($data);
-            $this->audit($request, 'product.updated', $product);
+            $this->audit($request, 'product.updated', $product, $before, $this->auditPayload($product));
 
             return $product;
         });
@@ -68,8 +69,9 @@ class ProductController extends Controller
 
     public function destroy(Request $request, Product $product)
     {
+        $before = $this->auditPayload($product);
         $product->update(['is_active' => false]);
-        $this->audit($request, 'product.disabled', $product);
+        $this->audit($request, 'product.disabled', $product, $before, $this->auditPayload($product));
 
         return response()->json(['message' => 'Produk dinonaktifkan.']);
     }
@@ -117,13 +119,19 @@ class ProductController extends Controller
         return $stock === 0 ? 'empty' : ($stock < $minStock ? 'low' : 'safe');
     }
 
-    private function audit(Request $request, string $action, Product $product): void
+    private function audit(Request $request, string $action, Product $product, ?array $before = null, ?array $after = null): void
     {
         AuditLog::create([
             'user_id' => $request->user()?->id,
             'action' => $action,
             'entity' => 'products',
             'entity_id' => $product->id,
+            'metadata' => array_filter(['before' => $before, 'after' => $after]),
         ]);
+    }
+
+    private function auditPayload(Product $product): array
+    {
+        return $product->only(['category_id', 'name', 'sku', 'barcode', 'sale_price', 'min_stock', 'is_active']);
     }
 }

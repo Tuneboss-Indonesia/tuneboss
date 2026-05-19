@@ -136,6 +136,61 @@ mysqldump -u tuneboss_user -p tuneboss_inventory > backup-$(date +%F).sql
 
 Simpan backup di luar `public/`.
 
+### Backup Manual cPanel
+
+1. Buka cPanel dan masuk ke `Backup` atau `Backup Wizard`.
+2. Download backup database MariaDB/MySQL aplikasi.
+3. Simpan file `.sql` atau `.sql.gz` di storage terpisah, bukan di folder website.
+4. Uji restore secara berkala di database staging/lokal.
+
+### Backup Manual SSH
+
+```bash
+mkdir -p ~/backups/tuneboss
+mysqldump --single-transaction --quick -u tuneboss_user -p tuneboss_inventory > ~/backups/tuneboss/tuneboss_inventory-$(date +%F).sql
+```
+
+Jika ingin kompres:
+
+```bash
+gzip ~/backups/tuneboss/tuneboss_inventory-$(date +%F).sql
+```
+
+### Restore Database
+
+Restore ke database kosong atau staging terlebih dahulu sebelum production:
+
+```bash
+mysql -u tuneboss_user -p tuneboss_inventory < backup.sql
+```
+
+Untuk file `.gz`:
+
+```bash
+gunzip -c backup.sql.gz | mysql -u tuneboss_user -p tuneboss_inventory
+```
+
+Setelah restore, jalankan:
+
+```bash
+php artisan migrate --force
+php artisan config:cache
+```
+
+### Backup Lokal Laragon
+
+```bash
+mysqldump -h 127.0.0.1 -P 3306 -u root tuneboss_inventory > storage/app/tuneboss_inventory-local.sql
+```
+
+Restore lokal:
+
+```bash
+mysql -h 127.0.0.1 -P 3306 -u root tuneboss_inventory < storage/app/tuneboss_inventory-local.sql
+```
+
+Jangan commit file backup database ke Git.
+
 ## Checklist Production
 
 - `APP_ENV=production`.

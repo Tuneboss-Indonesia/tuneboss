@@ -45,6 +45,7 @@ Dokumen pendukung:
 - `FLOWCHART.png` untuk gambar flowchart utama siap pakai.
 - `DEPLOYMENT.md` untuk panduan deploy ke shared hosting/cPanel.
 - `API.md` untuk kontrak endpoint, auth header, request/response, dan filter API.
+- `FRONTEND_INTEGRATION.md` untuk mapping data API ke frontend Expo/React Native.
 
 Preview ERD:
 
@@ -277,6 +278,14 @@ Untuk test:
 ```bash
 php artisan test
 ```
+
+Untuk test parity dengan MariaDB/MySQL lokal, buat database kosong `tuneboss_inventory_test`, lalu jalankan:
+
+```bash
+composer test:mysql
+```
+
+Konfigurasi default MariaDB test ada di `phpunit.mysql.xml`. Jika credential lokal berbeda, override lewat environment shell atau sesuaikan file itu di mesin lokal.
 
 ## Integrasi Dengan React Native
 
