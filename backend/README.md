@@ -1,6 +1,6 @@
 # TuneBoss Inventory Backend
 
-Backend API untuk aplikasi inventory internal TuneBoss.ID. Backend ini dirancang menggunakan NestJS, PostgreSQL, dan Prisma agar bisa di-host di VPS sendiri dan mudah diintegrasikan dengan aplikasi React Native/Expo.
+Backend API untuk aplikasi inventory internal TuneBoss.ID. Backend ini dirancang menggunakan Laravel dan MariaDB/MySQL agar mudah dijalankan di hosting dan mudah diintegrasikan dengan aplikasi React Native/Expo.
 
 ## Tujuan
 
@@ -8,18 +8,18 @@ Backend API untuk aplikasi inventory internal TuneBoss.ID. Backend ini dirancang
 - Mengelola autentikasi admin dan pegawai gudang.
 - Mengelola data kategori, produk, stok, transaksi stok, penjualan, dan laporan.
 - Menyimpan audit trail semua perubahan stok.
-- Menjadi backend self-hosted yang siap dideploy ke VPS.
+- Menjadi backend yang siap dideploy ke shared hosting dengan HTTPS.
 
 ## Stack
 
-- NestJS sebagai backend framework.
-- PostgreSQL sebagai database utama.
-- Prisma sebagai ORM dan migration tool.
-- JWT untuk autentikasi API.
+- Laravel sebagai backend framework.
+- MariaDB/MySQL sebagai database utama.
+- Eloquent ORM dan migration bawaan Laravel.
+- Laravel Sanctum atau JWT untuk autentikasi API.
 - Argon2 atau bcrypt untuk hashing password.
-- class-validator/class-transformer untuk validasi request.
-- Docker Compose untuk development dan deployment awal.
-- Nginx sebagai reverse proxy di VPS.
+- Form Request Laravel untuk validasi request.
+- Shared hosting/cPanel untuk deployment awal.
+- Cron job hosting untuk scheduled task ringan jika tersedia.
 
 ## Arsitektur
 
@@ -28,35 +28,53 @@ React Native / Expo App
         |
         | HTTPS REST API
         v
-NestJS Backend
+Laravel API
         |
         v
-PostgreSQL Database
+MariaDB/MySQL Database
 ```
 
-## Struktur Modul Yang Disarankan
+Dokumen pendukung:
+
+- `ERD.md` untuk rancangan database dan relasi tabel.
+- `ERD.png` untuk gambar ERD siap pakai.
+- `ERD.mmd` untuk source Mermaid ERD jika perlu generate ulang gambar.
+- `TABLES.md` untuk spesifikasi kolom, key, nullable, default, foreign key, dan rule tabel.
+- `FLOWCHART.md` untuk alur login, dashboard, stok, penjualan, laporan, dan role access.
+- `FLOWCHART.mmd` untuk source Mermaid flowchart utama jika perlu generate ulang gambar.
+- `FLOWCHART.png` untuk gambar flowchart utama siap pakai.
+
+Preview ERD:
+
+![ERD TuneBoss Inventory](./ERD.png)
+
+Preview Flowchart:
+
+![Flowchart TuneBoss Inventory](./FLOWCHART.png)
+
+## Struktur Project
+
+Gunakan struktur bawaan Laravel semaksimal mungkin. Jangan mengubah struktur default Laravel atau membuat arsitektur custom besar sebelum ada kebutuhan nyata.
 
 ```text
 backend/
-  src/
-    app.module.ts
-    main.ts
-    auth/
-    users/
-    roles/
-    categories/
-    products/
-    stock/
-    sales/
-    reports/
-    audit-logs/
-    common/
-  prisma/
-    schema.prisma
+  app/
+    Http/
+      Controllers/
+      Requests/
+      Middleware/
+    Models/
+  database/
     migrations/
-  docker-compose.yml
+    seeders/
+  routes/
+    api.php
+  config/
+  public/
   .env.example
 ```
+
+Jika logic mulai membesar, service class boleh ditambahkan secara minimal di `app/Services`, tetapi bukan kebutuhan awal.
 
 ## Modul Utama
 
@@ -64,7 +82,7 @@ backend/
 
 - Login admin/pegawai.
 - Refresh token opsional.
-- Proteksi endpoint dengan JWT.
+- Proteksi endpoint dengan Sanctum token atau JWT.
 - Role sederhana: `admin` dan `staff`.
 
 ### Users
@@ -219,31 +237,38 @@ GET /reports/outbound
 Contoh `.env`:
 
 ```env
-NODE_ENV=development
-PORT=3000
-DATABASE_URL=postgresql://tuneboss:tuneboss_password@localhost:5432/tuneboss_inventory
-JWT_ACCESS_SECRET=change_me_access_secret
-JWT_REFRESH_SECRET=change_me_refresh_secret
-JWT_ACCESS_EXPIRES_IN=15m
-JWT_REFRESH_EXPIRES_IN=7d
-CORS_ORIGIN=http://localhost:8081,http://localhost:19006
+APP_NAME="TuneBoss Inventory API"
+APP_ENV=production
+APP_KEY=base64:change_me
+APP_DEBUG=false
+APP_URL=https://api.tuneboss.id
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=tuneboss_inventory
+DB_USERNAME=tuneboss_user
+DB_PASSWORD=change_me
+
+SANCTUM_STATEFUL_DOMAINS=
+CORS_ALLOWED_ORIGINS=https://inventory.tuneboss.id,http://localhost:8081,http://localhost:19006
 ```
 
 ## Development Flow
 
-Setelah project NestJS dibuat:
+Setelah project Laravel dibuat:
 
 ```bash
-npm install
-npx prisma migrate dev
-npm run start:dev
+composer install
+php artisan key:generate
+php artisan migrate --seed
+php artisan serve
 ```
 
-Untuk typecheck/test:
+Untuk test:
 
 ```bash
-npm run lint
-npm run test
+php artisan test
 ```
 
 ## Integrasi Dengan React Native
@@ -266,16 +291,16 @@ const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/dashboard/summa
 });
 ```
 
-## Deployment VPS
+## Deployment Shared Hosting
 
 Rekomendasi deployment awal:
 
-- VPS Ubuntu.
-- PostgreSQL via Docker atau native package.
-- NestJS berjalan via Docker atau PM2.
-- Nginx reverse proxy.
-- HTTPS dengan Let's Encrypt.
-- Backup database harian.
+- Shared hosting dengan PHP 8.2+ dan MariaDB/MySQL.
+- Document root diarahkan ke folder `backend/public`.
+- Jalankan migration dari SSH jika tersedia, atau import SQL migration hasil build awal.
+- Pastikan `.env` production tidak berada di public web root.
+- HTTPS aktif dari hosting/cPanel.
+- Backup database harian dari fitur hosting atau cron job.
 
 Contoh domain:
 
@@ -288,7 +313,7 @@ api.tuneboss.id
 - Jangan commit `.env`.
 - Gunakan HTTPS di production.
 - Password wajib di-hash.
-- Semua endpoint selain login harus pakai JWT.
+- Semua endpoint selain login harus pakai token/JWT.
 - Validasi semua request body/query.
 - Gunakan role guard untuk endpoint admin.
 - Catat perubahan stok ke audit log.
