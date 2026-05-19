@@ -13,6 +13,10 @@ type SalePreview = {
   canSubmit: boolean;
 };
 
+type ProductLookup = { id: string };
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function PenjualanPage() {
   const [query, setQuery] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
@@ -26,18 +30,25 @@ export function PenjualanPage() {
   const todaySales = sales.filter((sale) => new Date(sale.createdAt).toDateString() === today && sale.status === "completed");
   const filtered = sales.filter((sale) => `${sale.invoiceNumber} ${sale.cashier ?? ""} ${sale.status}`.toLowerCase().includes(query.toLowerCase()));
   const selectedProduct = stockItems.find((item) => item.sku.toLowerCase() === sku.toLowerCase() || item.barcode.toLowerCase() === sku.toLowerCase());
-  const saleBody = () => ({ customer_id: customerId || null, items: [{ product_id: selectedProduct?.id, quantity: Number(quantity || 0) }] });
+
+  const saleBody = async () => {
+    if (!sku.trim()) throw new Error("Isi SKU/barcode produk terlebih dahulu.");
+    const product = selectedProduct && uuidPattern.test(selectedProduct.id)
+      ? selectedProduct
+      : await apiRequest<ProductLookup>(`/products/lookup?code=${encodeURIComponent(sku.trim())}`, { token });
+
+    return { customer_id: customerId || null, items: [{ product_id: product.id, quantity: Number(quantity || 0) }] };
+  };
 
   const loadPreview = async () => {
-    if (!selectedProduct) throw new Error("Produk tidak ditemukan. Isi SKU/barcode yang valid.");
-    setPreview(await apiRequest<SalePreview>("/sales/preview", { body: JSON.stringify(saleBody()), method: "POST", token }));
+    setPreview(await apiRequest<SalePreview>("/sales/preview", { body: JSON.stringify(await saleBody()), method: "POST", token }));
   };
 
   const createSale = async () => {
     setSaving(true);
     try {
       await loadPreview();
-      await apiRequest("/sales", { body: JSON.stringify(saleBody()), method: "POST", token });
+      await apiRequest("/sales", { body: JSON.stringify(await saleBody()), method: "POST", token });
       await refresh();
       setModalOpen(false);
       setSku("");

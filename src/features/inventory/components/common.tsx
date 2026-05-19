@@ -59,10 +59,10 @@ export function EmptyRow({ text }: { text: string; columns?: string[]; compact?:
   return <View style={styles.emptyRow}><Text style={styles.emptyText}>{text}</Text></View>;
 }
 
-export function IconButton({ icon: Icon, onPress }: { icon: LucideIcon; onPress: () => void }) {
-  return <Pressable onPress={onPress} style={({ pressed }: PressState) => [styles.iconButton, pressed && styles.pressed]}><Icon color={colors.muted} size={18} /></Pressable>;
+export function IconButton({ icon: Icon, label, onPress }: { icon: LucideIcon; label?: string; onPress: () => void }) {
+  return <Pressable accessibilityLabel={label} onPress={onPress} style={({ pressed }: PressState) => [styles.iconButton, pressed && styles.pressed]}><Icon color={colors.muted} size={18} /></Pressable>;
 }
 
 export function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
-  return <View style={styles.rowActions}><IconButton icon={Edit3} onPress={onEdit} /><IconButton icon={Trash2} onPress={onDelete} /></View>;
+  return <View style={styles.rowActions}><IconButton icon={Edit3} label="Edit" onPress={onEdit} /><IconButton icon={Trash2} label="Hapus" onPress={onDelete} /></View>;
 }
