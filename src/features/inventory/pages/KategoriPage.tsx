@@ -1,8 +1,9 @@
-import { Alert, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { Tag } from "lucide-react-native";
 import { useState } from "react";
 import { colors } from "../../../theme/tokens";
-import { categories } from "../data";
+import { apiRequest } from "../api";
+import { useInventoryData } from "../InventoryDataContext";
 import { styles } from "../styles";
 import type { ModalMode } from "../types";
 import { CrudShell, EmptyText, IconButton } from "../components/common";
@@ -14,9 +15,19 @@ function CategoryCard({ name, desc, count, onEdit, onDelete }: { name: string; d
 
 export function KategoriPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => void }) {
   const [query, setQuery] = useState("");
-  const [items, setItems] = useState(categories);
+  const { categories, refresh, token } = useInventoryData();
+  const [deleting, setDeleting] = useState("");
+  const items = categories;
   const filtered = items.filter((item) => `${item.name} ${item.desc}`.toLowerCase().includes(query.toLowerCase()));
-  const handleDelete = (id: string) => setItems((current) => current.filter((item) => item.id !== id));
+  const handleDelete = async (id: string) => {
+    setDeleting(id);
+    try {
+      await apiRequest(`/categories/${id}`, { method: "DELETE", token });
+      await refresh();
+    } finally {
+      setDeleting("");
+    }
+  };
 
-  return <CrudShell title="Kategori Barang" button="Tambah Kategori" onButton={() => onOpenModal("add")} search="Cari kategori..." searchValue={query} onSearchChange={setQuery} onSearchSubmit={() => undefined}><View style={styles.categoryGrid}>{filtered.map((item) => <View key={item.id} style={styles.categoryGridItem}><CategoryCard name={item.name} desc={item.desc} count={item.count} onEdit={() => onOpenModal("edit")} onDelete={() => handleDelete(item.id)} /></View>)}</View>{!filtered.length ? <EmptyText text="Kategori tidak ditemukan" /> : null}</CrudShell>;
+  return <CrudShell title="Kategori Barang" button="Tambah Kategori" onButton={() => onOpenModal("add")} search="Cari kategori..." searchValue={query} onSearchChange={setQuery} onSearchSubmit={() => undefined}><View style={styles.categoryGrid}>{filtered.map((item) => <View key={item.id} style={styles.categoryGridItem}><CategoryCard name={item.name} desc={item.desc} count={item.count} onEdit={() => onOpenModal("edit")} onDelete={() => { if (!deleting) void handleDelete(item.id); }} /></View>)}</View>{!filtered.length ? <EmptyText text="Kategori tidak ditemukan" /> : null}</CrudShell>;
 }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\Product;
 use App\Models\ProductStock;
 use App\Models\User;
@@ -62,7 +63,27 @@ class InventoryApiTest extends TestCase
                 'productId' => $productId,
                 'quantity' => 1,
             ])
-            ->assertUnprocessable();
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'insufficient_stock');
+    }
+
+    public function test_api_errors_use_standard_shape(): void
+    {
+        $this->postJson('/auth/login', [])
+            ->assertUnprocessable()
+            ->assertJsonStructure(['message', 'code', 'errors']);
+
+        $this->getJson('/dashboard/summary')
+            ->assertUnauthorized()
+            ->assertJsonPath('code', 'unauthenticated');
+
+        $this->seed();
+        $staffToken = $this->loginToken('staff@tuneboss.id');
+
+        $this->withToken($staffToken)
+            ->getJson('/users')
+            ->assertForbidden()
+            ->assertJsonPath('code', 'forbidden');
     }
 
     public function test_admin_can_manage_users_and_staff_cannot(): void
@@ -250,6 +271,36 @@ class InventoryApiTest extends TestCase
                 'stockMovements' => ['inboundQuantity', 'outboundQuantity', 'saleQuantity', 'adjustmentCount'],
                 'stock' => ['totalSku', 'totalUnits', 'lowStockCount', 'outOfStockCount'],
             ]);
+    }
+
+    public function test_report_exports_and_audit_metadata_are_available(): void
+    {
+        $this->seed();
+        $adminToken = $this->loginToken('admin@tuneboss.id');
+        $product = Product::where('sku', 'TB-USB-CABLE')->firstOrFail();
+
+        $this->withToken($adminToken)
+            ->patchJson('/products/'.$product->id, [
+                'category_id' => $product->category_id,
+                'name' => 'USB Tuning Cable Updated',
+                'sku' => $product->sku,
+                'barcode' => $product->barcode,
+                'sale_price' => $product->sale_price,
+                'min_stock' => $product->min_stock,
+                'is_active' => true,
+            ])
+            ->assertOk();
+
+        $audit = AuditLog::where('action', 'product.updated')->latest()->firstOrFail();
+        $this->assertArrayHasKey('before', $audit->metadata);
+        $this->assertArrayHasKey('after', $audit->metadata);
+
+        foreach (['stock', 'sales', 'inbound', 'outbound'] as $report) {
+            $this->withToken($adminToken)
+                ->get("/reports/{$report}/export")
+                ->assertOk()
+                ->assertHeader('content-type', 'text/csv; charset=UTF-8');
+        }
     }
 
     public function test_user_can_update_own_profile_and_password(): void

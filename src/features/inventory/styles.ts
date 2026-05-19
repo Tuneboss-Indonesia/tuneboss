@@ -180,4 +180,7 @@ export const styles = StyleSheet.create({
   pressed: { opacity: 0.75 },
   loading: { alignItems: "center", backgroundColor: colors.black, flex: 1, justifyContent: "center" },
   loadingText: { color: colors.white, fontFamily: fonts.bodyMedium },
+  loginShell: { alignItems: "center", backgroundColor: colors.black, flex: 1, justifyContent: "center", padding: 20 },
+  loginCard: { backgroundColor: colors.panel, borderColor: colors.border, borderRadius: radius.lg, borderWidth: 1, gap: 18, maxWidth: 460, padding: 28, width: "100%" },
+  loginLogo: { alignSelf: "center", height: 44, width: 170 },
 });

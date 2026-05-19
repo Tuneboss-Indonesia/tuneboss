@@ -4,7 +4,9 @@ import { useFonts } from "expo-font";
 import { Layout } from "./components/Layout";
 import { ActionModal } from "./components/ActionModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { AuthScreen } from "./AuthScreen";
 import { DashboardPage } from "./pages/DashboardPage";
+import { InventoryDataProvider } from "./InventoryDataContext";
 import { KategoriPage } from "./pages/KategoriPage";
 import { LaporanPage, ReportDetail } from "./pages/LaporanPage";
 import { MovementPage } from "./pages/MovementPage";
@@ -18,6 +20,7 @@ export function AdminApp() {
   const [page, setPage] = useState<PageKey>("dashboard");
   const [modal, setModal] = useState<ModalKind>(null);
   const [modalMode, setModalMode] = useState<ModalMode>("add");
+  const [token, setToken] = useState(() => loadStoredAuth()?.accessToken ?? "");
   const [fontsLoaded] = useFonts({
     "Futura PT": require("../../../assets/fonts/Futura-PT-Book.woff2"),
     "Futura PT Medium": require("../../../assets/fonts/Futura-PT-Medium.woff2"),
@@ -31,23 +34,55 @@ export function AdminApp() {
 
   if (!fontsLoaded) return <View style={styles.loading}><Text style={styles.loadingText}>Loading TuneBoss...</Text></View>;
 
+  if (!token) {
+    return <AuthScreen onLogin={(payload) => { storeAuth(payload); setToken(payload.accessToken); }} />;
+  }
+
   return (
     <ErrorBoundary>
-      <Layout active={page} onNavigate={setPage}>
-        {page === "dashboard" ? <DashboardPage /> : null}
-        {page === "kategori" ? <KategoriPage onOpenModal={(mode) => openModal("kategori", mode)} /> : null}
-        {page === "stok" ? <StokPage onOpenModal={(mode) => openModal("stok", mode)} /> : null}
-        {page === "penjualan" ? <PenjualanPage /> : null}
-        {page === "scan" ? <ScanPage onGoInbound={() => setPage("masuk")} onGoOutbound={() => setPage("keluar")} /> : null}
-        {page === "masuk" ? <MovementPage kind="inbound" onOpenModal={() => openModal("masuk")} /> : null}
-        {page === "keluar" ? <MovementPage kind="outbound" onOpenModal={() => openModal("keluar")} /> : null}
-        {page === "laporan" ? <LaporanPage onNavigate={setPage} /> : null}
-        {page === "laporan-stok" ? <ReportDetail type="stok" onBack={() => setPage("laporan")} /> : null}
-        {page === "laporan-penjualan" ? <ReportDetail type="penjualan" onBack={() => setPage("laporan")} /> : null}
-        {page === "laporan-masuk" ? <ReportDetail type="masuk" onBack={() => setPage("laporan")} /> : null}
-        {page === "laporan-keluar" ? <ReportDetail type="keluar" onBack={() => setPage("laporan")} /> : null}
-      </Layout>
-      <ActionModal kind={modal} mode={modalMode} onClose={() => setModal(null)} />
+      <InventoryDataProvider token={token}>
+        <Layout active={page} onLogout={() => { clearStoredAuth(); setToken(""); }} onNavigate={setPage}>
+          {page === "dashboard" ? <DashboardPage /> : null}
+          {page === "kategori" ? <KategoriPage onOpenModal={(mode) => openModal("kategori", mode)} /> : null}
+          {page === "stok" ? <StokPage onOpenModal={(mode) => openModal("stok", mode)} /> : null}
+          {page === "penjualan" ? <PenjualanPage /> : null}
+          {page === "scan" ? <ScanPage onGoInbound={() => setPage("masuk")} onGoOutbound={() => setPage("keluar")} /> : null}
+          {page === "masuk" ? <MovementPage kind="inbound" onOpenModal={() => openModal("masuk")} /> : null}
+          {page === "keluar" ? <MovementPage kind="outbound" onOpenModal={() => openModal("keluar")} /> : null}
+          {page === "laporan" ? <LaporanPage onNavigate={setPage} /> : null}
+          {page === "laporan-stok" ? <ReportDetail type="stok" onBack={() => setPage("laporan")} /> : null}
+          {page === "laporan-penjualan" ? <ReportDetail type="penjualan" onBack={() => setPage("laporan")} /> : null}
+          {page === "laporan-masuk" ? <ReportDetail type="masuk" onBack={() => setPage("laporan")} /> : null}
+          {page === "laporan-keluar" ? <ReportDetail type="keluar" onBack={() => setPage("laporan")} /> : null}
+        </Layout>
+        <ActionModal kind={modal} mode={modalMode} onClose={() => setModal(null)} />
+      </InventoryDataProvider>
     </ErrorBoundary>
   );
+}
+
+function loadStoredAuth(): { accessToken: string } | null {
+  try {
+    if (typeof localStorage === "undefined") return null;
+    const value = localStorage.getItem("tuneboss.auth");
+    return value ? JSON.parse(value) : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeAuth(payload: { accessToken: string }) {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem("tuneboss.auth", JSON.stringify(payload));
+  } catch {
+    // Native builds keep the token in memory until secure storage is added.
+  }
+}
+
+function clearStoredAuth() {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.removeItem("tuneboss.auth");
+  } catch {
+    // Ignore storage cleanup failures.
+  }
 }

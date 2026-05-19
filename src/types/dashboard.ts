@@ -24,7 +24,7 @@ export type PriorityProduct = {
 
 export type RecentActivity = {
   id: string;
-  type: "inbound" | "outbound" | "adjustment";
+  type: "inbound" | "outbound" | "adjustment" | "sale";
   productName: string;
   quantity: number;
   operator: string;
@@ -32,14 +32,17 @@ export type RecentActivity = {
 };
 
 export type StockItem = PriorityProduct & {
-  category: "ECU" | "Cable" | "Accessory";
+  category: string;
   location: string;
   lastUpdated: string;
+  salePrice?: number;
+  categoryId?: string;
+  isActive?: boolean;
 };
 
 export type StockMovement = {
   id: string;
-  type: "inbound" | "outbound";
+  type: "inbound" | "outbound" | "adjustment" | "sale";
   productName: string;
   sku: string;
   quantity: number;

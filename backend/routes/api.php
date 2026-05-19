@@ -64,8 +64,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/sales/{sale}/void', [SaleController::class, 'void'])->middleware('role:admin');
 
     Route::get('/reports/stock', [ReportController::class, 'stock']);
+    Route::get('/reports/stock/export', [ReportController::class, 'stockExport']);
     Route::get('/reports/summary', [ReportController::class, 'summary']);
     Route::get('/reports/sales', [ReportController::class, 'sales']);
+    Route::get('/reports/sales/export', [ReportController::class, 'salesExport']);
     Route::get('/reports/inbound', [ReportController::class, 'inbound']);
+    Route::get('/reports/inbound/export', [ReportController::class, 'inboundExport']);
     Route::get('/reports/outbound', [ReportController::class, 'outbound']);
+    Route::get('/reports/outbound/export', [ReportController::class, 'outboundExport']);
 });
