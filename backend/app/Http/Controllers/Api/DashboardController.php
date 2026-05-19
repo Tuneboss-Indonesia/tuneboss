@@ -84,6 +84,7 @@ class DashboardController extends Controller
         };
 
         $sales = Sale::query()
+            ->where('status', 'completed')
             ->where('created_at', '>=', $this->periodStart($period))
             ->get()
             ->groupBy(fn (Sale $sale) => $sale->created_at->format($format))
@@ -107,6 +108,7 @@ class DashboardController extends Controller
             ->select('products.id', 'products.name', 'products.sku')
             ->selectRaw('SUM(sale_items.quantity) as quantity')
             ->selectRaw('SUM(sale_items.subtotal) as totalAmount')
+            ->where('sales.status', 'completed')
             ->where('sales.created_at', '>=', $this->periodStart($period))
             ->groupBy('products.id', 'products.name', 'products.sku')
             ->orderByDesc('quantity')

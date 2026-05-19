@@ -39,6 +39,10 @@ return new class extends Migration
             $table->string('invoice_number', 80)->unique();
             $table->foreignUuid('cashier_id')->constrained('users')->restrictOnDelete();
             $table->decimal('total_amount', 14, 2)->default(0);
+            $table->enum('status', ['completed', 'void'])->default('completed')->index();
+            $table->foreignUuid('voided_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('voided_at')->nullable();
+            $table->text('void_reason')->nullable();
             $table->timestamps();
 
             $table->index('created_at');

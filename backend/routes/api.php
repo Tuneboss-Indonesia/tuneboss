@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AppController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
@@ -12,8 +13,11 @@ use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
+Route::get('/health', [AppController::class, 'health']);
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/app/bootstrap', [AppController::class, 'bootstrap']);
+
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
@@ -55,6 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/sales', [SaleController::class, 'index']);
     Route::post('/sales', [SaleController::class, 'store']);
     Route::get('/sales/{sale}', [SaleController::class, 'show']);
+    Route::post('/sales/{sale}/void', [SaleController::class, 'void'])->middleware('role:admin');
 
     Route::get('/reports/stock', [ReportController::class, 'stock']);
     Route::get('/reports/sales', [ReportController::class, 'sales']);
