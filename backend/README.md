@@ -265,6 +265,11 @@ php artisan migrate --seed
 php artisan serve
 ```
 
+Akun seed development:
+
+- Admin: `admin@tuneboss.id` / `password`
+- Staff: `staff@tuneboss.id` / `password`
+
 Untuk test:
 
 ```bash
