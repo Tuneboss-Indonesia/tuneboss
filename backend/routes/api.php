@@ -76,6 +76,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/stock/adjustment', [StockController::class, 'adjustment'])->middleware('role:admin');
 
     Route::get('/sales', [SaleController::class, 'index']);
+    Route::post('/sales/preview', [SaleController::class, 'preview']);
     Route::post('/sales', [SaleController::class, 'store']);
     Route::get('/sales/{sale}', [SaleController::class, 'show']);
     Route::post('/sales/{sale}/void', [SaleController::class, 'void'])->middleware('role:admin');

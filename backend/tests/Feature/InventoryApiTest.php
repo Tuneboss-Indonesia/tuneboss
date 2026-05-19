@@ -238,6 +238,49 @@ class InventoryApiTest extends TestCase
         $this->assertSame($initialStock + 2, ProductStock::where('product_id', $product->id)->value('quantity'));
     }
 
+    public function test_sale_preview_validates_cart_and_does_not_update_stock(): void
+    {
+        $this->seed();
+        $staffToken = $this->loginToken('staff@tuneboss.id');
+        $product = Product::where('sku', 'TB-USB-CABLE')->firstOrFail();
+        $initialStock = $product->stock->quantity;
+
+        $this->withToken($staffToken)
+            ->postJson('/sales/preview', [
+                'items' => [
+                    ['product_id' => $product->id, 'quantity' => 2],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('canSubmit', true)
+            ->assertJsonPath('totalItems', 2)
+            ->assertJsonPath('items.0.productId', $product->id)
+            ->assertJsonPath('items.0.availableStock', $initialStock)
+            ->assertJsonPath('items.0.afterStock', $initialStock - 2)
+            ->assertJsonPath('totalAmount', (int) $product->sale_price * 2);
+
+        $this->assertSame($initialStock, ProductStock::where('product_id', $product->id)->value('quantity'));
+    }
+
+    public function test_sale_preview_rejects_insufficient_stock(): void
+    {
+        $this->seed();
+        $staffToken = $this->loginToken('staff@tuneboss.id');
+        $product = Product::where('sku', 'TB-ECU-VARIO')->firstOrFail();
+
+        $this->withToken($staffToken)
+            ->postJson('/sales/preview', [
+                'items' => [
+                    ['product_id' => $product->id, 'quantity' => 1],
+                ],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'insufficient_stock')
+            ->assertJsonPath('productId', $product->id)
+            ->assertJsonPath('availableStock', 0)
+            ->assertJsonPath('requestedQuantity', 1);
+    }
+
     public function test_stock_and_sales_accept_supplier_and_customer_references(): void
     {
         $this->seed();

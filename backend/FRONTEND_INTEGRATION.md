@@ -86,3 +86,9 @@ Endpoint CSV:
 - `GET /reports/outbound/export`
 
 Endpoint ini memakai filter yang sama dengan endpoint report list. Di mobile, download dapat ditangani dengan `expo-file-system` atau dibuka lewat browser/WebView sesuai kebutuhan UI.
+
+## Sale Preview
+
+Sebelum submit transaksi, frontend sebaiknya memanggil `POST /sales/preview` dengan body yang sama seperti `POST /sales`. Endpoint ini menghitung harga dari backend, menggabungkan item produk yang sama, mengecek stok cukup, dan tidak mengubah stok.
+
+Jika stok tidak cukup, response memakai `code: "insufficient_stock"` dan menyertakan `productId`, `availableStock`, dan `requestedQuantity`.

@@ -235,6 +235,7 @@ Request adjustment:
 ## Sales
 
 - `GET /sales?search=&status=&cashier_id=&customer_id=&from=&to=&per_page=15`
+- `POST /sales/preview`
 - `POST /sales`
 - `GET /sales/{id}`
 - `POST /sales/{id}/void` admin-only
@@ -250,6 +251,31 @@ Request create sale:
       "quantity": 1
     }
   ]
+}
+```
+
+Request preview memakai body yang sama dengan create sale, tetapi tidak membuat transaksi dan tidak mengurangi stok.
+
+Response preview:
+
+```json
+{
+  "customerId": "uuid-optional",
+  "items": [
+    {
+      "productId": "uuid",
+      "name": "USB Tuning Cable",
+      "sku": "TB-USB-CABLE",
+      "quantity": 2,
+      "availableStock": 18,
+      "afterStock": 16,
+      "price": 250000,
+      "subtotal": 500000
+    }
+  ],
+  "totalItems": 2,
+  "totalAmount": 500000,
+  "canSubmit": true
 }
 ```
 

@@ -33,60 +33,41 @@ class SaleController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'items' => ['required', 'array', 'min:1'],
-            'customer_id' => ['nullable', 'uuid', 'exists:customers,id'],
-            'items.*.product_id' => ['required', 'uuid', 'exists:products,id'],
-            'items.*.quantity' => ['required', 'integer', 'min:1'],
-        ]);
+        $data = $this->validatedCart($request);
 
         $sale = DB::transaction(function () use ($request, $data) {
+            $preview = $this->cartPreview($data['items'], true);
             $sale = Sale::create([
                 'invoice_number' => 'INV-'.now()->format('YmdHis').'-'.random_int(100, 999),
                 'cashier_id' => $request->user()->id,
                 'customer_id' => $data['customer_id'] ?? null,
                 'total_amount' => 0,
             ]);
-            $total = 0;
 
-            foreach ($data['items'] as $item) {
-                $product = Product::where('id', $item['product_id'])->where('is_active', true)->firstOrFail();
-                $stock = ProductStock::where('product_id', $product->id)->lockForUpdate()->firstOrFail();
-                $before = $stock->quantity;
-                $after = $before - $item['quantity'];
-
-                if ($after < 0) {
-                    throw new HttpResponseException(response()->json([
-                        'message' => "Stok {$product->name} tidak cukup.",
-                        'code' => 'insufficient_stock',
-                    ], 422));
-                }
-
-                $subtotal = $product->sale_price * $item['quantity'];
-                $total += $subtotal;
+            foreach ($preview['items'] as $item) {
                 $sale->items()->create([
-                    'product_id' => $product->id,
+                    'product_id' => $item['productId'],
                     'quantity' => $item['quantity'],
-                    'price' => $product->sale_price,
-                    'subtotal' => $subtotal,
+                    'price' => $item['price'],
+                    'subtotal' => $item['subtotal'],
                 ]);
 
-                $stock->update(['quantity' => $after]);
+                $item['stock']->update(['quantity' => $item['afterStock']]);
                 StockMovement::create([
-                    'product_id' => $product->id,
+                    'product_id' => $item['productId'],
                     'operator_id' => $request->user()->id,
                     'sale_id' => $sale->id,
                     'type' => 'sale',
                     'quantity' => $item['quantity'],
-                    'before_quantity' => $before,
-                    'after_quantity' => $after,
+                    'before_quantity' => $item['availableStock'],
+                    'after_quantity' => $item['afterStock'],
                     'party' => $sale->customer?->name ?? 'Penjualan',
                     'customer_id' => $sale->customer_id,
                     'note' => $sale->invoice_number,
                 ]);
             }
 
-            $sale->update(['total_amount' => $total]);
+            $sale->update(['total_amount' => $preview['totalAmount']]);
             AuditLog::create([
                 'user_id' => $request->user()->id,
                 'action' => 'sale.created',
@@ -95,7 +76,7 @@ class SaleController extends Controller
                 'metadata' => [
                     'invoiceNumber' => $sale->invoice_number,
                     'customerId' => $sale->customer_id,
-                    'totalAmount' => (float) $total,
+                    'totalAmount' => $preview['totalAmount'],
                     'items' => $sale->items()->get(['product_id', 'quantity', 'price', 'subtotal'])->toArray(),
                 ],
             ]);
@@ -104,6 +85,20 @@ class SaleController extends Controller
         });
 
         return (new SaleResource($sale->load(['cashier', 'customer', 'voidedBy', 'items.product'])))->response()->setStatusCode(201);
+    }
+
+    public function preview(Request $request)
+    {
+        $data = $this->validatedCart($request);
+        $preview = $this->cartPreview($data['items']);
+
+        return response()->json([
+            'customerId' => $data['customer_id'] ?? null,
+            'items' => collect($preview['items'])->map(fn (array $item) => collect($item)->except('stock')->all())->values(),
+            'totalItems' => array_sum(array_column($data['items'], 'quantity')),
+            'totalAmount' => $preview['totalAmount'],
+            'canSubmit' => true,
+        ]);
     }
 
     public function show(Sale $sale)
@@ -167,5 +162,64 @@ class SaleController extends Controller
         });
 
         return new SaleResource($sale->load(['cashier', 'customer', 'voidedBy', 'items.product']));
+    }
+
+    private function validatedCart(Request $request): array
+    {
+        return $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'customer_id' => ['nullable', 'uuid', 'exists:customers,id'],
+            'items.*.product_id' => ['required', 'uuid', 'exists:products,id'],
+            'items.*.quantity' => ['required', 'integer', 'min:1'],
+        ]);
+    }
+
+    private function cartPreview(array $items, bool $lockStock = false): array
+    {
+        $groupedItems = collect($items)
+            ->groupBy('product_id')
+            ->map(fn ($items, string $productId) => [
+                'product_id' => $productId,
+                'quantity' => (int) $items->sum('quantity'),
+            ])
+            ->values();
+
+        $previewItems = $groupedItems->map(function (array $item) use ($lockStock) {
+            $product = Product::where('id', $item['product_id'])->where('is_active', true)->firstOrFail();
+            $stockQuery = ProductStock::where('product_id', $product->id);
+            $stock = ($lockStock ? $stockQuery->lockForUpdate() : $stockQuery)->firstOrFail();
+            $availableStock = $stock->quantity;
+            $afterStock = $availableStock - $item['quantity'];
+
+            if ($afterStock < 0) {
+                throw new HttpResponseException(response()->json([
+                    'message' => "Stok {$product->name} tidak cukup.",
+                    'code' => 'insufficient_stock',
+                    'productId' => $product->id,
+                    'availableStock' => $availableStock,
+                    'requestedQuantity' => $item['quantity'],
+                ], 422));
+            }
+
+            $price = (float) $product->sale_price;
+            $subtotal = $price * $item['quantity'];
+
+            return [
+                'productId' => $product->id,
+                'name' => $product->name,
+                'sku' => $product->sku,
+                'quantity' => $item['quantity'],
+                'availableStock' => $availableStock,
+                'afterStock' => $afterStock,
+                'price' => $price,
+                'subtotal' => $subtotal,
+                'stock' => $stock,
+            ];
+        });
+
+        return [
+            'items' => $previewItems->all(),
+            'totalAmount' => (float) $previewItems->sum('subtotal'),
+        ];
     }
 }
