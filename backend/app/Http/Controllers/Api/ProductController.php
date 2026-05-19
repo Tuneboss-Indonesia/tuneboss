@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\ProductResource;
 use App\Models\AuditLog;
 use App\Models\Product;
 use Illuminate\Http\Request;
@@ -27,7 +28,7 @@ class ProductController extends Controller
             ->orderBy('name')
             ->paginate((int) $request->query('per_page', 15));
 
-        return response()->json($products);
+        return ProductResource::collection($products);
     }
 
     public function store(Request $request)
@@ -42,12 +43,12 @@ class ProductController extends Controller
             return $product;
         });
 
-        return response()->json($product->load(['category', 'stock']), 201);
+        return (new ProductResource($product->load(['category', 'stock'])))->response()->setStatusCode(201);
     }
 
     public function show(Product $product)
     {
-        return response()->json($product->load(['category', 'stock']));
+        return new ProductResource($product->load(['category', 'stock']));
     }
 
     public function update(Request $request, Product $product)
@@ -61,7 +62,7 @@ class ProductController extends Controller
             return $product;
         });
 
-        return response()->json($product->load(['category', 'stock']));
+        return new ProductResource($product->load(['category', 'stock']));
     }
 
     public function destroy(Request $request, Product $product)
@@ -89,8 +90,10 @@ class ProductController extends Controller
             'sku' => $product->sku,
             'barcode' => $product->barcode,
             'category' => $product->category?->name,
+            'categoryId' => $product->category_id,
             'stock' => $stock,
             'minStock' => $product->min_stock,
+            'salePrice' => (float) $product->sale_price,
             'status' => $this->status($stock, $product->min_stock),
         ]);
     }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\CategoryResource;
 use App\Models\AuditLog;
 use App\Models\Category;
 use Illuminate\Http\Request;
@@ -12,7 +13,7 @@ class CategoryController extends Controller
 {
     public function index()
     {
-        return response()->json(Category::withCount('products')->orderBy('name')->get());
+        return CategoryResource::collection(Category::withCount('products')->orderBy('name')->get());
     }
 
     public function store(Request $request)
@@ -25,12 +26,12 @@ class CategoryController extends Controller
         $category = Category::create($data);
         $this->audit($request, 'category.created', $category);
 
-        return response()->json($category, 201);
+        return (new CategoryResource($category))->response()->setStatusCode(201);
     }
 
     public function show(Category $category)
     {
-        return response()->json($category->loadCount('products'));
+        return new CategoryResource($category->loadCount('products'));
     }
 
     public function update(Request $request, Category $category)
@@ -43,7 +44,7 @@ class CategoryController extends Controller
         $category->update($data);
         $this->audit($request, 'category.updated', $category);
 
-        return response()->json($category);
+        return new CategoryResource($category);
     }
 
     public function destroy(Request $request, Category $category)

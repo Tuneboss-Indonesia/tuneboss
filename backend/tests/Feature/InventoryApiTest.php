@@ -79,13 +79,13 @@ class InventoryApiTest extends TestCase
                 'role' => 'staff',
             ])
             ->assertCreated()
-            ->assertJsonPath('user.email', 'operator@tuneboss.id');
+            ->assertJsonPath('email', 'operator@tuneboss.id');
 
         $this->withToken($adminToken)
-            ->patchJson('/users/'.$response->json('user.id').'/deactivate')
+            ->patchJson('/users/'.$response->json('id').'/deactivate')
             ->assertOk();
 
-        $this->assertFalse(User::find($response->json('user.id'))->is_active);
+        $this->assertFalse(User::find($response->json('id'))->is_active);
     }
 
     public function test_staff_cannot_manage_users(): void
@@ -162,9 +162,34 @@ class InventoryApiTest extends TestCase
                 ],
             ])
             ->assertCreated()
-            ->assertJsonStructure(['id', 'invoice_number', 'items']);
+            ->assertJsonStructure(['id', 'invoiceNumber', 'items']);
 
         $this->assertSame($initialStock + 2, ProductStock::where('product_id', $product->id)->value('quantity'));
+    }
+
+    public function test_admin_can_void_sale_and_restore_stock(): void
+    {
+        $this->seed();
+        $adminToken = $this->loginToken('admin@tuneboss.id');
+        $product = Product::where('sku', 'TB-USB-CABLE')->firstOrFail();
+        $initialStock = $product->stock->quantity;
+
+        $sale = $this->withToken($adminToken)
+            ->postJson('/sales', [
+                'items' => [
+                    ['product_id' => $product->id, 'quantity' => 1],
+                ],
+            ])
+            ->assertCreated();
+
+        $this->assertSame($initialStock - 1, ProductStock::where('product_id', $product->id)->value('quantity'));
+
+        $this->withToken($adminToken)
+            ->postJson('/sales/'.$sale->json('id').'/void', ['reason' => 'Salah input'])
+            ->assertOk()
+            ->assertJsonPath('status', 'void');
+
+        $this->assertSame($initialStock, ProductStock::where('product_id', $product->id)->value('quantity'));
     }
 
     public function test_dashboard_sales_endpoints_and_audit_logs_are_available(): void
@@ -182,6 +207,37 @@ class InventoryApiTest extends TestCase
 
         $this->withToken($adminToken)
             ->getJson('/audit-logs')
+            ->assertOk()
+            ->assertJsonStructure(['data']);
+    }
+
+    public function test_filters_health_and_bootstrap_are_available(): void
+    {
+        $this->seed();
+        $adminToken = $this->loginToken('admin@tuneboss.id');
+        $product = Product::where('sku', 'TB-USB-CABLE')->firstOrFail();
+
+        $this->getJson('/health')
+            ->assertOk()
+            ->assertJsonPath('status', 'ok');
+
+        $this->withToken($adminToken)
+            ->getJson('/app/bootstrap')
+            ->assertOk()
+            ->assertJsonStructure(['user', 'permissions', 'categories', 'summary']);
+
+        $this->withToken($adminToken)
+            ->getJson('/stock/movements?product_id='.$product->id.'&from='.now()->toDateString())
+            ->assertOk()
+            ->assertJsonStructure(['data']);
+
+        $this->withToken($adminToken)
+            ->getJson('/reports/stock?product_id='.$product->id)
+            ->assertOk()
+            ->assertJsonStructure(['data']);
+
+        $this->withToken($adminToken)
+            ->getJson('/sales?status=completed')
             ->assertOk()
             ->assertJsonStructure(['data']);
     }
