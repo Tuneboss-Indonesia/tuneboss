@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductStock;
+use App\Models\RestockAlert;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
@@ -190,6 +191,69 @@ class InventoryApiTest extends TestCase
             ->assertJsonPath('imageUrl', null);
 
         Storage::disk('public')->assertMissing($upload->json('imagePath'));
+    }
+
+    public function test_restock_alerts_can_be_listed_acknowledged_and_resolved(): void
+    {
+        $this->seed();
+        $adminToken = $this->loginToken('admin@tuneboss.id');
+        $staffToken = $this->loginToken('staff@tuneboss.id');
+
+        $alerts = $this->withToken($staffToken)
+            ->getJson('/restock-alerts?active_only=1')
+            ->assertOk()
+            ->assertJsonStructure(['data' => [['id', 'productId', 'status', 'severity', 'currentStock', 'threshold', 'product']]])
+            ->json('data');
+
+        $this->assertNotEmpty($alerts);
+        $alertId = $alerts[0]['id'];
+
+        $this->withToken($staffToken)
+            ->postJson('/restock-alerts/'.$alertId.'/acknowledge', ['note' => 'Akan diproses'])
+            ->assertOk()
+            ->assertJsonPath('status', 'acknowledged')
+            ->assertJsonPath('note', 'Akan diproses');
+
+        $this->assertDatabaseHas('restock_alerts', [
+            'id' => $alertId,
+            'status' => 'acknowledged',
+        ]);
+
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($staffToken)
+            ->postJson('/restock-alerts/'.$alertId.'/resolve', ['note' => 'Blocked'])
+            ->assertForbidden();
+
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($adminToken)
+            ->postJson('/restock-alerts/'.$alertId.'/resolve', ['note' => 'Sudah dibuat PO'])
+            ->assertOk()
+            ->assertJsonPath('status', 'resolved')
+            ->assertJsonPath('note', 'Sudah dibuat PO');
+    }
+
+    public function test_restock_alerts_auto_resolve_when_stock_is_safe(): void
+    {
+        $this->seed();
+        $staffToken = $this->loginToken('staff@tuneboss.id');
+        $product = Product::where('sku', 'TB-ECU-NMAX')->firstOrFail();
+
+        $this->withToken($staffToken)
+            ->getJson('/restock-alerts?active_only=1')
+            ->assertOk();
+
+        $alert = RestockAlert::where('product_id', $product->id)->firstOrFail();
+        $this->assertSame('open', $alert->status);
+
+        ProductStock::where('product_id', $product->id)->update(['quantity' => $product->min_stock]);
+
+        $this->withToken($staffToken)
+            ->getJson('/restock-alerts?status=resolved')
+            ->assertOk();
+
+        $this->assertSame('resolved', $alert->refresh()->status);
     }
 
     public function test_admin_can_manage_suppliers_and_customers(): void

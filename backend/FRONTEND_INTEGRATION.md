@@ -47,6 +47,10 @@ type ProductDto = {
 
 Upload foto produk memakai multipart request ke `POST /products/{id}/image` dengan field `image`. Gunakan `imageUrl` dari response product untuk menampilkan gambar di frontend. Hapus foto dengan `DELETE /products/{id}/image`.
 
+## Restock Alerts
+
+Gunakan `GET /restock-alerts?active_only=1` untuk badge/dashboard produk yang perlu restock. Staff bisa acknowledge alert dengan `POST /restock-alerts/{id}/acknowledge`; admin bisa resolve dengan `POST /restock-alerts/{id}/resolve`.
+
 ```ts
 type SaleDto = {
   id: string;

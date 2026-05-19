@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\RestockAlertController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\StockController;
 use App\Http\Controllers\Api\SupplierController;
@@ -42,6 +43,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/customers/{customer}', [CustomerController::class, 'update']);
         Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
 
+        Route::post('/restock-alerts/{restockAlert}/resolve', [RestockAlertController::class, 'resolve']);
+
         Route::get('/audit-logs', [AuditLogController::class, 'index']);
     });
 
@@ -50,6 +53,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard/recent-activities', [DashboardController::class, 'recentActivities']);
     Route::get('/dashboard/sales-chart', [DashboardController::class, 'salesChart']);
     Route::get('/dashboard/top-products', [DashboardController::class, 'topProducts']);
+
+    Route::get('/restock-alerts', [RestockAlertController::class, 'index']);
+    Route::post('/restock-alerts/{restockAlert}/acknowledge', [RestockAlertController::class, 'acknowledge']);
 
     Route::get('/products/lookup', [ProductController::class, 'lookup']);
     Route::get('/products', [ProductController::class, 'index']);

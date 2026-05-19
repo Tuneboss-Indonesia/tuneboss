@@ -218,6 +218,39 @@ Field:
 
 Response product menyertakan `imagePath` dan `imageUrl`.
 
+## Restock Alerts
+
+- `GET /restock-alerts?status=&severity=&product_id=&active_only=1&per_page=15`
+- `POST /restock-alerts/{id}/acknowledge`
+- `POST /restock-alerts/{id}/resolve` admin-only
+
+Alert dibuat otomatis saat endpoint list dibaca untuk produk aktif dengan stok `empty` atau `low`. Jika stok sudah aman, alert aktif otomatis berubah ke `resolved`.
+
+Request acknowledge/resolve:
+
+```json
+{
+  "note": "Akan diproses pembelian"
+}
+```
+
+Response:
+
+```json
+{
+  "id": "uuid",
+  "productId": "uuid",
+  "status": "open",
+  "severity": "low",
+  "currentStock": 4,
+  "threshold": 12,
+  "product": {
+    "name": "TuneBoss ECU Yamaha NMAX",
+    "sku": "TB-ECU-NMAX"
+  }
+}
+```
+
 ## Stock
 
 - `GET /stock/movements?product_id=&operator_id=&supplier_id=&customer_id=&type=&from=&to=&per_page=15`
