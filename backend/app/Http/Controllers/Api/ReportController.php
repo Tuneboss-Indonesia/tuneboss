@@ -3,16 +3,47 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\ProductResource;
-use App\Http\Resources\SaleResource;
-use App\Http\Resources\StockMovementResource;
+use App\Http\Resources\ProductCollection;
+use App\Http\Resources\SaleCollection;
+use App\Http\Resources\StockMovementCollection;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\StockMovement;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ReportController extends Controller
 {
+    public function summary(Request $request)
+    {
+        $sales = $this->dateFilter(Sale::query(), $request);
+        $movements = $this->dateFilter(StockMovement::query(), $request);
+
+        $stock = Product::query()
+            ->where('is_active', true)
+            ->leftJoin('product_stocks', 'products.id', '=', 'product_stocks.product_id');
+
+        return response()->json([
+            'sales' => [
+                'completedCount' => (clone $sales)->where('status', 'completed')->count(),
+                'voidCount' => (clone $sales)->where('status', 'void')->count(),
+                'totalAmount' => (float) (clone $sales)->where('status', 'completed')->sum('total_amount'),
+            ],
+            'stockMovements' => [
+                'inboundQuantity' => (int) (clone $movements)->where('type', 'inbound')->sum('quantity'),
+                'outboundQuantity' => (int) (clone $movements)->where('type', 'outbound')->sum('quantity'),
+                'saleQuantity' => (int) (clone $movements)->where('type', 'sale')->sum('quantity'),
+                'adjustmentCount' => (clone $movements)->where('type', 'adjustment')->count(),
+            ],
+            'stock' => [
+                'totalSku' => (clone $stock)->count('products.id'),
+                'totalUnits' => (int) (clone $stock)->sum(DB::raw('COALESCE(product_stocks.quantity, 0)')),
+                'lowStockCount' => (clone $stock)->whereRaw('COALESCE(product_stocks.quantity, 0) > 0')->whereColumn('product_stocks.quantity', '<', 'products.min_stock')->count(),
+                'outOfStockCount' => (clone $stock)->whereRaw('COALESCE(product_stocks.quantity, 0) = 0')->count(),
+            ],
+        ]);
+    }
+
     public function stock(Request $request)
     {
         $products = Product::with(['category', 'stock'])
@@ -31,7 +62,7 @@ class ReportController extends Controller
             ->orderBy('name')
             ->paginate((int) $request->query('per_page', 15));
 
-        return ProductResource::collection($products);
+        return new ProductCollection($products);
     }
 
     public function sales(Request $request)
@@ -43,7 +74,7 @@ class ReportController extends Controller
             ->latest()
             ->paginate((int) $request->query('per_page', 15));
 
-        return SaleResource::collection($sales);
+        return new SaleCollection($sales);
     }
 
     public function inbound(Request $request)
@@ -66,7 +97,7 @@ class ReportController extends Controller
             ->latest()
             ->paginate((int) $request->query('per_page', 15));
 
-        return StockMovementResource::collection($movements);
+        return new StockMovementCollection($movements);
     }
 
     private function dateFilter($query, Request $request)

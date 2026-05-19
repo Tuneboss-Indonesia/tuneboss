@@ -19,6 +19,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/app/bootstrap', [AppController::class, 'bootstrap']);
 
     Route::get('/auth/me', [AuthController::class, 'me']);
+    Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);
+    Route::patch('/auth/password', [AuthController::class, 'updatePassword']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
     Route::middleware('role:admin')->group(function () {
@@ -62,6 +64,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/sales/{sale}/void', [SaleController::class, 'void'])->middleware('role:admin');
 
     Route::get('/reports/stock', [ReportController::class, 'stock']);
+    Route::get('/reports/summary', [ReportController::class, 'summary']);
     Route::get('/reports/sales', [ReportController::class, 'sales']);
     Route::get('/reports/inbound', [ReportController::class, 'inbound']);
     Route::get('/reports/outbound', [ReportController::class, 'outbound']);

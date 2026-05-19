@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\ProductCollection;
 use App\Http\Resources\ProductResource;
 use App\Models\AuditLog;
 use App\Models\Product;
@@ -28,7 +29,7 @@ class ProductController extends Controller
             ->orderBy('name')
             ->paginate((int) $request->query('per_page', 15));
 
-        return ProductResource::collection($products);
+        return new ProductCollection($products);
     }
 
     public function store(Request $request)

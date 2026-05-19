@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\SaleCollection;
 use App\Http\Resources\SaleResource;
 use App\Models\AuditLog;
 use App\Models\Product;
@@ -25,7 +26,7 @@ class SaleController extends Controller
             ->latest()
             ->paginate((int) $request->query('per_page', 15));
 
-        return SaleResource::collection($sales);
+        return new SaleCollection($sales);
     }
 
     public function store(Request $request)

@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserResource;
 use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -50,6 +52,53 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         return response()->json(['user' => $this->userPayload($request->user())]);
+    }
+
+    public function updateProfile(Request $request)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:150'],
+            'email' => ['required', 'email', 'max:150', Rule::unique('users', 'email')->ignore($request->user()->id)],
+        ]);
+
+        $before = $request->user()->only(['name', 'email']);
+        $request->user()->update($data);
+
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'auth.profile_updated',
+            'entity' => 'users',
+            'entity_id' => $request->user()->id,
+            'metadata' => ['before' => $before, 'after' => $request->user()->only(['name', 'email'])],
+        ]);
+
+        return new UserResource($request->user()->refresh());
+    }
+
+    public function updatePassword(Request $request)
+    {
+        $data = $request->validate([
+            'currentPassword' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:8'],
+        ]);
+
+        if (! Hash::check($data['currentPassword'], $request->user()->password)) {
+            throw ValidationException::withMessages([
+                'currentPassword' => ['Password saat ini tidak sesuai.'],
+            ]);
+        }
+
+        $request->user()->update(['password' => $data['password']]);
+        $request->user()->tokens()->where('id', '!=', $request->user()->currentAccessToken()?->id)->delete();
+
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'auth.password_updated',
+            'entity' => 'users',
+            'entity_id' => $request->user()->id,
+        ]);
+
+        return response()->json(['message' => 'Password diperbarui.']);
     }
 
     public function logout(Request $request)
