@@ -37,7 +37,20 @@ MariaDB/MySQL Database
 Dokumen pendukung:
 
 - `ERD.md` untuk rancangan database dan relasi tabel.
+- `ERD.png` untuk gambar ERD siap pakai.
+- `ERD.mmd` untuk source Mermaid ERD jika perlu generate ulang gambar.
+- `TABLES.md` untuk spesifikasi kolom, key, nullable, default, foreign key, dan rule tabel.
 - `FLOWCHART.md` untuk alur login, dashboard, stok, penjualan, laporan, dan role access.
+- `FLOWCHART.mmd` untuk source Mermaid flowchart utama jika perlu generate ulang gambar.
+- `FLOWCHART.png` untuk gambar flowchart utama siap pakai.
+
+Preview ERD:
+
+![ERD TuneBoss Inventory](./ERD.png)
+
+Preview Flowchart:
+
+![Flowchart TuneBoss Inventory](./FLOWCHART.png)
 
 ## Struktur Project
 

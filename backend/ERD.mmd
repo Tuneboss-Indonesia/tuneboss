@@ -1,0 +1,97 @@
+erDiagram
+  users {
+    uuid id PK
+    varchar name
+    varchar email UK
+    varchar password
+    enum role
+    boolean is_active
+    timestamp email_verified_at
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  categories {
+    uuid id PK
+    varchar name UK
+    text description
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  products {
+    uuid id PK
+    uuid category_id FK
+    varchar name
+    varchar sku UK
+    varchar barcode UK
+    decimal sale_price
+    int min_stock
+    boolean is_active
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  product_stocks {
+    uuid id PK
+    uuid product_id FK
+    int quantity
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  stock_movements {
+    uuid id PK
+    uuid product_id FK
+    uuid operator_id FK
+    uuid sale_id FK
+    enum type
+    int quantity
+    int before_quantity
+    int after_quantity
+    varchar party
+    text note
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  sales {
+    uuid id PK
+    varchar invoice_number UK
+    uuid cashier_id FK
+    decimal total_amount
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  sale_items {
+    uuid id PK
+    uuid sale_id FK
+    uuid product_id FK
+    int quantity
+    decimal price
+    decimal subtotal
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  audit_logs {
+    uuid id PK
+    uuid user_id FK
+    varchar action
+    varchar entity
+    uuid entity_id
+    json metadata
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  categories ||--o{ products : has
+  products ||--|| product_stocks : has
+  products ||--o{ stock_movements : records
+  users ||--o{ stock_movements : operates
+  users ||--o{ sales : cashiers
+  sales ||--o{ sale_items : contains
+  products ||--o{ sale_items : sold_as
+  sales ||--o{ stock_movements : creates
+  users ||--o{ audit_logs : performs
