@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\DashboardController;
@@ -7,17 +8,31 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\StockController;
+use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
-Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/users', [UserController::class, 'index']);
+        Route::post('/users', [UserController::class, 'store']);
+        Route::get('/users/{user}', [UserController::class, 'show']);
+        Route::patch('/users/{user}', [UserController::class, 'update']);
+        Route::patch('/users/{user}/password', [UserController::class, 'updatePassword']);
+        Route::patch('/users/{user}/deactivate', [UserController::class, 'deactivate']);
+
+        Route::get('/audit-logs', [AuditLogController::class, 'index']);
+    });
+
     Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
     Route::get('/dashboard/priority-products', [DashboardController::class, 'priorityProducts']);
     Route::get('/dashboard/recent-activities', [DashboardController::class, 'recentActivities']);
+    Route::get('/dashboard/sales-chart', [DashboardController::class, 'salesChart']);
+    Route::get('/dashboard/top-products', [DashboardController::class, 'topProducts']);
 
     Route::get('/products/lookup', [ProductController::class, 'lookup']);
     Route::get('/products', [ProductController::class, 'index']);
