@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\StockMovementCollection;
 use App\Http\Resources\StockMovementResource;
 use App\Models\AuditLog;
 use App\Models\Product;
@@ -24,7 +25,7 @@ class StockController extends Controller
             ->latest()
             ->paginate((int) $request->query('per_page', 15));
 
-        return StockMovementResource::collection($movements);
+        return new StockMovementCollection($movements);
     }
 
     public function inbound(Request $request)

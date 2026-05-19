@@ -219,7 +219,8 @@ class InventoryApiTest extends TestCase
 
         $this->getJson('/health')
             ->assertOk()
-            ->assertJsonPath('status', 'ok');
+            ->assertJsonPath('status', 'ok')
+            ->assertJsonPath('database', 'ok');
 
         $this->withToken($adminToken)
             ->getJson('/app/bootstrap')
@@ -239,7 +240,42 @@ class InventoryApiTest extends TestCase
         $this->withToken($adminToken)
             ->getJson('/sales?status=completed')
             ->assertOk()
-            ->assertJsonStructure(['data']);
+            ->assertJsonStructure(['data', 'meta' => ['currentPage', 'lastPage', 'perPage', 'total']]);
+
+        $this->withToken($adminToken)
+            ->getJson('/reports/summary?from='.now()->startOfMonth()->toDateString())
+            ->assertOk()
+            ->assertJsonStructure([
+                'sales' => ['completedCount', 'voidCount', 'totalAmount'],
+                'stockMovements' => ['inboundQuantity', 'outboundQuantity', 'saleQuantity', 'adjustmentCount'],
+                'stock' => ['totalSku', 'totalUnits', 'lowStockCount', 'outOfStockCount'],
+            ]);
+    }
+
+    public function test_user_can_update_own_profile_and_password(): void
+    {
+        $this->seed();
+        $token = $this->loginToken('staff@tuneboss.id');
+
+        $this->withToken($token)
+            ->patchJson('/auth/profile', [
+                'name' => 'Staff Operasional',
+                'email' => 'staff.ops@tuneboss.id',
+            ])
+            ->assertOk()
+            ->assertJsonPath('email', 'staff.ops@tuneboss.id');
+
+        $this->withToken($token)
+            ->patchJson('/auth/password', [
+                'currentPassword' => 'password',
+                'password' => 'password-baru',
+            ])
+            ->assertOk();
+
+        $this->postJson('/auth/login', [
+            'email' => 'staff.ops@tuneboss.id',
+            'password' => 'password-baru',
+        ])->assertOk();
     }
 
     private function loginToken(string $email): string

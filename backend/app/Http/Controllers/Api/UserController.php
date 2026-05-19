@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserCollection;
 use App\Http\Resources\UserResource;
 use App\Models\AuditLog;
 use App\Models\User;
@@ -24,7 +25,7 @@ class UserController extends Controller
             ->orderBy('name')
             ->paginate((int) $request->query('per_page', 15));
 
-        return UserResource::collection($users);
+        return new UserCollection($users);
     }
 
     public function store(Request $request)

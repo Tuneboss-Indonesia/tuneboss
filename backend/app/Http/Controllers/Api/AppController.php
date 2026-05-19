@@ -17,6 +17,7 @@ class AppController extends Controller
 
         return response()->json([
             'status' => 'ok',
+            'database' => 'ok',
             'service' => 'tuneboss-inventory-api',
             'timestamp' => now()->toISOString(),
         ]);

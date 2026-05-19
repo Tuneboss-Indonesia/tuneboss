@@ -44,6 +44,7 @@ Dokumen pendukung:
 - `FLOWCHART.mmd` untuk source Mermaid flowchart utama jika perlu generate ulang gambar.
 - `FLOWCHART.png` untuk gambar flowchart utama siap pakai.
 - `DEPLOYMENT.md` untuk panduan deploy ke shared hosting/cPanel.
+- `API.md` untuk kontrak endpoint, auth header, request/response, dan filter API.
 
 Preview ERD:
 
