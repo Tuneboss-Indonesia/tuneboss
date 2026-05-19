@@ -13,6 +13,7 @@ import { LaporanPage, ReportDetail } from "./pages/LaporanPage";
 import { MovementPage } from "./pages/MovementPage";
 import { PenjualanPage } from "./pages/PenjualanPage";
 import { ScanPage } from "./pages/ScanPage";
+import { StockOpnamePage } from "./pages/StockOpnamePage";
 import { StokPage } from "./pages/StokPage";
 import type { ModalKind, ModalMode, PageKey } from "./types";
 import { styles } from "./styles";
@@ -21,6 +22,7 @@ export function AdminApp() {
   const [page, setPage] = useState<PageKey>("dashboard");
   const [modal, setModal] = useState<ModalKind>(null);
   const [modalMode, setModalMode] = useState<ModalMode>("add");
+  const [modalProductId, setModalProductId] = useState<string | undefined>();
   const [token, setToken] = useState(() => loadStoredAuth()?.accessToken ?? "");
   const [fontsLoaded] = useFonts({
     "Futura PT": require("../../../assets/fonts/Futura-PT-Book.woff2"),
@@ -28,8 +30,9 @@ export function AdminApp() {
     SQR721BE: require("../../../assets/fonts/SQR721BE.woff2"),
   });
 
-  const openModal = (kind: Exclude<ModalKind, null>, mode: ModalMode = "add") => {
+  const openModal = (kind: Exclude<ModalKind, null>, mode: ModalMode = "add", productId?: string) => {
     setModalMode(mode);
+    setModalProductId(productId);
     setModal(kind);
   };
 
@@ -47,9 +50,10 @@ export function AdminApp() {
           {page === "kategori" ? <KategoriPage onOpenModal={(mode) => openModal("kategori", mode)} /> : null}
           {page === "stok" ? <StokPage onOpenModal={(mode) => openModal("stok", mode)} /> : null}
           {page === "penjualan" ? <PenjualanPage /> : null}
-          {page === "scan" ? <ScanPage onGoInbound={() => setPage("masuk")} onGoOutbound={() => setPage("keluar")} /> : null}
+          {page === "scan" ? <ScanPage onGoInbound={(productId) => openModal("masuk", "add", productId)} onGoOutbound={(productId) => openModal("keluar", "add", productId)} /> : null}
           {page === "masuk" ? <MovementPage kind="inbound" onOpenModal={() => openModal("masuk")} /> : null}
           {page === "keluar" ? <MovementPage kind="outbound" onOpenModal={() => openModal("keluar")} /> : null}
+          {page === "opname" ? <StockOpnamePage /> : null}
           {page === "laporan" ? <LaporanPage onNavigate={setPage} /> : null}
           {page === "admin" ? <AdminPage /> : null}
           {page === "laporan-stok" ? <ReportDetail type="stok" onBack={() => setPage("laporan")} /> : null}
@@ -57,7 +61,7 @@ export function AdminApp() {
           {page === "laporan-masuk" ? <ReportDetail type="masuk" onBack={() => setPage("laporan")} /> : null}
           {page === "laporan-keluar" ? <ReportDetail type="keluar" onBack={() => setPage("laporan")} /> : null}
         </Layout>
-        <ActionModal kind={modal} mode={modalMode} onClose={() => setModal(null)} />
+        <ActionModal initialProductId={modalProductId} kind={modal} mode={modalMode} onClose={() => { setModal(null); setModalProductId(undefined); }} />
       </InventoryDataProvider>
     </ErrorBoundary>
   );

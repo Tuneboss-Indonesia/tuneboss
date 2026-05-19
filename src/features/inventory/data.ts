@@ -17,6 +17,7 @@ export const mainMenu: MenuItem[] = [
 export const stockMenu: MenuItem[] = [
   ["masuk", PackagePlus, "Barang Masuk"],
   ["keluar", PackageMinus, "Barang Keluar"],
+  ["opname", ClipboardList, "Stock Opname"],
   ["laporan", FileBarChart, "Laporan"],
   ["admin", Settings, "Admin"],
 ];

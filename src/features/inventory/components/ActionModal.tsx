@@ -7,7 +7,7 @@ import type { ModalKind, ModalMode } from "../types";
 import { styles } from "../styles";
 import { colors } from "../../../theme/tokens";
 
-export function ActionModal({ kind, mode, onClose }: { kind: ModalKind; mode: ModalMode; onClose: () => void }) {
+export function ActionModal({ initialProductId, kind, mode, onClose }: { initialProductId?: string; kind: ModalKind; mode: ModalMode; onClose: () => void }) {
   const { categories, customers, refresh, stockItems, suppliers, token } = useInventoryData();
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
@@ -39,8 +39,12 @@ export function ActionModal({ kind, mode, onClose }: { kind: ModalKind; mode: Mo
 
   useEffect(() => {
     if (kind === "masuk" || kind === "keluar") setSelectedPartyId("");
-    if (kind === "masuk" || kind === "keluar") setSelectedProductId("");
-  }, [kind]);
+    if (kind === "masuk" || kind === "keluar") {
+      const product = stockItems.find((item) => item.id === initialProductId);
+      setSelectedProductId(product?.id ?? "");
+      setSku(product?.sku ?? "");
+    }
+  }, [initialProductId, kind, stockItems]);
 
   const reset = () => {
     setName("");

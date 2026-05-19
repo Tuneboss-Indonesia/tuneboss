@@ -10,7 +10,7 @@ import { Metric } from "../components/common";
 
 type LookupResponse = StockItem & { salePrice?: number; categoryId?: string };
 
-export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => void; onGoOutbound: () => void }) {
+export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: (productId?: string) => void; onGoOutbound: (productId?: string) => void }) {
   const { categories, refresh, stockItems, token } = useInventoryData();
   const [mode, setMode] = useState<"camera" | "scanner">("scanner");
   const [barcode, setBarcode] = useState(stockItems[0]?.barcode || stockItems[0]?.sku || "");
@@ -126,8 +126,8 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => voi
                 <Metric title="Min" value={String(result.minStock)} />
               </View>
               <View style={styles.scanActionRow}>
-                <Pressable onPress={onGoInbound} style={styles.secondaryButton}><PackagePlus color={colors.primary} size={18} /><Text style={styles.secondaryButtonText}>Stok Masuk</Text></Pressable>
-                <Pressable onPress={onGoOutbound} style={styles.secondaryButton}><PackageMinus color={colors.primary} size={18} /><Text style={styles.secondaryButtonText}>Stok Keluar</Text></Pressable>
+                <Pressable onPress={() => onGoInbound(result.id)} style={styles.secondaryButton}><PackagePlus color={colors.primary} size={18} /><Text style={styles.secondaryButtonText}>Stok Masuk</Text></Pressable>
+                <Pressable onPress={() => onGoOutbound(result.id)} style={styles.secondaryButton}><PackageMinus color={colors.primary} size={18} /><Text style={styles.secondaryButtonText}>Stok Keluar</Text></Pressable>
               </View>
             </View>
           ) : null}
