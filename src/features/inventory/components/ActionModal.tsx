@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Modal, Pressable, Text, TextInput, View } from "react-native";
+import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { ChevronDown } from "lucide-react-native";
 import { apiRequest } from "../api";
 import { useInventoryData } from "../InventoryDataContext";
@@ -10,9 +10,12 @@ import { colors } from "../../../theme/tokens";
 export function ActionModal({ kind, mode, onClose }: { kind: ModalKind; mode: ModalMode; onClose: () => void }) {
   const { categories, customers, refresh, stockItems, suppliers, token } = useInventoryData();
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedPartyId, setSelectedPartyId] = useState("");
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const [productOpen, setProductOpen] = useState(false);
   const [partyOpen, setPartyOpen] = useState(false);
+  const [productQuery, setProductQuery] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [sku, setSku] = useState("");
@@ -25,6 +28,8 @@ export function ActionModal({ kind, mode, onClose }: { kind: ModalKind; mode: Mo
   const actionLabel = mode === "edit" ? "Edit" : "Tambah";
   const title = kind === "kategori" ? `${actionLabel} Kategori` : kind === "stok" ? `${actionLabel} Barang` : kind === "masuk" ? "Tambah Stok Masuk" : kind === "keluar" ? "Kurangi Stok" : "";
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
+  const selectedProduct = stockItems.find((item) => item.id === selectedProductId);
+  const productOptions = stockItems.filter((item) => `${item.name} ${item.sku} ${item.barcode}`.toLowerCase().includes(productQuery.toLowerCase())).slice(0, 25);
   const parties = kind === "masuk" ? suppliers : customers;
   const selectedParty = parties.find((item) => item.id === selectedPartyId);
 
@@ -34,12 +39,15 @@ export function ActionModal({ kind, mode, onClose }: { kind: ModalKind; mode: Mo
 
   useEffect(() => {
     if (kind === "masuk" || kind === "keluar") setSelectedPartyId("");
+    if (kind === "masuk" || kind === "keluar") setSelectedProductId("");
   }, [kind]);
 
   const reset = () => {
     setName("");
     setDescription("");
     setSku("");
+    setSelectedProductId("");
+    setProductQuery("");
     setBarcode("");
     setPrice("");
     setStock("");
@@ -71,7 +79,7 @@ export function ActionModal({ kind, mode, onClose }: { kind: ModalKind; mode: Mo
       }
 
       if (kind === "masuk" || kind === "keluar") {
-        const product = stockItems.find((item) => item.sku.toLowerCase() === sku.toLowerCase() || item.barcode.toLowerCase() === sku.toLowerCase());
+        const product = selectedProduct ?? stockItems.find((item) => item.sku.toLowerCase() === sku.toLowerCase() || item.barcode.toLowerCase() === sku.toLowerCase());
         if (!product) throw new Error("Produk tidak ditemukan. Isi SKU/barcode yang valid.");
 
         await apiRequest(kind === "masuk" ? "/stock/inbound" : "/stock/outbound", {
@@ -92,10 +100,11 @@ export function ActionModal({ kind, mode, onClose }: { kind: ModalKind; mode: Mo
 
   return (
     <Modal visible={kind !== null} transparent animationType="fade" onRequestClose={close}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>{title}</Text>
-          {mode === "edit" ? <Text style={styles.errorText}>Edit detail dari modal belum diaktifkan; gunakan tambah/nonaktif untuk sementara.</Text> : null}
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+          <ScrollView contentContainerStyle={styles.stack}>
+            <Text style={styles.modalTitle}>{title}</Text>
+            {mode === "edit" ? <Text style={styles.errorText}>Edit detail dari modal belum diaktifkan; gunakan tambah/nonaktif untuk sementara.</Text> : null}
           {kind === "kategori" ? (
             <>
               <TextInput onChangeText={setName} style={styles.modalInput} placeholder="Nama kategori barang" placeholderTextColor="#9aa4b5" value={name} />
@@ -118,6 +127,11 @@ export function ActionModal({ kind, mode, onClose }: { kind: ModalKind; mode: Mo
           ) : null}
           {kind === "masuk" || kind === "keluar" ? (
             <>
+              <View style={styles.modalFieldGroup}>
+                <Text style={styles.modalLabel}>Produk</Text>
+                <Pressable onPress={() => setProductOpen((open) => !open)} style={styles.modalSelect}><Text style={styles.modalSelectText}>{selectedProduct ? `${selectedProduct.sku} - ${selectedProduct.name}` : "Pilih barang dari data API"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
+                {productOpen ? <View style={styles.modalSelectOptions}><TextInput onChangeText={setProductQuery} style={styles.modalInput} placeholder="Cari nama / SKU / barcode" placeholderTextColor="#9aa4b5" value={productQuery} />{productOptions.map((item) => <Pressable key={item.id} onPress={() => { setSelectedProductId(item.id); setSku(item.sku); setProductQuery(""); setProductOpen(false); }} style={[styles.modalSelectOption, selectedProductId === item.id && styles.modalSelectOptionActive]}><Text style={[styles.modalSelectOptionText, selectedProductId === item.id && styles.modalSelectOptionTextActive]}>{item.sku} - {item.name} | stok {item.stock}</Text></Pressable>)}{!productOptions.length ? <Text style={styles.emptyText}>Produk tidak ditemukan</Text> : null}</View> : null}
+              </View>
               <TextInput onChangeText={setSku} style={styles.modalInput} placeholder="SKU / Barcode" placeholderTextColor="#9aa4b5" value={sku} />
               <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
               <View style={styles.modalFieldGroup}>
@@ -133,6 +147,7 @@ export function ActionModal({ kind, mode, onClose }: { kind: ModalKind; mode: Mo
             <Pressable onPress={close} style={styles.cancelButton}><Text style={styles.cancelText}>Batal</Text></Pressable>
             <Pressable disabled={saving || mode === "edit"} onPress={save} style={styles.saveButton}><Text style={styles.saveText}>{saving ? "Menyimpan..." : "Simpan"}</Text></Pressable>
           </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>

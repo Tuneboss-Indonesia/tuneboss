@@ -492,6 +492,16 @@ class InventoryApiTest extends TestCase
             ->assertJsonStructure(['data']);
 
         $this->withToken($adminToken)
+            ->getJson('/reports/sales?product_id='.$product->id.'&category_id='.$product->category_id)
+            ->assertOk()
+            ->assertJsonStructure(['data']);
+
+        $this->withToken($adminToken)
+            ->getJson('/reports/inbound?product_id='.$product->id.'&category_id='.$product->category_id)
+            ->assertOk()
+            ->assertJsonStructure(['data']);
+
+        $this->withToken($adminToken)
             ->getJson('/sales?status=completed')
             ->assertOk()
             ->assertJsonStructure(['data', 'meta' => ['currentPage', 'lastPage', 'perPage', 'total']]);

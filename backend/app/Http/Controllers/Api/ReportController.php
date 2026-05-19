@@ -142,6 +142,8 @@ class ReportController extends Controller
             ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))
             ->when($request->query('cashier_id'), fn ($query, string $cashierId) => $query->where('cashier_id', $cashierId))
             ->when($request->query('customer_id'), fn ($query, string $customerId) => $query->where('customer_id', $customerId))
+            ->when($request->query('product_id'), fn ($query, string $productId) => $query->whereHas('items', fn ($query) => $query->where('product_id', $productId)))
+            ->when($request->query('category_id'), fn ($query, string $categoryId) => $query->whereHas('items.product', fn ($query) => $query->where('category_id', $categoryId)))
             ->when($request->query('search'), fn ($query, string $search) => $query->where('invoice_number', 'like', "%{$search}%"));
     }
 
@@ -181,6 +183,7 @@ class ReportController extends Controller
 
         return $this->dateFilter($query, $request)
             ->when($request->query('product_id'), fn ($query, string $productId) => $query->where('product_id', $productId))
+            ->when($request->query('category_id'), fn ($query, string $categoryId) => $query->whereHas('product', fn ($query) => $query->where('category_id', $categoryId)))
             ->when($request->query('operator_id'), fn ($query, string $operatorId) => $query->where('operator_id', $operatorId))
             ->when($request->query('supplier_id'), fn ($query, string $supplierId) => $query->where('supplier_id', $supplierId))
             ->when($request->query('customer_id'), fn ($query, string $customerId) => $query->where('customer_id', $customerId));

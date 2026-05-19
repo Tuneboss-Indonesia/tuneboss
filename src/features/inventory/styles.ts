@@ -160,7 +160,7 @@ export const styles = StyleSheet.create({
   mobileTextActive: { color: colors.primary },
 
   modalBackdrop: { alignItems: "center", backgroundColor: "rgba(0,0,0,0.45)", flex: 1, justifyContent: "center", padding: 20 },
-  modalCard: { backgroundColor: colors.panel, borderColor: colors.border, borderRadius: radius.lg, borderWidth: 1, gap: 14, maxWidth: 460, padding: 24, width: "100%" },
+  modalCard: { backgroundColor: colors.panel, borderColor: colors.border, borderRadius: radius.lg, borderWidth: 1, gap: 14, maxHeight: "90%", maxWidth: 520, padding: 24, width: "100%" },
   modalTitle: { color: colors.white, fontFamily: fonts.display, fontSize: 30, textTransform: "uppercase" },
   modalFieldGroup: { gap: 8 },
   modalLabel: { color: colors.primary, fontFamily: fonts.bodyMedium, fontSize: 13, letterSpacing: 0.8, textTransform: "uppercase" },
