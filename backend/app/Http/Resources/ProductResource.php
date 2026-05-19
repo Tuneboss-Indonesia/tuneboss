@@ -18,6 +18,8 @@ class ProductResource extends JsonResource
             'name' => $this->name,
             'sku' => $this->sku,
             'barcode' => $this->barcode,
+            'imagePath' => $this->image_path,
+            'imageUrl' => $this->image_path ? asset('storage/'.$this->image_path) : null,
             'salePrice' => (float) $this->sale_price,
             'minStock' => $this->min_stock,
             'stock' => $stock,

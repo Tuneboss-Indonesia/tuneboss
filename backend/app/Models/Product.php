@@ -18,6 +18,7 @@ class Product extends Model
         'name',
         'sku',
         'barcode',
+        'image_path',
         'sale_price',
         'min_stock',
         'is_active',

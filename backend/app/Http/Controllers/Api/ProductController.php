@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
@@ -76,6 +77,39 @@ class ProductController extends Controller
         return response()->json(['message' => 'Produk dinonaktifkan.']);
     }
 
+    public function uploadImage(Request $request, Product $product)
+    {
+        $data = $request->validate([
+            'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+        ]);
+
+        $before = $this->auditPayload($product);
+        $path = $data['image']->store('products', 'public');
+
+        if ($product->image_path) {
+            Storage::disk('public')->delete($product->image_path);
+        }
+
+        $product->update(['image_path' => $path]);
+        $this->audit($request, 'product.image_uploaded', $product, $before, $this->auditPayload($product));
+
+        return new ProductResource($product->load(['category', 'stock']));
+    }
+
+    public function deleteImage(Request $request, Product $product)
+    {
+        $before = $this->auditPayload($product);
+
+        if ($product->image_path) {
+            Storage::disk('public')->delete($product->image_path);
+        }
+
+        $product->update(['image_path' => null]);
+        $this->audit($request, 'product.image_deleted', $product, $before, $this->auditPayload($product));
+
+        return new ProductResource($product->load(['category', 'stock']));
+    }
+
     public function lookup(Request $request)
     {
         $data = $request->validate(['code' => ['required', 'string', 'max:120']]);
@@ -92,6 +126,8 @@ class ProductController extends Controller
             'name' => $product->name,
             'sku' => $product->sku,
             'barcode' => $product->barcode,
+            'imagePath' => $product->image_path,
+            'imageUrl' => $product->image_path ? asset('storage/'.$product->image_path) : null,
             'category' => $product->category?->name,
             'categoryId' => $product->category_id,
             'stock' => $stock,
@@ -132,6 +168,6 @@ class ProductController extends Controller
 
     private function auditPayload(Product $product): array
     {
-        return $product->only(['category_id', 'name', 'sku', 'barcode', 'sale_price', 'min_stock', 'is_active']);
+        return $product->only(['category_id', 'name', 'sku', 'barcode', 'image_path', 'sale_price', 'min_stock', 'is_active']);
     }
 }

@@ -10,6 +10,8 @@ use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\PersonalAccessToken;
 use Tests\TestCase;
 
@@ -151,6 +153,43 @@ class InventoryApiTest extends TestCase
             'product_id' => $product->json('id'),
             'quantity' => 0,
         ]);
+    }
+
+    public function test_admin_can_upload_and_delete_product_image(): void
+    {
+        Storage::fake('public');
+        $this->seed();
+        $adminToken = $this->loginToken('admin@tuneboss.id');
+        $staffToken = $this->loginToken('staff@tuneboss.id');
+        $product = Product::where('sku', 'TB-USB-CABLE')->firstOrFail();
+
+        $upload = $this->withToken($adminToken)
+            ->postJson('/products/'.$product->id.'/image', [
+                'image' => UploadedFile::fake()->image('usb-cable.jpg', 640, 480)->size(512),
+            ])
+            ->assertOk()
+            ->assertJsonStructure(['imagePath', 'imageUrl']);
+
+        $this->assertNotNull($upload->json('imagePath'));
+        Storage::disk('public')->assertExists($upload->json('imagePath'));
+
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($staffToken)
+            ->postJson('/products/'.$product->id.'/image', [
+                'image' => UploadedFile::fake()->image('blocked.jpg'),
+            ])
+            ->assertForbidden();
+
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($adminToken)
+            ->deleteJson('/products/'.$product->id.'/image')
+            ->assertOk()
+            ->assertJsonPath('imagePath', null)
+            ->assertJsonPath('imageUrl', null);
+
+        Storage::disk('public')->assertMissing($upload->json('imagePath'));
     }
 
     public function test_admin_can_manage_suppliers_and_customers(): void

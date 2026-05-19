@@ -185,6 +185,8 @@ Request create/update:
 - `POST /products` admin-only
 - `GET /products/{id}`
 - `PATCH /products/{id}` admin-only
+- `POST /products/{id}/image` admin-only, multipart `image`
+- `DELETE /products/{id}/image` admin-only
 - `DELETE /products/{id}` admin-only, menonaktifkan produk
 - `GET /products/lookup?code=SKU_OR_BARCODE`
 
@@ -201,6 +203,20 @@ Request create/update:
   "is_active": true
 }
 ```
+
+Upload image:
+
+```http
+POST /products/{id}/image
+Content-Type: multipart/form-data
+Authorization: Bearer <accessToken>
+```
+
+Field:
+
+- `image`: `jpg`, `jpeg`, `png`, atau `webp`, maksimal 2 MB.
+
+Response product menyertakan `imagePath` dan `imageUrl`.
 
 ## Stock
 

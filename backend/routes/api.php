@@ -56,6 +56,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/products/{product}', [ProductController::class, 'show']);
     Route::post('/products', [ProductController::class, 'store'])->middleware('role:admin');
     Route::patch('/products/{product}', [ProductController::class, 'update'])->middleware('role:admin');
+    Route::post('/products/{product}/image', [ProductController::class, 'uploadImage'])->middleware('role:admin');
+    Route::delete('/products/{product}/image', [ProductController::class, 'deleteImage'])->middleware('role:admin');
     Route::delete('/products/{product}', [ProductController::class, 'destroy'])->middleware('role:admin');
 
     Route::get('/categories', [CategoryController::class, 'index']);

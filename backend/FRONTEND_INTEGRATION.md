@@ -33,6 +33,8 @@ type ProductDto = {
   name: string;
   sku: string;
   barcode: string | null;
+  imagePath: string | null;
+  imageUrl: string | null;
   salePrice: number;
   minStock: number;
   stock: number;
@@ -40,6 +42,10 @@ type ProductDto = {
   isActive: boolean;
 };
 ```
+
+## Product Images
+
+Upload foto produk memakai multipart request ke `POST /products/{id}/image` dengan field `image`. Gunakan `imageUrl` dari response product untuk menampilkan gambar di frontend. Hapus foto dengan `DELETE /products/{id}/image`.
 
 ```ts
 type SaleDto = {
