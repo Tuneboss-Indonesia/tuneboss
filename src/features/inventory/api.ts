@@ -35,6 +35,32 @@ export async function apiRequest<T>(path: string, options: RequestInit & { token
   return payload as T;
 }
 
+export async function downloadCsv(path: string, token: string | null, filename: string): Promise<void> {
+  const headers = new Headers({ Accept: "text/csv" });
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const response = await fetch(`${apiBaseUrl}${path}`, { headers });
+  const payload = await response.text();
+
+  if (!response.ok) {
+    throw new Error(payload || "Export CSV gagal.");
+  }
+
+  if (typeof document === "undefined" || typeof Blob === "undefined" || typeof URL === "undefined") {
+    throw new Error("Download CSV tersedia di web dashboard.");
+  }
+
+  const blob = new Blob([payload], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat("id-ID", { currency: "IDR", maximumFractionDigits: 0, style: "currency" }).format(value);
 }

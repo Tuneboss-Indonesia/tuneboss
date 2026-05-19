@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
-import { apiRequest, formatDate } from "../api";
+import { Alert, Pressable, Text, View } from "react-native";
+import { apiRequest, downloadCsv, formatDate } from "../api";
 import { useInventoryData } from "../InventoryDataContext";
 import { CrudShell, DataTable, EmptyRow, TableRow, WhiteCard } from "../components/common";
 import { styles } from "../styles";
@@ -36,5 +36,13 @@ export function AdminPage() {
 
   const filteredUsers = users.filter((user) => `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(query.toLowerCase()));
 
-  return <View style={styles.stack}>{error ? <Text style={styles.errorText}>{error}</Text> : null}<CrudShell title="Admin" subtitle="User management dan audit log dari backend" search="Cari user..." searchValue={query} onSearchChange={setQuery}><WhiteCard title="Users"><DataTable columns={["Nama", "Email", "Role", "Status", "Dibuat"]}>{filteredUsers.map((user) => <TableRow key={user.id} cells={[user.name, user.email, user.role, user.isActive ? "Aktif" : "Nonaktif", formatDate(user.createdAt)]} />)}{!filteredUsers.length ? <EmptyRow text="User tidak ditemukan" /> : null}</DataTable></WhiteCard><WhiteCard title="Audit Logs"><DataTable columns={["Waktu", "User", "Action", "Entity", "ID"]}>{audits.map((audit) => <TableRow key={audit.id} cells={[formatDate(audit.createdAt ?? audit.created_at), audit.user?.name ?? "System", audit.action, audit.entity, audit.entity_id ?? "-"]} />)}{!audits.length ? <EmptyRow text="Audit log kosong" /> : null}</DataTable></WhiteCard></CrudShell></View>;
+  const exportAudit = async () => {
+    try {
+      await downloadCsv("/audit-logs/export", token, "audit-logs.csv");
+    } catch (requestError) {
+      Alert.alert("Gagal", requestError instanceof Error ? requestError.message : "Export audit gagal.");
+    }
+  };
+
+  return <View style={styles.stack}>{error ? <Text style={styles.errorText}>{error}</Text> : null}<CrudShell title="Admin" subtitle="User management dan audit log dari backend" search="Cari user..." searchValue={query} onSearchChange={setQuery}><WhiteCard title="Users"><DataTable columns={["Nama", "Email", "Role", "Status", "Dibuat"]}>{filteredUsers.map((user) => <TableRow key={user.id} cells={[user.name, user.email, user.role, user.isActive ? "Aktif" : "Nonaktif", formatDate(user.createdAt)]} />)}{!filteredUsers.length ? <EmptyRow text="User tidak ditemukan" /> : null}</DataTable></WhiteCard><WhiteCard title="Audit Logs" action={<Pressable onPress={() => void exportAudit()} style={styles.saveButton}><Text style={styles.saveText}>Export CSV</Text></Pressable>}><DataTable columns={["Waktu", "User", "Action", "Entity", "ID"]}>{audits.map((audit) => <TableRow key={audit.id} cells={[formatDate(audit.createdAt ?? audit.created_at), audit.user?.name ?? "System", audit.action, audit.entity, audit.entity_id ?? "-"]} />)}{!audits.length ? <EmptyRow text="Audit log kosong" /> : null}</DataTable></WhiteCard></CrudShell></View>;
 }

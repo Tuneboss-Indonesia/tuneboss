@@ -1,7 +1,7 @@
-import { Pressable, Text, View } from "react-native";
+import { Alert, Pressable, Text, View } from "react-native";
 import { colors } from "../../../theme/tokens";
 import { reportCards } from "../data";
-import { formatCurrency, formatDate } from "../api";
+import { downloadCsv, formatCurrency, formatDate } from "../api";
 import { useInventoryData } from "../InventoryDataContext";
 import { styles } from "../styles";
 import type { PageKey } from "../types";
@@ -22,12 +22,21 @@ function reportColumns(type: "stok" | "penjualan" | "masuk" | "keluar") {
 }
 
 export function ReportDetail({ type, onBack }: { type: "stok" | "penjualan" | "masuk" | "keluar"; onBack: () => void }) {
-  const { movements, sales, stockItems } = useInventoryData();
+  const { movements, sales, stockItems, token } = useInventoryData();
   const title = type === "stok" ? "Daftar Stok Barang" : type === "penjualan" ? "Daftar Transaksi Penjualan" : type === "masuk" ? "Daftar Barang Masuk" : "Daftar Barang Keluar";
+  const exportPath = type === "stok" ? "/reports/stock/export" : type === "penjualan" ? "/reports/sales/export" : type === "masuk" ? "/reports/inbound/export" : "/reports/outbound/export";
   const rows = type === "stok"
     ? stockItems.map((item) => [item.name, item.category, String(item.stock), item.status])
     : type === "penjualan"
       ? sales.map((sale) => [sale.invoiceNumber, formatDate(sale.createdAt), sale.cashier ?? "-", formatCurrency(sale.totalAmount)])
       : movements.filter((item) => type === "masuk" ? item.type === "inbound" : item.type === "outbound" || item.type === "sale").map((item) => [formatDate(item.timestamp), item.productName, String(item.quantity), type === "masuk" ? item.party : item.note, item.operator]);
-  return <View style={styles.stack}><View style={styles.reportFilter}><Text style={styles.filterBox}>API filter aktif</Text><Text style={styles.exportDisabled}>Export CSV tersedia</Text><Text style={styles.upgrade}>Via /reports/*/export</Text></View><Pressable onPress={onBack} style={styles.backButton}><Text style={styles.backText}>Kembali</Text></Pressable><View style={styles.metricGrid}><Metric title="Total" value={type === "penjualan" ? formatCurrency(sales.reduce((total, sale) => total + sale.totalAmount, 0)) : `${rows.length} data`} /><Metric title="Total Transaksi" value={String(rows.length)} /><Metric title="Stok Menipis" value={`${stockItems.filter((item) => item.status === "low").length} barang`} /></View><WhiteCard title={title}><DataTable columns={reportColumns(type)}>{rows.length ? rows.map((row, index) => <TableRow key={`${type}-${index}`} cells={row} />) : <EmptyRow text={type === "penjualan" ? "Tidak ada data penjualan" : "Tidak ada data pada periode ini"} />}</DataTable></WhiteCard></View>;
+  const exportCsv = async () => {
+    try {
+      await downloadCsv(exportPath, token, `laporan-${type}.csv`);
+    } catch (error) {
+      Alert.alert("Gagal", error instanceof Error ? error.message : "Export CSV gagal.");
+    }
+  };
+
+  return <View style={styles.stack}><View style={styles.reportFilter}><Text style={styles.filterBox}>API filter aktif</Text><Pressable onPress={() => void exportCsv()} style={styles.saveButton}><Text style={styles.saveText}>Export CSV</Text></Pressable><Text style={styles.upgrade}>{exportPath}</Text></View><Pressable onPress={onBack} style={styles.backButton}><Text style={styles.backText}>Kembali</Text></Pressable><View style={styles.metricGrid}><Metric title="Total" value={type === "penjualan" ? formatCurrency(sales.reduce((total, sale) => total + sale.totalAmount, 0)) : `${rows.length} data`} /><Metric title="Total Transaksi" value={String(rows.length)} /><Metric title="Stok Menipis" value={`${stockItems.filter((item) => item.status === "low").length} barang`} /></View><WhiteCard title={title}><DataTable columns={reportColumns(type)}>{rows.length ? rows.map((row, index) => <TableRow key={`${type}-${index}`} cells={row} />) : <EmptyRow text={type === "penjualan" ? "Tidak ada data penjualan" : "Tidak ada data pada periode ini"} />}</DataTable></WhiteCard></View>;
 }

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Pressable, Text, useWindowDimensions, View } from "react-native";
+import { Alert, Pressable, Text, useWindowDimensions, View } from "react-native";
 import { colors } from "../../../theme/tokens";
 import { salesChartData, topProductsData } from "../data";
-import { formatDate, periodMap } from "../api";
+import { apiRequest, formatDate, periodMap } from "../api";
 import { styles } from "../styles";
 import type { ChartPoint, PeriodKey } from "../types";
 import { DataTable, EmptyRow, Metric, TableRow, WhiteCard } from "../components/common";
@@ -40,7 +40,7 @@ export function DashboardPage() {
   const [topPeriod, setTopPeriod] = useState<PeriodKey>("bulan");
   const [salesData, setSalesData] = useState<ChartPoint[]>(salesChartData.bulan);
   const [topData, setTopData] = useState<ChartPoint[]>(topProductsData.bulan);
-  const { error, loading, restockAlerts, summary, token } = useInventoryData();
+  const { error, loading, refresh, restockAlerts, summary, token } = useInventoryData();
   const { width } = useWindowDimensions();
   const compact = width < 760;
 
@@ -52,5 +52,14 @@ export function DashboardPage() {
     void loadChart(token, "top", periodMap[topPeriod]).then((data) => setTopData(data.length ? data : topProductsData[topPeriod])).catch(() => setTopData(topProductsData[topPeriod]));
   }, [topPeriod, token]);
 
-  return <View style={styles.stack}>{error ? <Text style={styles.errorText}>{error}</Text> : null}{loading ? <Text style={styles.loadingText}>Memuat data API...</Text> : null}<View style={styles.metricGrid}><Metric title="Total SKU" value={String(summary.totalSku)} /><Metric title="Total Stok" value={String(summary.totalUnits)} /><Metric title="Stok Menipis" value={String(summary.lowStockCount)} /><Metric title="Stok Habis" value={String(summary.outOfStockCount)} /></View><WhiteCard title="Restock Alerts" subtitle="Produk yang perlu diproses pembelian ulang"><DataTable columns={["Produk", "SKU", "Status", "Stok", "Update"]}>{restockAlerts.map((alert) => <TableRow key={alert.id} cells={[alert.product?.name ?? "-", alert.product?.sku ?? "-", alert.severity === "empty" ? "Habis" : "Menipis", `${alert.currentStock}/${alert.threshold}`, formatDate(alert.updatedAt)]} />)}{!restockAlerts.length ? <EmptyRow text="Tidak ada alert restock aktif" /> : null}</DataTable></WhiteCard><View style={[styles.chartGrid, compact && styles.chartGridMobile]}><WhiteCard title="Grafik Penjualan" action={<PeriodTabs value={salesPeriod} onChange={setSalesPeriod} />}><SalesBarChart data={salesData} period={salesPeriod} /></WhiteCard><WhiteCard title="Barang Terlaris" action={<PeriodTabs value={topPeriod} onChange={setTopPeriod} />}><TopProductsChart data={topData} period={topPeriod} /></WhiteCard></View></View>;
+  const updateAlert = async (id: string, action: "acknowledge" | "resolve") => {
+    try {
+      await apiRequest(`/restock-alerts/${id}/${action}`, { body: JSON.stringify({ note: action === "acknowledge" ? "Diproses dari dashboard" : "Selesai dari dashboard" }), method: "POST", token });
+      await refresh();
+    } catch (requestError) {
+      Alert.alert("Gagal", requestError instanceof Error ? requestError.message : "Restock alert gagal diproses.");
+    }
+  };
+
+  return <View style={styles.stack}>{error ? <Text style={styles.errorText}>{error}</Text> : null}{loading ? <Text style={styles.loadingText}>Memuat data API...</Text> : null}<View style={styles.metricGrid}><Metric title="Total SKU" value={String(summary.totalSku)} /><Metric title="Total Stok" value={String(summary.totalUnits)} /><Metric title="Stok Menipis" value={String(summary.lowStockCount)} /><Metric title="Stok Habis" value={String(summary.outOfStockCount)} /></View><WhiteCard title="Restock Alerts" subtitle="Produk yang perlu diproses pembelian ulang"><DataTable columns={["Produk", "SKU", "Status", "Stok", "Update", "Aksi"]}>{restockAlerts.map((alert) => <TableRow key={alert.id} cells={[alert.product?.name ?? "-", alert.product?.sku ?? "-", alert.severity === "empty" ? "Habis" : "Menipis", `${alert.currentStock}/${alert.threshold}`, formatDate(alert.updatedAt)]} actions={<View style={styles.rowActions}>{alert.status === "open" ? <Pressable onPress={() => void updateAlert(alert.id, "acknowledge")} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Acknowledge</Text></Pressable> : null}<Pressable onPress={() => void updateAlert(alert.id, "resolve")} style={styles.saveButton}><Text style={styles.saveText}>Resolve</Text></Pressable></View>} />)}{!restockAlerts.length ? <EmptyRow text="Tidak ada alert restock aktif" /> : null}</DataTable></WhiteCard><View style={[styles.chartGrid, compact && styles.chartGridMobile]}><WhiteCard title="Grafik Penjualan" action={<PeriodTabs value={salesPeriod} onChange={setSalesPeriod} />}><SalesBarChart data={salesData} period={salesPeriod} /></WhiteCard><WhiteCard title="Barang Terlaris" action={<PeriodTabs value={topPeriod} onChange={setTopPeriod} />}><TopProductsChart data={topData} period={topPeriod} /></WhiteCard></View></View>;
 }
