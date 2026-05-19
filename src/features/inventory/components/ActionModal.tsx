@@ -1,41 +1,123 @@
-import { useState } from "react";
-import { Modal, Pressable, Text, TextInput, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, Modal, Pressable, Text, TextInput, View } from "react-native";
 import { ChevronDown } from "lucide-react-native";
-import { categories } from "../data";
+import { apiRequest } from "../api";
+import { useInventoryData } from "../InventoryDataContext";
 import type { ModalKind, ModalMode } from "../types";
 import { styles } from "../styles";
 import { colors } from "../../../theme/tokens";
 
 export function ActionModal({ kind, mode, onClose }: { kind: ModalKind; mode: ModalMode; onClose: () => void }) {
-  const [selectedCategory, setSelectedCategory] = useState(categories[0]?.name ?? "");
+  const { categories, refresh, stockItems, token } = useInventoryData();
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [sku, setSku] = useState("");
+  const [barcode, setBarcode] = useState("");
   const [price, setPrice] = useState("");
   const [stock, setStock] = useState("");
+  const [party, setParty] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
   const actionLabel = mode === "edit" ? "Edit" : "Tambah";
   const title = kind === "kategori" ? `${actionLabel} Kategori` : kind === "stok" ? `${actionLabel} Barang` : kind === "masuk" ? "Tambah Stok Masuk" : kind === "keluar" ? "Kurangi Stok" : "";
-  const fields = kind === "kategori"
-    ? ["Nama kategori barang", "Deskripsi kategori"]
-    : ["Nama / kode barang", "Jumlah / keterangan"];
+  const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
+
+  useEffect(() => {
+    if (kind && !selectedCategoryId) setSelectedCategoryId(categories[0]?.id ?? "");
+  }, [categories, kind, selectedCategoryId]);
+
+  const reset = () => {
+    setName("");
+    setDescription("");
+    setSku("");
+    setBarcode("");
+    setPrice("");
+    setStock("");
+    setParty("");
+    setNote("");
+  };
+
+  const close = () => {
+    reset();
+    onClose();
+  };
+
+  const save = async () => {
+    if (!kind) return;
+    setSaving(true);
+
+    try {
+      if (kind === "kategori") {
+        await apiRequest("/categories", { body: JSON.stringify({ description, name }), method: "POST", token });
+      }
+
+      if (kind === "stok") {
+        await apiRequest("/products", {
+          body: JSON.stringify({ barcode: barcode || null, category_id: selectedCategoryId, min_stock: Number(stock || 0), name, sale_price: Number(price || 0), sku }),
+          method: "POST",
+          token,
+        });
+      }
+
+      if (kind === "masuk" || kind === "keluar") {
+        const product = stockItems.find((item) => item.sku.toLowerCase() === sku.toLowerCase() || item.barcode.toLowerCase() === sku.toLowerCase());
+        if (!product) throw new Error("Produk tidak ditemukan. Isi SKU/barcode yang valid.");
+
+        await apiRequest(kind === "masuk" ? "/stock/inbound" : "/stock/outbound", {
+          body: JSON.stringify({ note, party, productId: product.id, quantity: Number(stock || 0) }),
+          method: "POST",
+          token,
+        });
+      }
+
+      await refresh();
+      close();
+    } catch (error) {
+      Alert.alert("Gagal", error instanceof Error ? error.message : "Data gagal disimpan.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <Modal visible={kind !== null} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={kind !== null} transparent animationType="fade" onRequestClose={close}>
       <View style={styles.modalBackdrop}>
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>{title}</Text>
-          {kind === "stok" ? <>
-            <TextInput style={styles.modalInput} placeholder="Kode Barang" placeholderTextColor="#9aa4b5" />
-            <TextInput style={styles.modalInput} placeholder="Nama Barang" placeholderTextColor="#9aa4b5" />
-            <View style={styles.modalFieldGroup}>
-              <Text style={styles.modalLabel}>Kategori</Text>
-              <Pressable onPress={() => setCategoryOpen((open) => !open)} style={styles.modalSelect}><Text style={styles.modalSelectText}>{selectedCategory || "Pilih kategori"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
-              {categoryOpen ? <View style={styles.modalSelectOptions}>{categories.map((category) => <Pressable key={category.id} onPress={() => { setSelectedCategory(category.name); setCategoryOpen(false); }} style={[styles.modalSelectOption, selectedCategory === category.name && styles.modalSelectOptionActive]}><Text style={[styles.modalSelectOptionText, selectedCategory === category.name && styles.modalSelectOptionTextActive]}>{category.name}</Text></Pressable>)}</View> : null}
-            </View>
-            <TextInput style={styles.modalInput} placeholder="Harga Jual" placeholderTextColor="#9aa4b5" value={price} onChangeText={(value) => setPrice(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
-            <TextInput style={styles.modalInput} placeholder="Stok" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
-          </> : fields.map((field) => <TextInput key={field} style={styles.modalInput} placeholder={field} placeholderTextColor="#9aa4b5" keyboardType={field === "Jumlah / keterangan" ? "numeric" : "default"} />)}
+          {mode === "edit" ? <Text style={styles.errorText}>Edit detail dari modal belum diaktifkan; gunakan tambah/nonaktif untuk sementara.</Text> : null}
+          {kind === "kategori" ? (
+            <>
+              <TextInput onChangeText={setName} style={styles.modalInput} placeholder="Nama kategori barang" placeholderTextColor="#9aa4b5" value={name} />
+              <TextInput onChangeText={setDescription} style={styles.modalInput} placeholder="Deskripsi kategori" placeholderTextColor="#9aa4b5" value={description} />
+            </>
+          ) : null}
+          {kind === "stok" ? (
+            <>
+              <TextInput onChangeText={setSku} style={styles.modalInput} placeholder="SKU" placeholderTextColor="#9aa4b5" value={sku} />
+              <TextInput onChangeText={setName} style={styles.modalInput} placeholder="Nama Barang" placeholderTextColor="#9aa4b5" value={name} />
+              <TextInput onChangeText={setBarcode} style={styles.modalInput} placeholder="Barcode" placeholderTextColor="#9aa4b5" value={barcode} />
+              <View style={styles.modalFieldGroup}>
+                <Text style={styles.modalLabel}>Kategori</Text>
+                <Pressable onPress={() => setCategoryOpen((open) => !open)} style={styles.modalSelect}><Text style={styles.modalSelectText}>{selectedCategory?.name || "Pilih kategori"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
+                {categoryOpen ? <View style={styles.modalSelectOptions}>{categories.map((category) => <Pressable key={category.id} onPress={() => { setSelectedCategoryId(category.id); setCategoryOpen(false); }} style={[styles.modalSelectOption, selectedCategoryId === category.id && styles.modalSelectOptionActive]}><Text style={[styles.modalSelectOptionText, selectedCategoryId === category.id && styles.modalSelectOptionTextActive]}>{category.name}</Text></Pressable>)}</View> : null}
+              </View>
+              <TextInput style={styles.modalInput} placeholder="Harga Jual" placeholderTextColor="#9aa4b5" value={price} onChangeText={(value) => setPrice(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
+              <TextInput style={styles.modalInput} placeholder="Minimum Stok" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
+            </>
+          ) : null}
+          {kind === "masuk" || kind === "keluar" ? (
+            <>
+              <TextInput onChangeText={setSku} style={styles.modalInput} placeholder="SKU / Barcode" placeholderTextColor="#9aa4b5" value={sku} />
+              <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
+              <TextInput onChangeText={setParty} style={styles.modalInput} placeholder={kind === "masuk" ? "Supplier" : "Tujuan / Customer"} placeholderTextColor="#9aa4b5" value={party} />
+              <TextInput onChangeText={setNote} style={styles.modalInput} placeholder="Catatan" placeholderTextColor="#9aa4b5" value={note} />
+            </>
+          ) : null}
           <View style={styles.modalActions}>
-            <Pressable onPress={onClose} style={styles.cancelButton}><Text style={styles.cancelText}>Batal</Text></Pressable>
-            <Pressable onPress={onClose} style={styles.saveButton}><Text style={styles.saveText}>Simpan</Text></Pressable>
+            <Pressable onPress={close} style={styles.cancelButton}><Text style={styles.cancelText}>Batal</Text></Pressable>
+            <Pressable disabled={saving || mode === "edit"} onPress={save} style={styles.saveButton}><Text style={styles.saveText}>{saving ? "Menyimpan..." : "Simpan"}</Text></Pressable>
           </View>
         </View>
       </View>
