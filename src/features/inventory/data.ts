@@ -1,4 +1,4 @@
-import { BarChart3, ClipboardList, FileBarChart, LayoutDashboard, Package, PackageMinus, PackagePlus, ScanBarcode, ShoppingCart, Tag } from "lucide-react-native";
+import { BarChart3, ClipboardList, FileBarChart, LayoutDashboard, Package, PackageMinus, PackagePlus, ScanBarcode, Settings, ShoppingCart, Tag } from "lucide-react-native";
 import { stockItems, stockMovements } from "../../data/dashboard.data";
 import type { CategoryItem, ChartPoint, MenuItem, PageKey, PeriodKey } from "./types";
 
@@ -18,6 +18,7 @@ export const stockMenu: MenuItem[] = [
   ["masuk", PackagePlus, "Barang Masuk"],
   ["keluar", PackageMinus, "Barang Keluar"],
   ["laporan", FileBarChart, "Laporan"],
+  ["admin", Settings, "Admin"],
 ];
 
 export const mobileMenu: MenuItem[] = [

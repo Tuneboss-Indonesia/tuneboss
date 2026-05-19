@@ -38,6 +38,7 @@ export type StockItem = PriorityProduct & {
   salePrice?: number;
   categoryId?: string;
   isActive?: boolean;
+  imageUrl?: string | null;
 };
 
 export type StockMovement = {

@@ -16,6 +16,25 @@ export type SaleRow = {
   createdAt: string;
 };
 
+export type RestockAlertRow = {
+  id: string;
+  productId: string;
+  product?: { name?: string; sku?: string; category?: string | null } | null;
+  status: "open" | "acknowledged" | "resolved";
+  severity: "low" | "empty";
+  currentStock: number;
+  threshold: number;
+  note?: string | null;
+  updatedAt?: string | null;
+};
+
+export type PartyRow = {
+  id: string;
+  name: string;
+  phone?: string | null;
+  isActive?: boolean;
+};
+
 type Paginated<T> = { data: T[] };
 
 type ProductDto = {
@@ -25,6 +44,7 @@ type ProductDto = {
   name: string;
   sku: string;
   barcode: string | null;
+  imageUrl?: string | null;
   salePrice: number;
   minStock: number;
   stock: number;
@@ -44,9 +64,12 @@ type InventoryData = {
   priorityProducts: PriorityProduct[];
   recentActivities: RecentActivity[];
   refresh: () => Promise<void>;
+  restockAlerts: RestockAlertRow[];
   sales: SaleRow[];
   summary: DashboardSummary;
   stockItems: StockItem[];
+  suppliers: PartyRow[];
+  customers: PartyRow[];
   token: string;
 };
 
@@ -59,7 +82,10 @@ export function InventoryDataProvider({ children, token }: { children: ReactNode
   const [stockItems, setStockItems] = useState<StockItem[]>(fallbackStockItems);
   const [movements, setMovements] = useState<StockMovement[]>(fallbackMovements);
   const [categories, setCategories] = useState<CategoryItem[]>(fallbackCategories);
+  const [restockAlerts, setRestockAlerts] = useState<RestockAlertRow[]>([]);
   const [sales, setSales] = useState<SaleRow[]>([]);
+  const [suppliers, setSuppliers] = useState<PartyRow[]>([]);
+  const [customers, setCustomers] = useState<PartyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,7 +94,7 @@ export function InventoryDataProvider({ children, token }: { children: ReactNode
     setError(null);
 
     try {
-      const [summaryData, priorityData, activityData, productData, categoryData, movementData, salesData] = await Promise.all([
+      const [summaryData, priorityData, activityData, productData, categoryData, movementData, salesData, restockData, supplierData, customerData] = await Promise.all([
         apiRequest<DashboardSummary>("/dashboard/summary", { token }),
         apiRequest<PriorityProduct[]>("/dashboard/priority-products", { token }),
         apiRequest<RecentActivity[]>("/dashboard/recent-activities", { token }),
@@ -76,6 +102,9 @@ export function InventoryDataProvider({ children, token }: { children: ReactNode
         apiRequest<CategoryDto[]>("/categories", { token }),
         apiRequest<Paginated<MovementDto>>("/stock/movements?per_page=100", { token }),
         apiRequest<Paginated<SaleRow>>("/sales?per_page=100", { token }),
+        apiRequest<Paginated<RestockAlertRow>>("/restock-alerts?active_only=1&per_page=20", { token }),
+        apiRequest<Paginated<PartyRow>>("/suppliers?active=1&per_page=100", { token }),
+        apiRequest<Paginated<PartyRow>>("/customers?active=1&per_page=100", { token }),
       ]);
 
       setSummary(summaryData);
@@ -87,6 +116,7 @@ export function InventoryDataProvider({ children, token }: { children: ReactNode
         category: product.category?.name ?? "-",
         categoryId: product.categoryId,
         isActive: product.isActive,
+        imageUrl: product.imageUrl,
         lastUpdated: product.updatedAt ?? "-",
         location: "-",
         minStock: product.minStock,
@@ -99,6 +129,9 @@ export function InventoryDataProvider({ children, token }: { children: ReactNode
       setCategories(categoryData.map((category) => ({ id: category.id, name: category.name, desc: category.description ?? "-", count: category.productsCount ?? 0 })));
       setMovements(movementData.data.map((movement) => ({ ...movement, timestamp: movement.createdAt ?? movement.timestamp })));
       setSales(salesData.data);
+      setRestockAlerts(restockData.data);
+      setSuppliers(supplierData.data);
+      setCustomers(customerData.data);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Gagal memuat data API.");
     } finally {
@@ -110,7 +143,7 @@ export function InventoryDataProvider({ children, token }: { children: ReactNode
     void refresh();
   }, [token]);
 
-  const value = useMemo(() => ({ categories, error, loading, movements, priorityProducts, recentActivities, refresh, sales, summary, stockItems, token }), [categories, error, loading, movements, priorityProducts, recentActivities, sales, summary, stockItems, token]);
+  const value = useMemo(() => ({ categories, customers, error, loading, movements, priorityProducts, recentActivities, refresh, restockAlerts, sales, summary, stockItems, suppliers, token }), [categories, customers, error, loading, movements, priorityProducts, recentActivities, restockAlerts, sales, summary, stockItems, suppliers, token]);
 
   return <InventoryDataContext.Provider value={value}>{children}</InventoryDataContext.Provider>;
 }

@@ -8,9 +8,11 @@ import { styles } from "../styles";
 import { colors } from "../../../theme/tokens";
 
 export function ActionModal({ kind, mode, onClose }: { kind: ModalKind; mode: ModalMode; onClose: () => void }) {
-  const { categories, refresh, stockItems, token } = useInventoryData();
+  const { categories, customers, refresh, stockItems, suppliers, token } = useInventoryData();
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [selectedPartyId, setSelectedPartyId] = useState("");
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const [partyOpen, setPartyOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [sku, setSku] = useState("");
@@ -23,10 +25,16 @@ export function ActionModal({ kind, mode, onClose }: { kind: ModalKind; mode: Mo
   const actionLabel = mode === "edit" ? "Edit" : "Tambah";
   const title = kind === "kategori" ? `${actionLabel} Kategori` : kind === "stok" ? `${actionLabel} Barang` : kind === "masuk" ? "Tambah Stok Masuk" : kind === "keluar" ? "Kurangi Stok" : "";
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
+  const parties = kind === "masuk" ? suppliers : customers;
+  const selectedParty = parties.find((item) => item.id === selectedPartyId);
 
   useEffect(() => {
     if (kind && !selectedCategoryId) setSelectedCategoryId(categories[0]?.id ?? "");
   }, [categories, kind, selectedCategoryId]);
+
+  useEffect(() => {
+    if (kind === "masuk" || kind === "keluar") setSelectedPartyId("");
+  }, [kind]);
 
   const reset = () => {
     setName("");
@@ -36,6 +44,7 @@ export function ActionModal({ kind, mode, onClose }: { kind: ModalKind; mode: Mo
     setPrice("");
     setStock("");
     setParty("");
+    setSelectedPartyId("");
     setNote("");
   };
 
@@ -66,7 +75,7 @@ export function ActionModal({ kind, mode, onClose }: { kind: ModalKind; mode: Mo
         if (!product) throw new Error("Produk tidak ditemukan. Isi SKU/barcode yang valid.");
 
         await apiRequest(kind === "masuk" ? "/stock/inbound" : "/stock/outbound", {
-          body: JSON.stringify({ note, party, productId: product.id, quantity: Number(stock || 0) }),
+          body: JSON.stringify({ customer_id: kind === "keluar" ? selectedPartyId || null : null, note, party, productId: product.id, quantity: Number(stock || 0), supplier_id: kind === "masuk" ? selectedPartyId || null : null }),
           method: "POST",
           token,
         });
@@ -111,6 +120,11 @@ export function ActionModal({ kind, mode, onClose }: { kind: ModalKind; mode: Mo
             <>
               <TextInput onChangeText={setSku} style={styles.modalInput} placeholder="SKU / Barcode" placeholderTextColor="#9aa4b5" value={sku} />
               <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
+              <View style={styles.modalFieldGroup}>
+                <Text style={styles.modalLabel}>{kind === "masuk" ? "Supplier" : "Customer"}</Text>
+                <Pressable onPress={() => setPartyOpen((open) => !open)} style={styles.modalSelect}><Text style={styles.modalSelectText}>{selectedParty?.name || "Pilih dari data API"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
+                {partyOpen ? <View style={styles.modalSelectOptions}>{parties.map((item) => <Pressable key={item.id} onPress={() => { setSelectedPartyId(item.id); setParty(""); setPartyOpen(false); }} style={[styles.modalSelectOption, selectedPartyId === item.id && styles.modalSelectOptionActive]}><Text style={[styles.modalSelectOptionText, selectedPartyId === item.id && styles.modalSelectOptionTextActive]}>{item.name}</Text></Pressable>)}</View> : null}
+              </View>
               <TextInput onChangeText={setParty} style={styles.modalInput} placeholder={kind === "masuk" ? "Supplier" : "Tujuan / Customer"} placeholderTextColor="#9aa4b5" value={party} />
               <TextInput onChangeText={setNote} style={styles.modalInput} placeholder="Catatan" placeholderTextColor="#9aa4b5" value={note} />
             </>

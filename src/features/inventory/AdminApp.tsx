@@ -5,6 +5,7 @@ import { Layout } from "./components/Layout";
 import { ActionModal } from "./components/ActionModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AuthScreen } from "./AuthScreen";
+import { AdminPage } from "./pages/AdminPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { InventoryDataProvider } from "./InventoryDataContext";
 import { KategoriPage } from "./pages/KategoriPage";
@@ -50,6 +51,7 @@ export function AdminApp() {
           {page === "masuk" ? <MovementPage kind="inbound" onOpenModal={() => openModal("masuk")} /> : null}
           {page === "keluar" ? <MovementPage kind="outbound" onOpenModal={() => openModal("keluar")} /> : null}
           {page === "laporan" ? <LaporanPage onNavigate={setPage} /> : null}
+          {page === "admin" ? <AdminPage /> : null}
           {page === "laporan-stok" ? <ReportDetail type="stok" onBack={() => setPage("laporan")} /> : null}
           {page === "laporan-penjualan" ? <ReportDetail type="penjualan" onBack={() => setPage("laporan")} /> : null}
           {page === "laporan-masuk" ? <ReportDetail type="masuk" onBack={() => setPage("laporan")} /> : null}
