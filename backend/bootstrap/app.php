@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\DatabaseBackup;
 use App\Http\Middleware\EnsureRole;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -17,6 +18,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
         apiPrefix: '',
     )
+    ->withCommands([
+        DatabaseBackup::class,
+    ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role' => EnsureRole::class,

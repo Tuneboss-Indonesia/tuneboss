@@ -139,6 +139,8 @@ Menghapus semua token user aktif di semua device. Token login memiliki `expiresA
 
 Public health check.
 
+Response includes `version` from `APP_VERSION`.
+
 Response:
 
 ```json
@@ -402,5 +404,6 @@ Endpoint export memakai filter yang sama dengan endpoint list, tetapi mengembali
 ## Audit Logs Admin-Only
 
 - `GET /audit-logs?action=&entity=&user_id=&from=&to=&per_page=15`
+- `GET /audit-logs/export?action=&entity=&user_id=&from=&to=` CSV
 
 Audit log `metadata` menyimpan detail penting seperti `before`, `after`, `reason`, item penjualan, dan perubahan quantity stok untuk membantu investigasi operasional.

@@ -23,6 +23,7 @@ class AppController extends Controller
             'status' => 'ok',
             'database' => 'ok',
             'service' => 'tuneboss-inventory-api',
+            'version' => config('app.version'),
             'timestamp' => now()->toISOString(),
         ]);
     }

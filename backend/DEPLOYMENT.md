@@ -52,6 +52,7 @@ APP_ENV=production
 APP_KEY=base64:ISI_DARI_php_artisan_key_generate
 APP_DEBUG=false
 APP_URL=https://api.tuneboss.id
+APP_VERSION=1.0.0
 
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
@@ -136,6 +137,28 @@ mysqldump -u tuneboss_user -p tuneboss_inventory > backup-$(date +%F).sql
 ```
 
 Simpan backup di luar `public/`.
+
+### Backup via Artisan
+
+Jika `mysqldump` tersedia di hosting, gunakan command bawaan aplikasi:
+
+```bash
+php artisan inventory:backup
+```
+
+Default output ada di:
+
+```text
+storage/app/backups/
+```
+
+Custom folder backup:
+
+```bash
+php artisan inventory:backup --path=/home/user/backups/tuneboss
+```
+
+Pastikan folder backup tidak berada di bawah document root `public/`.
 
 ### Backup Manual cPanel
 

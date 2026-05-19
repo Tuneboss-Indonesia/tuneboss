@@ -473,7 +473,8 @@ class InventoryApiTest extends TestCase
         $this->getJson('/health')
             ->assertOk()
             ->assertJsonPath('status', 'ok')
-            ->assertJsonPath('database', 'ok');
+            ->assertJsonPath('database', 'ok')
+            ->assertJsonStructure(['version']);
 
         $this->withToken($adminToken)
             ->getJson('/app/bootstrap')
@@ -533,6 +534,11 @@ class InventoryApiTest extends TestCase
                 ->assertOk()
                 ->assertHeader('content-type', 'text/csv; charset=UTF-8');
         }
+
+        $this->withToken($adminToken)
+            ->get('/audit-logs/export')
+            ->assertOk()
+            ->assertHeader('content-type', 'text/csv; charset=UTF-8');
     }
 
     public function test_user_can_update_own_profile_and_password(): void

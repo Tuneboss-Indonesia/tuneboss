@@ -45,6 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::post('/restock-alerts/{restockAlert}/resolve', [RestockAlertController::class, 'resolve']);
 
+        Route::get('/audit-logs/export', [AuditLogController::class, 'export']);
         Route::get('/audit-logs', [AuditLogController::class, 'index']);
     });
 
