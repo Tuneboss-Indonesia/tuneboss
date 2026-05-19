@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Models\Sale;
+use App\Models\SaleItem;
 use App\Models\StockMovement;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -71,8 +74,74 @@ class DashboardController extends Controller
             ]));
     }
 
+    public function salesChart(Request $request)
+    {
+        $period = $this->period($request);
+        $format = match ($period) {
+            'day' => 'H:00',
+            'week', 'month' => 'Y-m-d',
+            'year' => 'Y-m',
+        };
+
+        $sales = Sale::query()
+            ->where('created_at', '>=', $this->periodStart($period))
+            ->get()
+            ->groupBy(fn (Sale $sale) => $sale->created_at->format($format))
+            ->map(fn ($sales, string $label) => [
+                'label' => $label,
+                'value' => (float) $sales->sum('total_amount'),
+            ])
+            ->sortBy('label')
+            ->values();
+
+        return response()->json($sales);
+    }
+
+    public function topProducts(Request $request)
+    {
+        $period = $this->period($request);
+
+        $products = SaleItem::query()
+            ->join('products', 'sale_items.product_id', '=', 'products.id')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->select('products.id', 'products.name', 'products.sku')
+            ->selectRaw('SUM(sale_items.quantity) as quantity')
+            ->selectRaw('SUM(sale_items.subtotal) as totalAmount')
+            ->where('sales.created_at', '>=', $this->periodStart($period))
+            ->groupBy('products.id', 'products.name', 'products.sku')
+            ->orderByDesc('quantity')
+            ->limit(10)
+            ->get()
+            ->map(fn ($product) => [
+                'id' => $product->id,
+                'label' => $product->name,
+                'sku' => $product->sku,
+                'value' => (int) $product->quantity,
+                'totalAmount' => (float) $product->totalAmount,
+            ]);
+
+        return response()->json($products);
+    }
+
     private function percent(int $value, int $total): int
     {
         return $total === 0 ? 0 : (int) round(($value / $total) * 100);
+    }
+
+    private function period(Request $request): string
+    {
+        return in_array($request->query('period'), ['day', 'week', 'month', 'year'], true)
+            ? $request->query('period')
+            : 'month';
+    }
+
+    private function periodStart(string $period)
+    {
+        return match ($period) {
+            'day' => now()->startOfDay(),
+            'week' => now()->startOfWeek(),
+            'month' => now()->startOfMonth(),
+            'year' => now()->startOfYear(),
+        };
     }
 }

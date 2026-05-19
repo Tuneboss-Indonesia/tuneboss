@@ -43,6 +43,7 @@ Dokumen pendukung:
 - `FLOWCHART.md` untuk alur login, dashboard, stok, penjualan, laporan, dan role access.
 - `FLOWCHART.mmd` untuk source Mermaid flowchart utama jika perlu generate ulang gambar.
 - `FLOWCHART.png` untuk gambar flowchart utama siap pakai.
+- `DEPLOYMENT.md` untuk panduan deploy ke shared hosting/cPanel.
 
 Preview ERD:
 
