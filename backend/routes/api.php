@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\RestockAlertController;
+use App\Http\Controllers\Api\RestockOrderController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\StockController;
 use App\Http\Controllers\Api\SupplierController;
@@ -45,6 +46,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::post('/restock-alerts/{restockAlert}/resolve', [RestockAlertController::class, 'resolve']);
 
+        Route::post('/restock-orders', [RestockOrderController::class, 'store']);
+        Route::patch('/restock-orders/{restockOrder}', [RestockOrderController::class, 'update']);
+        Route::post('/restock-orders/{restockOrder}/receive', [RestockOrderController::class, 'receive']);
+        Route::post('/restock-orders/{restockOrder}/cancel', [RestockOrderController::class, 'cancel']);
+
         Route::get('/audit-logs/export', [AuditLogController::class, 'export']);
         Route::get('/audit-logs', [AuditLogController::class, 'index']);
     });
@@ -57,6 +63,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/restock-alerts', [RestockAlertController::class, 'index']);
     Route::post('/restock-alerts/{restockAlert}/acknowledge', [RestockAlertController::class, 'acknowledge']);
+    Route::get('/restock-orders', [RestockOrderController::class, 'index']);
 
     Route::get('/products/lookup', [ProductController::class, 'lookup']);
     Route::get('/products', [ProductController::class, 'index']);

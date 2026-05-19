@@ -13,6 +13,7 @@ import { LaporanPage, ReportDetail } from "./pages/LaporanPage";
 import { MovementPage } from "./pages/MovementPage";
 import { PenjualanPage } from "./pages/PenjualanPage";
 import { ScanPage } from "./pages/ScanPage";
+import { RestockPage } from "./pages/RestockPage";
 import { StockOpnamePage } from "./pages/StockOpnamePage";
 import { StokPage } from "./pages/StokPage";
 import type { ModalKind, ModalMode, PageKey } from "./types";
@@ -54,6 +55,7 @@ export function AdminApp() {
           {page === "masuk" ? <MovementPage kind="inbound" onOpenModal={() => openModal("masuk")} /> : null}
           {page === "keluar" ? <MovementPage kind="outbound" onOpenModal={() => openModal("keluar")} /> : null}
           {page === "opname" ? <StockOpnamePage /> : null}
+          {page === "restock" ? <RestockPage /> : null}
           {page === "laporan" ? <LaporanPage onNavigate={setPage} /> : null}
           {page === "admin" ? <AdminPage /> : null}
           {page === "laporan-stok" ? <ReportDetail type="stok" onBack={() => setPage("laporan")} /> : null}
