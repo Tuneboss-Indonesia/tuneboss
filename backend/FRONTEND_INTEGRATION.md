@@ -18,6 +18,9 @@ Untuk Android emulator, jika API berjalan di mesin host, biasanya gunakan `http:
 2. Simpan `accessToken` di secure storage.
 3. Kirim header `Authorization: Bearer <accessToken>` dan `Accept: application/json` untuk semua endpoint private.
 4. Jika response `code` adalah `unauthenticated`, hapus token lokal dan arahkan user ke login.
+5. Gunakan `POST /auth/logout-all` untuk keluar dari semua device.
+
+Token response berisi `expiresAt`; frontend bisa menyimpan nilai ini untuk pre-emptive logout sebelum request berikutnya.
 
 ## Response Mapping
 

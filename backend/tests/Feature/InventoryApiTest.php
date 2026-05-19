@@ -3,10 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\AuditLog;
+use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductStock;
+use App\Models\StockMovement;
+use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\PersonalAccessToken;
 use Tests\TestCase;
 
 class InventoryApiTest extends TestCase
@@ -23,7 +27,7 @@ class InventoryApiTest extends TestCase
         ]);
 
         $login->assertOk()
-            ->assertJsonStructure(['accessToken', 'user' => ['id', 'name', 'email', 'role']]);
+            ->assertJsonStructure(['accessToken', 'tokenType', 'expiresAt', 'user' => ['id', 'name', 'email', 'role']]);
 
         $this->withToken($login->json('accessToken'))
             ->getJson('/dashboard/summary')
@@ -149,6 +153,52 @@ class InventoryApiTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_manage_suppliers_and_customers(): void
+    {
+        $this->seed();
+        $adminToken = $this->loginToken('admin@tuneboss.id');
+        $staffToken = $this->loginToken('staff@tuneboss.id');
+
+        $supplier = $this->withToken($adminToken)
+            ->postJson('/suppliers', [
+                'name' => 'Supplier Jakarta',
+                'phone' => '08123456789',
+                'email' => 'supplier@example.com',
+                'address' => 'Jakarta',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('name', 'Supplier Jakarta');
+
+        $customer = $this->withToken($adminToken)
+            ->postJson('/customers', [
+                'name' => 'Dealer Surabaya',
+                'phone' => '08987654321',
+                'email' => 'dealer@example.com',
+                'address' => 'Surabaya',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('name', 'Dealer Surabaya');
+
+        $this->withToken($staffToken)
+            ->getJson('/suppliers')
+            ->assertOk()
+            ->assertJsonStructure(['data']);
+
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($staffToken)
+            ->patchJson('/customers/'.$customer->json('id'), ['name' => 'Blocked'])
+            ->assertForbidden();
+
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($adminToken)
+            ->deleteJson('/suppliers/'.$supplier->json('id'))
+            ->assertOk();
+
+        $this->assertFalse(Supplier::find($supplier->json('id'))->is_active);
+    }
+
     public function test_inbound_outbound_and_sale_update_stock(): void
     {
         $this->seed();
@@ -186,6 +236,42 @@ class InventoryApiTest extends TestCase
             ->assertJsonStructure(['id', 'invoiceNumber', 'items']);
 
         $this->assertSame($initialStock + 2, ProductStock::where('product_id', $product->id)->value('quantity'));
+    }
+
+    public function test_stock_and_sales_accept_supplier_and_customer_references(): void
+    {
+        $this->seed();
+        $staffToken = $this->loginToken('staff@tuneboss.id');
+        $product = Product::where('sku', 'TB-USB-CABLE')->firstOrFail();
+        $supplier = Supplier::where('name', 'Supplier Malaysia')->firstOrFail();
+        $customer = Customer::where('name', 'Dealer Bandung')->firstOrFail();
+
+        $this->withToken($staffToken)
+            ->postJson('/stock/inbound', [
+                'productId' => $product->id,
+                'quantity' => 3,
+                'supplier_id' => $supplier->id,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('supplierId', $supplier->id)
+            ->assertJsonPath('party', 'Supplier Malaysia');
+
+        $sale = $this->withToken($staffToken)
+            ->postJson('/sales', [
+                'customer_id' => $customer->id,
+                'items' => [
+                    ['product_id' => $product->id, 'quantity' => 1],
+                ],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('customerId', $customer->id);
+
+        $this->assertDatabaseHas('sales', [
+            'id' => $sale->json('id'),
+            'customer_id' => $customer->id,
+        ]);
+
+        $this->assertSame($customer->id, StockMovement::where('sale_id', $sale->json('id'))->value('customer_id'));
     }
 
     public function test_admin_can_void_sale_and_restore_stock(): void
@@ -246,7 +332,7 @@ class InventoryApiTest extends TestCase
         $this->withToken($adminToken)
             ->getJson('/app/bootstrap')
             ->assertOk()
-            ->assertJsonStructure(['user', 'permissions', 'categories', 'summary']);
+            ->assertJsonStructure(['user', 'permissions', 'categories', 'suppliers', 'customers', 'summary']);
 
         $this->withToken($adminToken)
             ->getJson('/stock/movements?product_id='.$product->id.'&from='.now()->toDateString())
@@ -327,6 +413,18 @@ class InventoryApiTest extends TestCase
             'email' => 'staff.ops@tuneboss.id',
             'password' => 'password-baru',
         ])->assertOk();
+    }
+
+    public function test_user_can_logout_all_devices(): void
+    {
+        $this->seed();
+        $token = $this->loginToken('staff@tuneboss.id');
+
+        $this->withToken($token)
+            ->postJson('/auth/logout-all')
+            ->assertOk();
+
+        $this->assertSame(0, PersonalAccessToken::count());
     }
 
     private function loginToken(string $email): string

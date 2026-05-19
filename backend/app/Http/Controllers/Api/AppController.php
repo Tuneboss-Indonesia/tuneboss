@@ -4,8 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CategoryResource;
+use App\Http\Resources\CustomerResource;
+use App\Http\Resources\SupplierResource;
 use App\Models\Category;
+use App\Models\Customer;
 use App\Models\Product;
+use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -34,6 +38,8 @@ class AppController extends Controller
             ],
             'permissions' => $this->permissions($request->user()->role),
             'categories' => CategoryResource::collection(Category::withCount('products')->orderBy('name')->get()),
+            'suppliers' => SupplierResource::collection(Supplier::where('is_active', true)->orderBy('name')->get()),
+            'customers' => CustomerResource::collection(Customer::where('is_active', true)->orderBy('name')->get()),
             'summary' => [
                 'totalProducts' => Product::where('is_active', true)->count(),
                 'totalCategories' => Category::count(),

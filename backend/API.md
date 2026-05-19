@@ -129,6 +129,10 @@ Request:
 
 Menghapus token aktif.
 
+### POST /auth/logout-all
+
+Menghapus semua token user aktif di semua device. Token login memiliki `expiresAt` sesuai `SANCTUM_TOKEN_EXPIRATION_MINUTES`.
+
 ## App
 
 ### GET /health
@@ -200,7 +204,7 @@ Request create/update:
 
 ## Stock
 
-- `GET /stock/movements?product_id=&operator_id=&type=&from=&to=&per_page=15`
+- `GET /stock/movements?product_id=&operator_id=&supplier_id=&customer_id=&type=&from=&to=&per_page=15`
 - `POST /stock/inbound`
 - `POST /stock/outbound`
 - `POST /stock/adjustment` admin-only
@@ -211,6 +215,8 @@ Request inbound/outbound:
 {
   "productId": "uuid",
   "quantity": 5,
+  "supplier_id": "uuid-optional",
+  "customer_id": "uuid-optional",
   "party": "Supplier",
   "note": "Restock"
 }
@@ -228,7 +234,7 @@ Request adjustment:
 
 ## Sales
 
-- `GET /sales?search=&status=&cashier_id=&from=&to=&per_page=15`
+- `GET /sales?search=&status=&cashier_id=&customer_id=&from=&to=&per_page=15`
 - `POST /sales`
 - `GET /sales/{id}`
 - `POST /sales/{id}/void` admin-only
@@ -237,12 +243,53 @@ Request create sale:
 
 ```json
 {
+  "customer_id": "uuid-optional",
   "items": [
     {
       "product_id": "uuid",
       "quantity": 1
     }
   ]
+}
+```
+
+## Suppliers
+
+- `GET /suppliers?search=&active=&per_page=15`
+- `POST /suppliers` admin-only
+- `GET /suppliers/{id}`
+- `PATCH /suppliers/{id}` admin-only
+- `DELETE /suppliers/{id}` admin-only, menonaktifkan supplier
+
+Request create/update:
+
+```json
+{
+  "name": "Supplier Malaysia",
+  "phone": "08123456789",
+  "email": "supplier@example.com",
+  "address": "Malaysia",
+  "is_active": true
+}
+```
+
+## Customers
+
+- `GET /customers?search=&active=&per_page=15`
+- `POST /customers` admin-only
+- `GET /customers/{id}`
+- `PATCH /customers/{id}` admin-only
+- `DELETE /customers/{id}` admin-only, menonaktifkan customer
+
+Request create/update:
+
+```json
+{
+  "name": "Dealer Bandung",
+  "phone": "08123456789",
+  "email": "dealer@example.com",
+  "address": "Bandung",
+  "is_active": true
 }
 ```
 
@@ -259,12 +306,12 @@ Request void sale:
 - `GET /reports/summary?from=&to=`
 - `GET /reports/stock?category_id=&product_id=&status=&per_page=15`
 - `GET /reports/stock/export?category_id=&product_id=&status=` CSV
-- `GET /reports/sales?search=&status=&cashier_id=&from=&to=&per_page=15`
-- `GET /reports/sales/export?search=&status=&cashier_id=&from=&to=` CSV
-- `GET /reports/inbound?product_id=&operator_id=&from=&to=&per_page=15`
-- `GET /reports/inbound/export?product_id=&operator_id=&from=&to=` CSV
-- `GET /reports/outbound?product_id=&operator_id=&from=&to=&per_page=15`
-- `GET /reports/outbound/export?product_id=&operator_id=&from=&to=` CSV
+- `GET /reports/sales?search=&status=&cashier_id=&customer_id=&from=&to=&per_page=15`
+- `GET /reports/sales/export?search=&status=&cashier_id=&customer_id=&from=&to=` CSV
+- `GET /reports/inbound?product_id=&operator_id=&supplier_id=&from=&to=&per_page=15`
+- `GET /reports/inbound/export?product_id=&operator_id=&supplier_id=&from=&to=` CSV
+- `GET /reports/outbound?product_id=&operator_id=&customer_id=&from=&to=&per_page=15`
+- `GET /reports/outbound/export?product_id=&operator_id=&customer_id=&from=&to=` CSV
 
 Endpoint export memakai filter yang sama dengan endpoint list, tetapi mengembalikan file `text/csv` tanpa pagination.
 

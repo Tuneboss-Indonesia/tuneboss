@@ -86,11 +86,12 @@ class ReportController extends Controller
         $sales = $this->salesQuery($request)->latest()->get();
 
         return $this->csv('sales-report.csv', [
-            ['Invoice', 'Status', 'Cashier', 'Total Amount', 'Void Reason', 'Created At'],
+            ['Invoice', 'Status', 'Cashier', 'Customer', 'Total Amount', 'Void Reason', 'Created At'],
             ...$sales->map(fn (Sale $sale) => [
                 $sale->invoice_number,
                 $sale->status,
                 $sale->cashier?->name,
+                $sale->customer?->name,
                 (float) $sale->total_amount,
                 $sale->void_reason,
                 $sale->created_at?->toDateTimeString(),
@@ -137,9 +138,10 @@ class ReportController extends Controller
 
     private function salesQuery(Request $request)
     {
-        return $this->dateFilter(Sale::with(['cashier', 'voidedBy', 'items.product']), $request)
+        return $this->dateFilter(Sale::with(['cashier', 'customer', 'voidedBy', 'items.product']), $request)
             ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))
             ->when($request->query('cashier_id'), fn ($query, string $cashierId) => $query->where('cashier_id', $cashierId))
+            ->when($request->query('customer_id'), fn ($query, string $customerId) => $query->where('customer_id', $customerId))
             ->when($request->query('search'), fn ($query, string $search) => $query->where('invoice_number', 'like', "%{$search}%"));
     }
 
@@ -175,11 +177,13 @@ class ReportController extends Controller
 
     private function movementQuery(Request $request, array $types)
     {
-        $query = StockMovement::with(['product', 'operator'])->whereIn('type', $types);
+        $query = StockMovement::with(['product', 'operator', 'supplier', 'customer'])->whereIn('type', $types);
 
         return $this->dateFilter($query, $request)
             ->when($request->query('product_id'), fn ($query, string $productId) => $query->where('product_id', $productId))
-            ->when($request->query('operator_id'), fn ($query, string $operatorId) => $query->where('operator_id', $operatorId));
+            ->when($request->query('operator_id'), fn ($query, string $operatorId) => $query->where('operator_id', $operatorId))
+            ->when($request->query('supplier_id'), fn ($query, string $supplierId) => $query->where('supplier_id', $supplierId))
+            ->when($request->query('customer_id'), fn ($query, string $customerId) => $query->where('customer_id', $customerId));
     }
 
     private function dateFilter($query, Request $request)

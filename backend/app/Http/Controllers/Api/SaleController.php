@@ -18,10 +18,11 @@ class SaleController extends Controller
 {
     public function index(Request $request)
     {
-        $sales = Sale::with(['cashier', 'voidedBy', 'items.product'])
+        $sales = Sale::with(['cashier', 'customer', 'voidedBy', 'items.product'])
             ->when($request->query('search'), fn ($query, string $search) => $query->where('invoice_number', 'like', "%{$search}%"))
             ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))
             ->when($request->query('cashier_id'), fn ($query, string $cashierId) => $query->where('cashier_id', $cashierId))
+            ->when($request->query('customer_id'), fn ($query, string $customerId) => $query->where('customer_id', $customerId))
             ->when($request->query('from'), fn ($query, string $from) => $query->whereDate('created_at', '>=', $from))
             ->when($request->query('to'), fn ($query, string $to) => $query->whereDate('created_at', '<=', $to))
             ->latest()
@@ -34,6 +35,7 @@ class SaleController extends Controller
     {
         $data = $request->validate([
             'items' => ['required', 'array', 'min:1'],
+            'customer_id' => ['nullable', 'uuid', 'exists:customers,id'],
             'items.*.product_id' => ['required', 'uuid', 'exists:products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
         ]);
@@ -42,6 +44,7 @@ class SaleController extends Controller
             $sale = Sale::create([
                 'invoice_number' => 'INV-'.now()->format('YmdHis').'-'.random_int(100, 999),
                 'cashier_id' => $request->user()->id,
+                'customer_id' => $data['customer_id'] ?? null,
                 'total_amount' => 0,
             ]);
             $total = 0;
@@ -77,7 +80,8 @@ class SaleController extends Controller
                     'quantity' => $item['quantity'],
                     'before_quantity' => $before,
                     'after_quantity' => $after,
-                    'party' => 'Penjualan',
+                    'party' => $sale->customer?->name ?? 'Penjualan',
+                    'customer_id' => $sale->customer_id,
                     'note' => $sale->invoice_number,
                 ]);
             }
@@ -90,6 +94,7 @@ class SaleController extends Controller
                 'entity_id' => $sale->id,
                 'metadata' => [
                     'invoiceNumber' => $sale->invoice_number,
+                    'customerId' => $sale->customer_id,
                     'totalAmount' => (float) $total,
                     'items' => $sale->items()->get(['product_id', 'quantity', 'price', 'subtotal'])->toArray(),
                 ],
@@ -98,12 +103,12 @@ class SaleController extends Controller
             return $sale;
         });
 
-        return (new SaleResource($sale->load(['cashier', 'voidedBy', 'items.product'])))->response()->setStatusCode(201);
+        return (new SaleResource($sale->load(['cashier', 'customer', 'voidedBy', 'items.product'])))->response()->setStatusCode(201);
     }
 
     public function show(Sale $sale)
     {
-        return new SaleResource($sale->load(['cashier', 'voidedBy', 'items.product']));
+        return new SaleResource($sale->load(['cashier', 'customer', 'voidedBy', 'items.product']));
     }
 
     public function void(Request $request, Sale $sale)
@@ -161,6 +166,6 @@ class SaleController extends Controller
             return $sale;
         });
 
-        return new SaleResource($sale->load(['cashier', 'voidedBy', 'items.product']));
+        return new SaleResource($sale->load(['cashier', 'customer', 'voidedBy', 'items.product']));
     }
 }

@@ -34,7 +34,8 @@ class AuthController extends Controller
             ]);
         }
 
-        $token = $user->createToken('mobile-api')->plainTextToken;
+        $expiresAt = $this->tokenExpiresAt();
+        $token = $user->createToken('mobile-api', ['*'], $expiresAt)->plainTextToken;
 
         AuditLog::create([
             'user_id' => $user->id,
@@ -45,6 +46,8 @@ class AuthController extends Controller
 
         return response()->json([
             'accessToken' => $token,
+            'tokenType' => 'Bearer',
+            'expiresAt' => $expiresAt?->toISOString(),
             'user' => $this->userPayload($user),
         ]);
     }
@@ -106,6 +109,27 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()?->delete();
 
         return response()->json(['message' => 'Logged out']);
+    }
+
+    public function logoutAll(Request $request)
+    {
+        $request->user()->tokens()->delete();
+
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'auth.logout_all',
+            'entity' => 'users',
+            'entity_id' => $request->user()->id,
+        ]);
+
+        return response()->json(['message' => 'Logged out from all devices']);
+    }
+
+    private function tokenExpiresAt()
+    {
+        $minutes = config('sanctum.expiration');
+
+        return $minutes ? now()->addMinutes((int) $minutes) : null;
     }
 
     private function userPayload(User $user): array

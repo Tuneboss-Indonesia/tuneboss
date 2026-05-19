@@ -3,7 +3,9 @@
 namespace Database\Seeders;
 
 use App\Models\Category;
+use App\Models\Customer;
 use App\Models\Product;
+use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -46,6 +48,16 @@ class DatabaseSeeder extends Seeder
         ])->mapWithKeys(fn (array $category) => [
             $category['name'] => Category::updateOrCreate(['name' => $category['name']], $category),
         ]);
+
+        collect([
+            ['name' => 'Gudang Pusat', 'phone' => null, 'email' => null, 'address' => 'Internal TuneBoss', 'is_active' => true],
+            ['name' => 'Supplier Malaysia', 'phone' => null, 'email' => null, 'address' => 'Malaysia', 'is_active' => true],
+        ])->each(fn (array $supplier) => Supplier::updateOrCreate(['name' => $supplier['name']], $supplier));
+
+        collect([
+            ['name' => 'Customer Walk-in', 'phone' => null, 'email' => null, 'address' => null, 'is_active' => true],
+            ['name' => 'Dealer Bandung', 'phone' => null, 'email' => null, 'address' => 'Bandung', 'is_active' => true],
+        ])->each(fn (array $customer) => Customer::updateOrCreate(['name' => $customer['name']], $customer));
 
         $products = [
             ['category' => 'ECU', 'name' => 'TuneBoss ECU Yamaha NMAX', 'sku' => 'TB-ECU-NMAX', 'barcode' => '899-TB-001-NMAX', 'sale_price' => 1800000, 'min_stock' => 12, 'stock' => 4],

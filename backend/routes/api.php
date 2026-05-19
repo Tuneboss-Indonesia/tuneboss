@@ -4,11 +4,13 @@ use App\Http\Controllers\Api\AppController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\StockController;
+use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -22,6 +24,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);
     Route::patch('/auth/password', [AuthController::class, 'updatePassword']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::post('/auth/logout-all', [AuthController::class, 'logoutAll']);
 
     Route::middleware('role:admin')->group(function () {
         Route::get('/users', [UserController::class, 'index']);
@@ -30,6 +33,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/users/{user}', [UserController::class, 'update']);
         Route::patch('/users/{user}/password', [UserController::class, 'updatePassword']);
         Route::patch('/users/{user}/deactivate', [UserController::class, 'deactivate']);
+
+        Route::post('/suppliers', [SupplierController::class, 'store']);
+        Route::patch('/suppliers/{supplier}', [SupplierController::class, 'update']);
+        Route::delete('/suppliers/{supplier}', [SupplierController::class, 'destroy']);
+
+        Route::post('/customers', [CustomerController::class, 'store']);
+        Route::patch('/customers/{customer}', [CustomerController::class, 'update']);
+        Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
 
         Route::get('/audit-logs', [AuditLogController::class, 'index']);
     });
@@ -52,6 +63,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/categories', [CategoryController::class, 'store'])->middleware('role:admin');
     Route::patch('/categories/{category}', [CategoryController::class, 'update'])->middleware('role:admin');
     Route::delete('/categories/{category}', [CategoryController::class, 'destroy'])->middleware('role:admin');
+
+    Route::get('/suppliers', [SupplierController::class, 'index']);
+    Route::get('/suppliers/{supplier}', [SupplierController::class, 'show']);
+
+    Route::get('/customers', [CustomerController::class, 'index']);
+    Route::get('/customers/{customer}', [CustomerController::class, 'show']);
 
     Route::get('/stock/movements', [StockController::class, 'movements']);
     Route::post('/stock/inbound', [StockController::class, 'inbound']);

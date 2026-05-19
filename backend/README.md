@@ -7,6 +7,7 @@ Backend API untuk aplikasi inventory internal TuneBoss.ID. Backend ini dirancang
 - Menyediakan REST API untuk aplikasi inventory TuneBoss.
 - Mengelola autentikasi admin dan pegawai gudang.
 - Mengelola data kategori, produk, stok, transaksi stok, penjualan, dan laporan.
+- Mengelola supplier dan customer sederhana untuk laporan operasional.
 - Menyimpan audit trail semua perubahan stok.
 - Menjadi backend yang siap dideploy ke shared hosting dengan HTTPS.
 
@@ -118,6 +119,13 @@ Jika logic mulai membesar, service class boleh ditambahkan secara minimal di `ap
 - Transaksi penjualan sederhana.
 - Item penjualan.
 - Penjualan otomatis membuat stock movement keluar.
+- Customer opsional untuk transaksi penjualan.
+
+### Suppliers & Customers
+
+- Master data supplier untuk barang masuk.
+- Master data customer/dealer untuk barang keluar dan penjualan.
+- Delete menonaktifkan data agar riwayat transaksi tetap aman.
 
 ### Reports
 

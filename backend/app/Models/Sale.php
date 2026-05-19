@@ -12,7 +12,7 @@ class Sale extends Model
 {
     use HasFactory, HasUuids;
 
-    protected $fillable = ['invoice_number', 'cashier_id', 'total_amount', 'status', 'voided_by', 'voided_at', 'void_reason'];
+    protected $fillable = ['invoice_number', 'cashier_id', 'customer_id', 'total_amount', 'status', 'voided_by', 'voided_at', 'void_reason'];
 
     protected function casts(): array
     {
@@ -30,6 +30,11 @@ class Sale extends Model
     public function voidedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'voided_by');
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
     }
 
     public function items(): HasMany
