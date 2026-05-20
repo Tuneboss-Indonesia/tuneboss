@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { Alert, Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
-import { ImageUp } from "lucide-react-native";
+import { Alert, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Eye, ImageUp } from "lucide-react-native";
 import { colors } from "../../../theme/tokens";
-import { apiRequest, formatCurrency } from "../api";
+import { apiRequest, formatCurrency, formatDate } from "../api";
 import { useInventoryData } from "../InventoryDataContext";
 import type { ModalMode } from "../types";
-import { CrudShell, DataTable, EmptyRow, IconButton, RowActions, TableRow } from "../components/common";
+import { CrudShell, DataTable, EmptyRow, IconButton, Metric, RowActions, TableRow } from "../components/common";
 import { styles } from "../styles";
 
 const statusFilters = ["Semua", "Tersedia", "Menipis", "Habis"];
+
+type RestockOrderRow = { createdAt?: string | null; id: string; quantity: number; status: string; supplier?: string | null };
+type Paginated<T> = { data: T[] };
 
 function getStatus(stock: number, minStock: number) {
   if (stock === 0) return "Habis";
@@ -20,8 +23,10 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("Semua");
   const [editing, setEditing] = useState<(typeof stockItems)[number] | null>(null);
+  const [detail, setDetail] = useState<(typeof stockItems)[number] | null>(null);
+  const [detailOrders, setDetailOrders] = useState<RestockOrderRow[]>([]);
   const [saving, setSaving] = useState(false);
-  const { categories, refresh, stockItems, token } = useInventoryData();
+  const { categories, movements, refresh, stockItems, token } = useInventoryData();
   const uploadImage = async (productId: string) => {
     if (Platform.OS !== "web" || typeof document === "undefined") {
       Alert.alert("Info", "Upload gambar saat ini tersedia di web admin.");
@@ -96,6 +101,16 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
     }
   };
 
+  const openDetail = async (item: (typeof stockItems)[number]) => {
+    setDetail(item);
+    try {
+      const response = await apiRequest<Paginated<RestockOrderRow>>(`/restock-orders?product_id=${item.id}&per_page=20`, { token });
+      setDetailOrders(response.data);
+    } catch {
+      setDetailOrders([]);
+    }
+  };
+
   const filtered = stockItems.filter((item) => {
     const matchesQuery = `${item.sku} ${item.name} ${item.category} ${item.barcode}`.toLowerCase().includes(query.toLowerCase());
     const status = getStatus(item.stock, item.minStock);
@@ -103,7 +118,11 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
     return matchesQuery && matchesStatus;
   });
 
-  return <><CrudShell title="Data Barang" button="Tambah Barang" onButton={() => onOpenModal("add")} search="Cari kode, nama, kategori, atau barcode..." searchValue={query} onSearchChange={setQuery} chips={statusFilters} activeChip={statusFilter} onChipPress={setStatusFilter}><DataTable columns={["Kode Barang", "Nama Barang", "Kategori", "Harga Jual", "Stok", "Status", "Gambar", "Aksi"]}>{filtered.map((item) => <TableRow key={item.id} cells={[item.sku, item.name, item.category, formatCurrency(item.salePrice ?? 0), String(item.stock), getStatus(item.stock, item.minStock), item.imageUrl ? "Ada" : "Belum"]} actions={<View style={styles.rowActions}><RowActions onEdit={() => setEditing(item)} onDelete={() => confirmDelete(item)} /><IconButton icon={ImageUp} label="Upload Gambar" onPress={() => void uploadImage(item.id)} /></View>} />)}{!filtered.length ? <EmptyRow text="Barang tidak ditemukan" /> : null}</DataTable></CrudShell>{editing ? <ProductEditModal categories={categories} item={editing} saving={saving} onClose={() => setEditing(null)} onSave={saveEdit} /> : null}</>;
+  return <><CrudShell title="Data Barang" button="Tambah Barang" onButton={() => onOpenModal("add")} search="Cari kode, nama, kategori, atau barcode..." searchValue={query} onSearchChange={setQuery} chips={statusFilters} activeChip={statusFilter} onChipPress={setStatusFilter}><DataTable columns={["Kode Barang", "Nama Barang", "Kategori", "Harga Jual", "Stok", "Status", "Gambar", "Aksi"]}>{filtered.map((item) => <TableRow key={item.id} cells={[item.sku, item.name, item.category, formatCurrency(item.salePrice ?? 0), String(item.stock), getStatus(item.stock, item.minStock), item.imageUrl ? "Ada" : "Belum"]} actions={<View style={styles.rowActions}><IconButton icon={Eye} label="Detail" onPress={() => void openDetail(item)} /><RowActions onEdit={() => setEditing(item)} onDelete={() => confirmDelete(item)} /><IconButton icon={ImageUp} label="Upload Gambar" onPress={() => void uploadImage(item.id)} /></View>} />)}{!filtered.length ? <EmptyRow text="Barang tidak ditemukan" /> : null}</DataTable></CrudShell>{editing ? <ProductEditModal categories={categories} item={editing} saving={saving} onClose={() => setEditing(null)} onSave={saveEdit} /> : null}{detail ? <ProductDetailModal item={detail} movements={movements.filter((movement) => movement.sku === detail.sku).slice(0, 20)} orders={detailOrders} onClose={() => setDetail(null)} /> : null}</>;
+}
+
+function ProductDetailModal({ item, movements, onClose, orders }: { item: { barcode: string; category: string; minStock: number; name: string; salePrice?: number; sku: string; stock: number; status: string }; movements: Array<{ id: string; note: string; operator: string; party: string; quantity: number; timestamp: string; type: string }>; onClose: () => void; orders: RestockOrderRow[] }) {
+  return <Modal visible transparent animationType="fade" onRequestClose={onClose}><View style={styles.modalBackdrop}><View style={styles.modalCard}><ScrollView contentContainerStyle={styles.stack}><Text style={styles.modalTitle}>Detail Barang</Text><View style={styles.metricGrid}><Metric title="Stok" value={String(item.stock)} /><Metric title="Min" value={String(item.minStock)} /><Metric title="Status" value={getStatus(item.stock, item.minStock)} /></View><View style={styles.searchPanel}><Text style={styles.cardEyebrow}>Informasi Produk</Text><Text style={styles.scanResultTitle}>{item.name}</Text><Text style={styles.scanResultMeta}>{item.sku} / {item.barcode || "-"}</Text><Text style={styles.scanResultMeta}>{item.category} - {formatCurrency(item.salePrice ?? 0)}</Text></View><View><Text style={styles.modalLabel}>Riwayat Stok</Text><DataTable columns={["Waktu", "Tipe", "Qty", "Pihak", "User"]}>{movements.map((movement) => <TableRow key={movement.id} cells={[formatDate(movement.timestamp), movement.type, String(movement.quantity), movement.party || movement.note || "-", movement.operator]} />)}{!movements.length ? <EmptyRow text="Belum ada riwayat stok" /> : null}</DataTable></View><View><Text style={styles.modalLabel}>Restock Order</Text><DataTable columns={["Tanggal", "Supplier", "Qty", "Status"]}>{orders.map((order) => <TableRow key={order.id} cells={[formatDate(order.createdAt), order.supplier ?? "-", String(order.quantity), order.status]} />)}{!orders.length ? <EmptyRow text="Belum ada restock order" /> : null}</DataTable></View><View style={styles.modalActions}><Pressable onPress={onClose} style={styles.cancelButton}><Text style={styles.cancelText}>Tutup</Text></Pressable></View></ScrollView></View></View></Modal>;
 }
 
 function ProductEditModal({ categories, item, onClose, onSave, saving }: { categories: Array<{ id: string; name: string }>; item: { barcode: string; categoryId?: string; minStock: number; name: string; salePrice?: number; sku: string }; onClose: () => void; onSave: (form: { barcode: string; categoryId: string; minStock: string; name: string; price: string; sku: string }) => Promise<void>; saving: boolean }) {
