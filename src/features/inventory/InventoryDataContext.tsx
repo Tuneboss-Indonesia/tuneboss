@@ -64,6 +64,11 @@ type InventoryData = {
   priorityProducts: PriorityProduct[];
   recentActivities: RecentActivity[];
   refresh: () => Promise<void>;
+  refreshCategories: () => Promise<void>;
+  refreshProducts: () => Promise<void>;
+  refreshRestockAlerts: () => Promise<void>;
+  refreshSales: () => Promise<void>;
+  refreshStockActivity: () => Promise<void>;
   restockAlerts: RestockAlertRow[];
   sales: SaleRow[];
   summary: DashboardSummary;
@@ -74,6 +79,25 @@ type InventoryData = {
 };
 
 const InventoryDataContext = createContext<InventoryData | null>(null);
+
+function mapProduct(product: ProductDto): StockItem {
+  return {
+    id: product.id,
+    barcode: product.barcode ?? "",
+    category: product.category?.name ?? "-",
+    categoryId: product.categoryId,
+    isActive: product.isActive,
+    imageUrl: product.imageUrl,
+    lastUpdated: product.updatedAt ?? "-",
+    location: "-",
+    minStock: product.minStock,
+    name: product.name,
+    salePrice: product.salePrice,
+    sku: product.sku,
+    status: product.status,
+    stock: product.stock,
+  };
+}
 
 export function InventoryDataProvider({ children, token }: { children: ReactNode; token: string }) {
   const [summary, setSummary] = useState<DashboardSummary>(fallbackSummary);
@@ -89,49 +113,78 @@ export function InventoryDataProvider({ children, token }: { children: ReactNode
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadSummary = async () => setSummary(await apiRequest<DashboardSummary>("/dashboard/summary", { token }));
+  const loadPriorityProducts = async () => setPriorityProducts(await apiRequest<PriorityProduct[]>("/dashboard/priority-products", { token }));
+  const loadRecentActivities = async () => {
+    const activityData = await apiRequest<RecentActivity[]>("/dashboard/recent-activities", { token });
+    setRecentActivities(activityData.map((item) => ({ ...item, timestamp: item.timestamp })));
+  };
+  const loadProducts = async () => {
+    const productData = await apiRequest<Paginated<ProductDto>>("/products?per_page=100", { token });
+    setStockItems(productData.data.map(mapProduct));
+  };
+  const loadCategories = async () => {
+    const categoryData = await apiRequest<CategoryDto[]>("/categories", { token });
+    setCategories(categoryData.map((category) => ({ id: category.id, name: category.name, desc: category.description ?? "-", count: category.productsCount ?? 0 })));
+  };
+  const loadMovements = async () => {
+    const movementData = await apiRequest<Paginated<MovementDto>>("/stock/movements?per_page=100", { token });
+    setMovements(movementData.data.map((movement) => ({ ...movement, timestamp: movement.createdAt ?? movement.timestamp })));
+  };
+  const loadSales = async () => {
+    const salesData = await apiRequest<Paginated<SaleRow>>("/sales?per_page=100", { token });
+    setSales(salesData.data);
+  };
+  const loadRestockAlerts = async () => {
+    const restockData = await apiRequest<Paginated<RestockAlertRow>>("/restock-alerts?active_only=1&per_page=20", { token });
+    setRestockAlerts(restockData.data);
+  };
+  const loadSuppliers = async () => {
+    const supplierData = await apiRequest<Paginated<PartyRow>>("/suppliers?active=1&per_page=100", { token });
+    setSuppliers(supplierData.data);
+  };
+  const loadCustomers = async () => {
+    const customerData = await apiRequest<Paginated<PartyRow>>("/customers?active=1&per_page=100", { token });
+    setCustomers(customerData.data);
+  };
+
+  const refreshProducts = async () => {
+    await Promise.all([loadSummary(), loadPriorityProducts(), loadProducts(), loadRestockAlerts()]);
+  };
+
+  const refreshCategories = async () => {
+    await Promise.all([loadCategories(), loadProducts()]);
+  };
+
+  const refreshRestockAlerts = async () => {
+    await loadRestockAlerts();
+  };
+
+  const refreshStockActivity = async () => {
+    await Promise.all([loadSummary(), loadPriorityProducts(), loadRecentActivities(), loadProducts(), loadMovements(), loadRestockAlerts()]);
+  };
+
+  const refreshSales = async () => {
+    await Promise.all([loadSummary(), loadPriorityProducts(), loadRecentActivities(), loadProducts(), loadMovements(), loadSales(), loadRestockAlerts()]);
+  };
+
   const refresh = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const [summaryData, priorityData, activityData, productData, categoryData, movementData, salesData, restockData, supplierData, customerData] = await Promise.all([
-        apiRequest<DashboardSummary>("/dashboard/summary", { token }),
-        apiRequest<PriorityProduct[]>("/dashboard/priority-products", { token }),
-        apiRequest<RecentActivity[]>("/dashboard/recent-activities", { token }),
-        apiRequest<Paginated<ProductDto>>("/products?per_page=100", { token }),
-        apiRequest<CategoryDto[]>("/categories", { token }),
-        apiRequest<Paginated<MovementDto>>("/stock/movements?per_page=100", { token }),
-        apiRequest<Paginated<SaleRow>>("/sales?per_page=100", { token }),
-        apiRequest<Paginated<RestockAlertRow>>("/restock-alerts?active_only=1&per_page=20", { token }),
-        apiRequest<Paginated<PartyRow>>("/suppliers?active=1&per_page=100", { token }),
-        apiRequest<Paginated<PartyRow>>("/customers?active=1&per_page=100", { token }),
+      await Promise.all([
+        loadSummary(),
+        loadPriorityProducts(),
+        loadRecentActivities(),
+        loadProducts(),
+        loadCategories(),
+        loadMovements(),
+        loadSales(),
+        loadRestockAlerts(),
+        loadSuppliers(),
+        loadCustomers(),
       ]);
-
-      setSummary(summaryData);
-      setPriorityProducts(priorityData);
-      setRecentActivities(activityData.map((item) => ({ ...item, timestamp: item.timestamp })));
-      setStockItems(productData.data.map((product) => ({
-        id: product.id,
-        barcode: product.barcode ?? "",
-        category: product.category?.name ?? "-",
-        categoryId: product.categoryId,
-        isActive: product.isActive,
-        imageUrl: product.imageUrl,
-        lastUpdated: product.updatedAt ?? "-",
-        location: "-",
-        minStock: product.minStock,
-        name: product.name,
-        salePrice: product.salePrice,
-        sku: product.sku,
-        status: product.status,
-        stock: product.stock,
-      })));
-      setCategories(categoryData.map((category) => ({ id: category.id, name: category.name, desc: category.description ?? "-", count: category.productsCount ?? 0 })));
-      setMovements(movementData.data.map((movement) => ({ ...movement, timestamp: movement.createdAt ?? movement.timestamp })));
-      setSales(salesData.data);
-      setRestockAlerts(restockData.data);
-      setSuppliers(supplierData.data);
-      setCustomers(customerData.data);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Gagal memuat data API.");
     } finally {
@@ -143,7 +196,7 @@ export function InventoryDataProvider({ children, token }: { children: ReactNode
     void refresh();
   }, [token]);
 
-  const value = useMemo(() => ({ categories, customers, error, loading, movements, priorityProducts, recentActivities, refresh, restockAlerts, sales, summary, stockItems, suppliers, token }), [categories, customers, error, loading, movements, priorityProducts, recentActivities, restockAlerts, sales, summary, stockItems, suppliers, token]);
+  const value = useMemo(() => ({ categories, customers, error, loading, movements, priorityProducts, recentActivities, refresh, refreshCategories, refreshProducts, refreshRestockAlerts, refreshSales, refreshStockActivity, restockAlerts, sales, summary, stockItems, suppliers, token }), [categories, customers, error, loading, movements, priorityProducts, recentActivities, restockAlerts, sales, summary, stockItems, suppliers, token]);
 
   return <InventoryDataContext.Provider value={value}>{children}</InventoryDataContext.Provider>;
 }

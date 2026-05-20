@@ -11,7 +11,7 @@ import { Metric } from "../components/common";
 type LookupResponse = StockItem & { salePrice?: number; categoryId?: string };
 
 export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: (productId?: string) => void; onGoOutbound: (productId?: string) => void }) {
-  const { categories, refresh, stockItems, token } = useInventoryData();
+  const { categories, refreshProducts, stockItems, token } = useInventoryData();
   const [mode, setMode] = useState<"camera" | "scanner">("scanner");
   const [barcode, setBarcode] = useState(stockItems[0]?.barcode || stockItems[0]?.sku || "");
   const [result, setResult] = useState<StockItem | null>(stockItems[0] ?? null);
@@ -53,7 +53,7 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: (productI
         token,
       });
 
-      await refresh();
+      await refreshProducts();
       setResult({ ...product, category: product.category || selectedCategory?.name || "-", lastUpdated: "-", location: "-" });
       setBarcode(product.barcode || product.sku);
       setError("");

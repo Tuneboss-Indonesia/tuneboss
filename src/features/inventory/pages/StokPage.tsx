@@ -26,7 +26,7 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
   const [detail, setDetail] = useState<(typeof stockItems)[number] | null>(null);
   const [detailOrders, setDetailOrders] = useState<RestockOrderRow[]>([]);
   const [saving, setSaving] = useState(false);
-  const { categories, movements, refresh, stockItems, token } = useInventoryData();
+  const { categories, movements, refreshProducts, stockItems, token } = useInventoryData();
   const uploadImage = async (productId: string) => {
     if (Platform.OS !== "web" || typeof document === "undefined") {
       Alert.alert("Info", "Upload gambar saat ini tersedia di web admin.");
@@ -44,7 +44,7 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
         const form = new FormData();
         form.append("image", file);
         await apiRequest(`/products/${productId}/image`, { body: form, method: "POST", token });
-        await refresh();
+        await refreshProducts();
       } catch (error) {
         Alert.alert("Gagal", error instanceof Error ? error.message : "Gambar gagal diupload.");
       }
@@ -54,12 +54,12 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
 
   const deleteImage = async (productId: string) => {
     await apiRequest(`/products/${productId}/image`, { method: "DELETE", token });
-    await refresh();
+    await refreshProducts();
   };
 
   const deleteProduct = async (productId: string) => {
     await apiRequest(`/products/${productId}`, { method: "DELETE", token });
-    await refresh();
+    await refreshProducts();
   };
 
   const confirmDelete = (item: (typeof stockItems)[number]) => {
@@ -92,7 +92,7 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
         method: "PATCH",
         token,
       });
-      await refresh();
+      await refreshProducts();
       setEditing(null);
     } catch (error) {
       Alert.alert("Gagal", error instanceof Error ? error.message : "Barang gagal diedit.");

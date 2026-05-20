@@ -42,7 +42,7 @@ export function PenjualanPage() {
   const [detail, setDetail] = useState<SaleDetail | null>(null);
   const [preview, setPreview] = useState<SalePreview | null>(null);
   const [saving, setSaving] = useState(false);
-  const { customers, refresh, sales, stockItems, token } = useInventoryData();
+  const { customers, refreshSales, sales, stockItems, token } = useInventoryData();
   const today = new Date().toDateString();
   const todaySales = sales.filter((sale) => new Date(sale.createdAt).toDateString() === today && sale.status === "completed");
   const filtered = sales.filter((sale) => `${sale.invoiceNumber} ${sale.cashier ?? ""} ${sale.status}`.toLowerCase().includes(query.toLowerCase()));
@@ -97,7 +97,7 @@ export function PenjualanPage() {
       const body = await saleBody();
       setPreview(await apiRequest<SalePreview>("/sales/preview", { body: JSON.stringify(body), method: "POST", token }));
       await apiRequest("/sales", { body: JSON.stringify(body), method: "POST", token });
-      await refresh();
+      await refreshSales();
       closeModal();
     } catch (error) {
       Alert.alert("Gagal", error instanceof Error ? error.message : "Transaksi gagal dibuat.");
@@ -109,7 +109,7 @@ export function PenjualanPage() {
   const voidSale = async (id: string) => {
     try {
       await apiRequest(`/sales/${id}/void`, { body: JSON.stringify({ reason: "Void dari admin frontend" }), method: "POST", token });
-      await refresh();
+      await refreshSales();
     } catch (error) {
       Alert.alert("Gagal", error instanceof Error ? error.message : "Void transaksi gagal.");
     }

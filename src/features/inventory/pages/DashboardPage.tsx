@@ -40,7 +40,7 @@ export function DashboardPage() {
   const [topPeriod, setTopPeriod] = useState<PeriodKey>("bulan");
   const [salesData, setSalesData] = useState<ChartPoint[]>(salesChartData.bulan);
   const [topData, setTopData] = useState<ChartPoint[]>(topProductsData.bulan);
-  const { error, loading, refresh, restockAlerts, summary, token } = useInventoryData();
+  const { error, loading, refreshRestockAlerts, restockAlerts, summary, token } = useInventoryData();
   const { width } = useWindowDimensions();
   const compact = width < 760;
 
@@ -55,7 +55,7 @@ export function DashboardPage() {
   const updateAlert = async (id: string, action: "acknowledge" | "resolve") => {
     try {
       await apiRequest(`/restock-alerts/${id}/${action}`, { body: JSON.stringify({ note: action === "acknowledge" ? "Diproses dari dashboard" : "Selesai dari dashboard" }), method: "POST", token });
-      await refresh();
+      await refreshRestockAlerts();
     } catch (requestError) {
       Alert.alert("Gagal", requestError instanceof Error ? requestError.message : "Restock alert gagal diproses.");
     }

@@ -8,7 +8,7 @@ import { styles } from "../styles";
 import { colors } from "../../../theme/tokens";
 
 export function ActionModal({ initialProductId, kind, mode, onClose }: { initialProductId?: string; kind: ModalKind; mode: ModalMode; onClose: () => void }) {
-  const { categories, customers, refresh, stockItems, suppliers, token } = useInventoryData();
+  const { categories, customers, refreshCategories, refreshProducts, refreshStockActivity, stockItems, suppliers, token } = useInventoryData();
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedPartyId, setSelectedPartyId] = useState("");
@@ -93,7 +93,9 @@ export function ActionModal({ initialProductId, kind, mode, onClose }: { initial
         });
       }
 
-      await refresh();
+      if (kind === "kategori") await refreshCategories();
+      if (kind === "stok") await refreshProducts();
+      if (kind === "masuk" || kind === "keluar") await refreshStockActivity();
       close();
     } catch (error) {
       Alert.alert("Gagal", error instanceof Error ? error.message : "Data gagal disimpan.");

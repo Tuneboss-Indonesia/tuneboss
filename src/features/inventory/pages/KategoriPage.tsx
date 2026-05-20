@@ -15,7 +15,7 @@ function CategoryCard({ name, desc, count, onEdit, onDelete }: { name: string; d
 
 export function KategoriPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => void }) {
   const [query, setQuery] = useState("");
-  const { categories, refresh, token } = useInventoryData();
+  const { categories, refreshCategories, token } = useInventoryData();
   const [deleting, setDeleting] = useState("");
   const [editing, setEditing] = useState<{ desc: string; id: string; name: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -25,7 +25,7 @@ export function KategoriPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) =
     setDeleting(id);
     try {
       await apiRequest(`/categories/${id}`, { method: "DELETE", token });
-      await refresh();
+      await refreshCategories();
     } finally {
       setDeleting("");
     }
@@ -35,7 +35,7 @@ export function KategoriPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) =
     setSaving(true);
     try {
       await apiRequest(`/categories/${editing.id}`, { body: JSON.stringify({ description: editing.desc, name: editing.name }), method: "PATCH", token });
-      await refresh();
+      await refreshCategories();
       setEditing(null);
     } catch (error) {
       Alert.alert("Gagal", error instanceof Error ? error.message : "Kategori gagal disimpan.");
