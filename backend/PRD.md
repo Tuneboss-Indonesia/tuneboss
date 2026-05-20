@@ -136,11 +136,11 @@ Backend harus bisa berjalan di shared hosting yang mendukung PHP, MariaDB/MySQL,
 
 ### Fase 2
 
-- Refresh token.
+- Refresh token/token rotation.
 - Role permission lebih detail.
 - Supplier dan customer.
 - Batch/expired date.
-- Export CSV.
+- Export CSV dan PDF ringkas.
 - Upload foto produk.
 
 ### Fase 3
@@ -153,7 +153,7 @@ Backend harus bisa berjalan di shared hosting yang mendukung PHP, MariaDB/MySQL,
 
 ### Fase 4
 
-- Realtime update dashboard.
+- Realtime-friendly dashboard update via polling ringan untuk shared hosting.
 - Integrasi marketplace/POS.
 - Background jobs.
 - Advanced analytics.

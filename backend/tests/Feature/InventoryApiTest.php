@@ -50,6 +50,37 @@ class InventoryApiTest extends TestCase
         $this->withToken($login->json('accessToken'))
             ->getJson('/dashboard/recent-activities')
             ->assertOk();
+
+        $this->withToken($login->json('accessToken'))
+            ->getJson('/dashboard/realtime')
+            ->assertOk()
+            ->assertJsonStructure(['serverTime', 'pollAfterSeconds', 'lastActivityAt', 'summary', 'priorityProducts', 'recentActivities']);
+    }
+
+    public function test_user_can_refresh_access_token(): void
+    {
+        $this->seed();
+        $token = $this->loginToken('staff@tuneboss.id');
+
+        $refresh = $this->withToken($token)
+            ->postJson('/auth/refresh')
+            ->assertOk()
+            ->assertJsonStructure(['accessToken', 'tokenType', 'expiresAt', 'user']);
+
+        $this->assertNotSame($token, $refresh->json('accessToken'));
+        $this->assertSame(1, PersonalAccessToken::count());
+
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($token)
+            ->getJson('/auth/me')
+            ->assertUnauthorized();
+
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($refresh->json('accessToken'))
+            ->getJson('/auth/me')
+            ->assertOk();
     }
 
     public function test_outbound_rejects_insufficient_stock(): void
@@ -589,6 +620,11 @@ class InventoryApiTest extends TestCase
                 ->get("/reports/{$report}/export")
                 ->assertOk()
                 ->assertHeader('content-type', 'text/csv; charset=UTF-8');
+
+            $this->withToken($adminToken)
+                ->get("/reports/{$report}/export.pdf")
+                ->assertOk()
+                ->assertHeader('content-type', 'application/pdf');
         }
 
         $this->withToken($adminToken)

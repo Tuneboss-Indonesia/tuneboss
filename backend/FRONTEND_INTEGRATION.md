@@ -19,6 +19,7 @@ Untuk Android emulator, jika API berjalan di mesin host, biasanya gunakan `http:
 3. Kirim header `Authorization: Bearer <accessToken>` dan `Accept: application/json` untuk semua endpoint private.
 4. Jika response `code` adalah `unauthenticated`, hapus token lokal dan arahkan user ke login.
 5. Gunakan `POST /auth/logout-all` untuk keluar dari semua device.
+6. Gunakan `POST /auth/refresh` sebelum `expiresAt` untuk merotasi token tanpa login ulang. Endpoint ini membutuhkan access token yang masih valid.
 
 Token response berisi `expiresAt`; frontend bisa menyimpan nilai ini untuk pre-emptive logout sebelum request berikutnya.
 
@@ -96,6 +97,19 @@ Endpoint CSV:
 - `GET /reports/outbound/export`
 
 Endpoint ini memakai filter yang sama dengan endpoint report list. Di mobile, download dapat ditangani dengan `expo-file-system` atau dibuka lewat browser/WebView sesuai kebutuhan UI.
+
+Endpoint PDF:
+
+- `GET /reports/stock/export.pdf`
+- `GET /reports/sales/export.pdf`
+- `GET /reports/inbound/export.pdf`
+- `GET /reports/outbound/export.pdf`
+
+PDF memakai filter yang sama dan cocok untuk preview/cetak ringkas. Untuk export data penuh tetap gunakan CSV.
+
+## Realtime Dashboard
+
+Shared hosting/cPanel biasanya tidak cocok untuk websocket panjang. Gunakan polling ke `GET /dashboard/realtime`; response menyertakan `pollAfterSeconds`, `lastActivityAt`, `summary`, `priorityProducts`, dan `recentActivities`.
 
 ## Sale Preview
 

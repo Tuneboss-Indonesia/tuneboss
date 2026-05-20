@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Pressable, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { ChevronDown } from "lucide-react-native";
 import { colors } from "../../../theme/tokens";
 import { reportCards } from "../data";
@@ -55,7 +55,7 @@ function filterQuery(type: ReportType, filters: ReportFilters) {
 function FilterSelect({ label, onChange, onToggle, open, options, value }: { label: string; onChange: (value: string) => void; onToggle: () => void; open: boolean; options: FilterOption[]; value: string }) {
   const selected = options.find((option) => option.value === value);
 
-  return <View style={styles.filterInputGroup}><Text style={styles.filterLabel}>{label}</Text><Pressable onPress={onToggle} style={styles.modalSelect}><Text style={styles.modalSelectText}>{selected?.label ?? "Semua"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>{open ? <View style={styles.modalSelectOptions}>{options.map((option) => <Pressable key={option.value || "all"} onPress={() => onChange(option.value)} style={[styles.modalSelectOption, option.value === value && styles.modalSelectOptionActive]}><Text style={[styles.modalSelectOptionText, option.value === value && styles.modalSelectOptionTextActive]}>{option.label}</Text></Pressable>)}</View> : null}</View>;
+  return <View style={[styles.filterInputGroup, open && { zIndex: 20 }]}><Text style={styles.filterLabel}>{label}</Text><Pressable onPress={onToggle} style={styles.modalSelect}><Text style={styles.modalSelectText}>{selected?.label ?? "Semua"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>{open ? <ScrollView style={styles.filterSelectOptions} nestedScrollEnabled>{options.map((option) => <Pressable key={option.value || "all"} onPress={() => onChange(option.value)} style={[styles.modalSelectOption, option.value === value && styles.modalSelectOptionActive]}><Text style={[styles.modalSelectOptionText, option.value === value && styles.modalSelectOptionTextActive]}>{option.label}</Text></Pressable>)}</ScrollView> : null}</View>;
 }
 
 export function ReportDetail({ type, onBack }: { type: ReportType; onBack: () => void }) {

@@ -32,6 +32,10 @@ export function ActionModal({ initialProductId, kind, mode, onClose }: { initial
   const productOptions = stockItems.filter((item) => `${item.name} ${item.sku} ${item.barcode}`.toLowerCase().includes(productQuery.toLowerCase())).slice(0, 25);
   const parties = kind === "masuk" ? suppliers : customers;
   const selectedParty = parties.find((item) => item.id === selectedPartyId);
+  const transactionProduct = selectedProduct ?? stockItems.find((item) => item.sku.toLowerCase() === sku.toLowerCase() || item.barcode.toLowerCase() === sku.toLowerCase());
+  const transactionQuantity = Number(stock || 0);
+  const afterStock = transactionProduct ? transactionProduct.stock + (kind === "keluar" ? -transactionQuantity : transactionQuantity) : 0;
+  const insufficientStock = Boolean(kind === "keluar" && transactionProduct && transactionQuantity > transactionProduct.stock);
 
   useEffect(() => {
     if (kind && !selectedCategoryId) setSelectedCategoryId(categories[0]?.id ?? "");
@@ -139,6 +143,7 @@ export function ActionModal({ initialProductId, kind, mode, onClose }: { initial
                 {productOpen ? <View style={styles.modalSelectOptions}><TextInput onChangeText={setProductQuery} style={styles.modalInput} placeholder="Cari nama / SKU / barcode" placeholderTextColor="#9aa4b5" value={productQuery} />{productOptions.map((item) => <Pressable key={item.id} onPress={() => { setSelectedProductId(item.id); setSku(item.sku); setProductQuery(""); setProductOpen(false); }} style={[styles.modalSelectOption, selectedProductId === item.id && styles.modalSelectOptionActive]}><Text style={[styles.modalSelectOptionText, selectedProductId === item.id && styles.modalSelectOptionTextActive]}>{item.sku} - {item.name} | stok {item.stock}</Text></Pressable>)}{!productOptions.length ? <Text style={styles.emptyText}>Produk tidak ditemukan</Text> : null}</View> : null}
               </View>
               <TextInput onChangeText={setSku} style={styles.modalInput} placeholder="SKU / Barcode" placeholderTextColor="#9aa4b5" value={sku} />
+              {transactionProduct ? <View style={styles.searchPanel}><Text style={styles.cardEyebrow}>Info Barang</Text><Text style={styles.scanResultTitle}>{transactionProduct.name}</Text><Text style={styles.scanResultMeta}>Stok saat ini: {transactionProduct.stock}</Text><Text style={styles.scanResultMeta}>Setelah transaksi: {afterStock}</Text>{insufficientStock ? <Text style={styles.errorText}>Jumlah keluar melebihi stok saat ini.</Text> : null}</View> : null}
               <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
               <View style={styles.modalFieldGroup}>
                 <Text style={styles.modalLabel}>{kind === "masuk" ? "Supplier" : "Customer"}</Text>

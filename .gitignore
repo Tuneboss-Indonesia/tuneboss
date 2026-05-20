@@ -16,6 +16,9 @@ build/
 .metro-cache/
 .cache/
 
+# Browser test artifacts
+.playwright-mcp/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

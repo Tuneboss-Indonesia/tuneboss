@@ -14,6 +14,37 @@ class DashboardController extends Controller
 {
     public function summary()
     {
+        return response()->json($this->summaryPayload());
+    }
+
+    public function priorityProducts()
+    {
+        return response()->json($this->priorityProductsPayload());
+    }
+
+    public function recentActivities()
+    {
+        return response()->json($this->recentActivitiesPayload());
+    }
+
+    public function realtime()
+    {
+        $latestMovement = StockMovement::query()->latest('updated_at')->first()?->updated_at;
+        $latestSale = Sale::query()->latest('updated_at')->first()?->updated_at;
+        $lastActivityAt = collect([$latestMovement, $latestSale])->filter()->sortDesc()->first();
+
+        return response()->json([
+            'serverTime' => now()->toISOString(),
+            'pollAfterSeconds' => 15,
+            'lastActivityAt' => $lastActivityAt?->toISOString(),
+            'summary' => $this->summaryPayload(),
+            'priorityProducts' => $this->priorityProductsPayload(),
+            'recentActivities' => $this->recentActivitiesPayload(),
+        ]);
+    }
+
+    private function summaryPayload(): array
+    {
         $products = Product::query()->where('is_active', true)->leftJoin('product_stocks', 'products.id', '=', 'product_stocks.product_id');
         $totalSku = (clone $products)->count('products.id');
         $totalUnits = (clone $products)->sum(DB::raw('COALESCE(product_stocks.quantity, 0)'));
@@ -21,7 +52,7 @@ class DashboardController extends Controller
         $outOfStockCount = (clone $products)->whereRaw('COALESCE(product_stocks.quantity, 0) = 0')->count();
         $safeCount = max($totalSku - $lowStockCount - $outOfStockCount, 0);
 
-        return response()->json([
+        return [
             'totalSku' => $totalSku,
             'totalUnits' => (int) $totalUnits,
             'lowStockCount' => $lowStockCount,
@@ -31,12 +62,12 @@ class DashboardController extends Controller
                 'low' => $this->percent($lowStockCount, $totalSku),
                 'empty' => $this->percent($outOfStockCount, $totalSku),
             ],
-        ]);
+        ];
     }
 
-    public function priorityProducts()
+    private function priorityProductsPayload()
     {
-        $products = Product::with(['category', 'stock'])
+        return Product::with(['category', 'stock'])
             ->where('is_active', true)
             ->whereHas('stock', fn ($query) => $query->whereColumn('quantity', '<=', 'products.min_stock'))
             ->limit(10)
@@ -54,13 +85,11 @@ class DashboardController extends Controller
                     'status' => $stock === 0 ? 'empty' : 'low',
                 ];
             });
-
-        return response()->json($products);
     }
 
-    public function recentActivities()
+    private function recentActivitiesPayload()
     {
-        return response()->json(StockMovement::with(['product', 'operator'])
+        return StockMovement::with(['product', 'operator'])
             ->latest()
             ->limit(10)
             ->get()
@@ -71,7 +100,7 @@ class DashboardController extends Controller
                 'quantity' => $movement->quantity,
                 'operator' => $movement->operator?->name,
                 'timestamp' => $movement->created_at?->toISOString(),
-            ]));
+            ]);
     }
 
     public function salesChart(Request $request)

@@ -148,7 +148,7 @@ export function RestockPage() {
               </View>
             </View>
             <TextInput onChangeText={setNote} style={styles.modalInput} placeholder="Catatan pembelian" placeholderTextColor={colors.muted} value={note} />
-            <View style={styles.modalActions}>
+            <View style={styles.formSubmitRow}>
               <Pressable disabled={saving} onPress={() => void createOrder()} style={styles.saveButton}>
                 <Text style={styles.saveText}>{saving ? "Menyimpan..." : "Buat Order"}</Text>
               </Pressable>

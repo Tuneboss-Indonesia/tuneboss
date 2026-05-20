@@ -23,6 +23,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/app/bootstrap', [AppController::class, 'bootstrap']);
 
     Route::get('/auth/me', [AuthController::class, 'me']);
+    Route::post('/auth/refresh', [AuthController::class, 'refresh']);
     Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);
     Route::patch('/auth/password', [AuthController::class, 'updatePassword']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
@@ -60,6 +61,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard/recent-activities', [DashboardController::class, 'recentActivities']);
     Route::get('/dashboard/sales-chart', [DashboardController::class, 'salesChart']);
     Route::get('/dashboard/top-products', [DashboardController::class, 'topProducts']);
+    Route::get('/dashboard/realtime', [DashboardController::class, 'realtime']);
 
     Route::get('/restock-alerts', [RestockAlertController::class, 'index']);
     Route::post('/restock-alerts/{restockAlert}/acknowledge', [RestockAlertController::class, 'acknowledge']);
@@ -99,11 +101,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/reports/stock', [ReportController::class, 'stock']);
     Route::get('/reports/stock/export', [ReportController::class, 'stockExport']);
+    Route::get('/reports/stock/export.pdf', [ReportController::class, 'stockPdf']);
     Route::get('/reports/summary', [ReportController::class, 'summary']);
     Route::get('/reports/sales', [ReportController::class, 'sales']);
     Route::get('/reports/sales/export', [ReportController::class, 'salesExport']);
+    Route::get('/reports/sales/export.pdf', [ReportController::class, 'salesPdf']);
     Route::get('/reports/inbound', [ReportController::class, 'inbound']);
     Route::get('/reports/inbound/export', [ReportController::class, 'inboundExport']);
+    Route::get('/reports/inbound/export.pdf', [ReportController::class, 'inboundPdf']);
     Route::get('/reports/outbound', [ReportController::class, 'outbound']);
     Route::get('/reports/outbound/export', [ReportController::class, 'outboundExport']);
+    Route::get('/reports/outbound/export.pdf', [ReportController::class, 'outboundPdf']);
 });

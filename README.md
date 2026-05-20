@@ -157,6 +157,7 @@ php artisan inventory:backup
 API tidak memakai prefix `/api`. Contoh endpoint utama:
 
 - `POST /auth/login`
+- `POST /auth/refresh`
 - `GET /health`
 - `GET /app/bootstrap`
 - `GET /dashboard/summary`
@@ -169,6 +170,7 @@ API tidak memakai prefix `/api`. Contoh endpoint utama:
 - `POST /sales/preview`
 - `POST /sales`
 - `GET /reports/stock/export`
+- `GET /reports/stock/export.pdf`
 - `GET /audit-logs/export`
 
 Dokumentasi lengkap ada di `backend/API.md`.

@@ -9,6 +9,7 @@ use App\Http\Resources\StockMovementCollection;
 use App\Models\Product;
 use App\Models\Sale;
 use App\Models\StockMovement;
+use App\Support\SimplePdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -57,19 +58,14 @@ class ReportController extends Controller
     {
         $products = $this->stockQuery($request)->orderBy('name')->get();
 
-        return $this->csv('stock-report.csv', [
-            ['SKU', 'Name', 'Category', 'Stock', 'Minimum Stock', 'Status', 'Sale Price', 'Active'],
-            ...$products->map(fn (Product $product) => [
-                $product->sku,
-                $product->name,
-                $product->category?->name,
-                $product->stock?->quantity ?? 0,
-                $product->min_stock,
-                $this->stockStatus($product->stock?->quantity ?? 0, $product->min_stock),
-                (float) $product->sale_price,
-                $product->is_active ? 'yes' : 'no',
-            ])->all(),
-        ]);
+        return $this->csv('stock-report.csv', [$this->stockHeaders(), ...$this->stockRows($products)]);
+    }
+
+    public function stockPdf(Request $request)
+    {
+        $products = $this->stockQuery($request)->orderBy('name')->get();
+
+        return $this->pdf('stock-report.pdf', 'TuneBoss Stock Report', $this->stockHeaders(), $this->stockRows($products));
     }
 
     public function sales(Request $request)
@@ -85,18 +81,14 @@ class ReportController extends Controller
     {
         $sales = $this->salesQuery($request)->latest()->get();
 
-        return $this->csv('sales-report.csv', [
-            ['Invoice', 'Status', 'Cashier', 'Customer', 'Total Amount', 'Void Reason', 'Created At'],
-            ...$sales->map(fn (Sale $sale) => [
-                $sale->invoice_number,
-                $sale->status,
-                $sale->cashier?->name,
-                $sale->customer?->name,
-                (float) $sale->total_amount,
-                $sale->void_reason,
-                $sale->created_at?->toDateTimeString(),
-            ])->all(),
-        ]);
+        return $this->csv('sales-report.csv', [$this->salesHeaders(), ...$this->salesRows($sales)]);
+    }
+
+    public function salesPdf(Request $request)
+    {
+        $sales = $this->salesQuery($request)->latest()->get();
+
+        return $this->pdf('sales-report.pdf', 'TuneBoss Sales Report', $this->salesHeaders(), $this->salesRows($sales));
     }
 
     public function inbound(Request $request)
@@ -109,6 +101,11 @@ class ReportController extends Controller
         return $this->movementExport($request, ['inbound'], 'inbound-report.csv');
     }
 
+    public function inboundPdf(Request $request)
+    {
+        return $this->movementPdf($request, ['inbound'], 'inbound-report.pdf', 'TuneBoss Inbound Report');
+    }
+
     public function outbound(Request $request)
     {
         return $this->movementReport($request, ['outbound', 'sale']);
@@ -117,6 +114,11 @@ class ReportController extends Controller
     public function outboundExport(Request $request)
     {
         return $this->movementExport($request, ['outbound', 'sale'], 'outbound-report.csv');
+    }
+
+    public function outboundPdf(Request $request)
+    {
+        return $this->movementPdf($request, ['outbound', 'sale'], 'outbound-report.pdf', 'TuneBoss Outbound Report');
     }
 
     private function stockQuery(Request $request)
@@ -160,21 +162,14 @@ class ReportController extends Controller
     {
         $movements = $this->movementQuery($request, $types)->latest()->get();
 
-        return $this->csv($filename, [
-            ['Date', 'Type', 'SKU', 'Product', 'Operator', 'Quantity', 'Before', 'After', 'Party', 'Note'],
-            ...$movements->map(fn (StockMovement $movement) => [
-                $movement->created_at?->toDateTimeString(),
-                $movement->type,
-                $movement->product?->sku,
-                $movement->product?->name,
-                $movement->operator?->name,
-                $movement->quantity,
-                $movement->before_quantity,
-                $movement->after_quantity,
-                $movement->party,
-                $movement->note,
-            ])->all(),
-        ]);
+        return $this->csv($filename, [$this->movementHeaders(), ...$this->movementRows($movements)]);
+    }
+
+    private function movementPdf(Request $request, array $types, string $filename, string $title)
+    {
+        $movements = $this->movementQuery($request, $types)->latest()->get();
+
+        return $this->pdf($filename, $title, $this->movementHeaders(), $this->movementRows($movements));
     }
 
     private function movementQuery(Request $request, array $types)
@@ -219,5 +214,71 @@ class ReportController extends Controller
         $value = (string) $value;
 
         return preg_match('/^[=+\-@]/', $value) ? "'{$value}" : $value;
+    }
+
+    private function pdf(string $filename, string $title, array $headers, array $rows)
+    {
+        return response(SimplePdf::make($title, $headers, $rows), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
+    }
+
+    private function stockHeaders(): array
+    {
+        return ['SKU', 'Name', 'Category', 'Stock', 'Minimum Stock', 'Status', 'Sale Price', 'Active'];
+    }
+
+    private function stockRows($products): array
+    {
+        return $products->map(fn (Product $product) => [
+            $product->sku,
+            $product->name,
+            $product->category?->name,
+            $product->stock?->quantity ?? 0,
+            $product->min_stock,
+            $this->stockStatus($product->stock?->quantity ?? 0, $product->min_stock),
+            (float) $product->sale_price,
+            $product->is_active ? 'yes' : 'no',
+        ])->all();
+    }
+
+    private function salesHeaders(): array
+    {
+        return ['Invoice', 'Status', 'Cashier', 'Customer', 'Total Amount', 'Void Reason', 'Created At'];
+    }
+
+    private function salesRows($sales): array
+    {
+        return $sales->map(fn (Sale $sale) => [
+            $sale->invoice_number,
+            $sale->status,
+            $sale->cashier?->name,
+            $sale->customer?->name,
+            (float) $sale->total_amount,
+            $sale->void_reason,
+            $sale->created_at?->toDateTimeString(),
+        ])->all();
+    }
+
+    private function movementHeaders(): array
+    {
+        return ['Date', 'Type', 'SKU', 'Product', 'Operator', 'Quantity', 'Before', 'After', 'Party', 'Note'];
+    }
+
+    private function movementRows($movements): array
+    {
+        return $movements->map(fn (StockMovement $movement) => [
+            $movement->created_at?->toDateTimeString(),
+            $movement->type,
+            $movement->product?->sku,
+            $movement->product?->name,
+            $movement->operator?->name,
+            $movement->quantity,
+            $movement->before_quantity,
+            $movement->after_quantity,
+            $movement->party,
+            $movement->note,
+        ])->all();
     }
 }
