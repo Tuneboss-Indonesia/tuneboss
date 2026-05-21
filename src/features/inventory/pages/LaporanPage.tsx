@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { ChevronDown } from "lucide-react-native";
 import { colors } from "../../../theme/tokens";
 import { reportCards } from "../data";
@@ -29,6 +29,8 @@ function dateValue(date: Date) {
 }
 
 function DateField({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
+  const { width } = useWindowDimensions();
+  const compact = width < 760;
   const selectedDate = value ? new Date(`${value}T00:00:00`) : new Date();
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
@@ -44,13 +46,13 @@ function DateField({ label, onChange, value }: { label: string; onChange: (value
   };
 
   return (
-    <View style={[styles.filterInputGroup, open && { zIndex: 30 }]}>
+    <View style={[styles.filterInputGroup, compact && styles.filterInputGroupMobile, open && { zIndex: 30 }]}>
       <Text style={styles.filterLabel}>{label}</Text>
       <Pressable onPress={() => setOpen((current) => !current)} style={styles.filterBox}>
         <Text style={value ? styles.modalSelectText : styles.scanResultMeta}>{value || "Pilih tanggal"}</Text>
       </Pressable>
       {open ? (
-        <View style={styles.calendarPopover}>
+        <View style={[styles.calendarPopover, compact && styles.calendarPopoverMobile]}>
           <View style={styles.calendarHeader}>
             <Pressable onPress={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))} style={styles.calendarNav}><Text style={styles.secondaryButtonText}>‹</Text></Pressable>
             <Text style={styles.calendarTitle}>{monthLabel}</Text>
@@ -129,10 +131,12 @@ function filterQuery(type: ReportType, filters: ReportFilters) {
 }
 
 function FilterSelect({ label, onChange, onToggle, open, options, value }: { label: string; onChange: (value: string) => void; onToggle: () => void; open: boolean; options: FilterOption[]; value: string }) {
+  const { width } = useWindowDimensions();
+  const compact = width < 760;
   const selected = options.find((option) => option.value === value);
 
   return (
-    <View style={[styles.filterInputGroup, open && { zIndex: 20 }]}>
+    <View style={[styles.filterInputGroup, compact && styles.filterInputGroupMobile, open && { zIndex: 20 }]}>
       <Text style={styles.filterLabel}>{label}</Text>
       <Pressable onPress={onToggle} style={styles.modalSelect}>
         <Text style={styles.modalSelectText}>{selected?.label ?? "Semua"}</Text>
@@ -152,6 +156,8 @@ function FilterSelect({ label, onChange, onToggle, open, options, value }: { lab
 }
 
 export function ReportDetail({ type, onBack }: { type: ReportType; onBack: () => void }) {
+  const { width } = useWindowDimensions();
+  const compact = width < 760;
   const { categories, customers, stockItems, suppliers, token } = useInventoryData();
   const [filters, setFilters] = useState<ReportFilters>(defaultFilters);
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
@@ -236,33 +242,33 @@ export function ReportDetail({ type, onBack }: { type: ReportType; onBack: () =>
 
   return (
     <View style={styles.stack}>
-      <View style={styles.reportFilter}>
+      <View style={[styles.reportFilter, compact && styles.reportFilterMobile]}>
         <DateField label="Dari" value={filters.from} onChange={(from) => updateFilter({ from })} />
         <DateField label="Sampai" value={filters.to} onChange={(to) => updateFilter({ to })} />
         <FilterSelect label="Kategori" options={categoryOptions} value={filters.categoryId} open={openFilter === "category"} onToggle={() => setOpenFilter(openFilter === "category" ? null : "category")} onChange={(categoryId) => updateFilter({ categoryId })} />
         <FilterSelect label="Produk" options={productOptions} value={filters.productId} open={openFilter === "product"} onToggle={() => setOpenFilter(openFilter === "product" ? null : "product")} onChange={(productId) => updateFilter({ productId })} />
         {type === "stok" || type === "penjualan" ? <FilterSelect label="Status" options={statusOptions} value={filters.status} open={openFilter === "status"} onToggle={() => setOpenFilter(openFilter === "status" ? null : "status")} onChange={(status) => updateFilter({ status })} /> : null}
         {type === "masuk" || type === "keluar" || type === "penjualan" ? <FilterSelect label={type === "masuk" ? "Supplier" : "Customer"} options={partyOptions} value={filters.partyId} open={openFilter === "party"} onToggle={() => setOpenFilter(openFilter === "party" ? null : "party")} onChange={(partyId) => updateFilter({ partyId })} /> : null}
-        <View style={styles.inlineActions}>
-          <Pressable disabled={loading} onPress={() => void loadReport()} style={[styles.secondaryButton, loading && styles.disabledButton]}>
+        <View style={[styles.inlineActions, compact && styles.inlineActionsMobile]}>
+          <Pressable disabled={loading} onPress={() => void loadReport()} style={[styles.secondaryButton, compact && styles.reportActionButtonMobile, loading && styles.disabledButton]}>
             <Text style={styles.secondaryButtonText}>{loading ? "Memuat..." : "Terapkan"}</Text>
           </Pressable>
-          <Pressable disabled={loading || Boolean(exporting)} onPress={resetFilters} style={[styles.cancelButton, (loading || exporting) && styles.disabledButton]}>
+          <Pressable disabled={loading || Boolean(exporting)} onPress={resetFilters} style={[styles.cancelButton, compact && styles.reportActionButtonMobile, (loading || exporting) && styles.disabledButton]}>
             <Text style={styles.cancelText}>Reset</Text>
           </Pressable>
-          <Pressable disabled={Boolean(exporting)} onPress={() => void exportCsv()} style={[styles.saveButton, exporting && styles.disabledButton]}>
+          <Pressable disabled={Boolean(exporting)} onPress={() => void exportCsv()} style={[styles.saveButton, compact && styles.reportActionButtonMobile, exporting && styles.disabledButton]}>
             <Text style={styles.saveText}>{exporting === "csv" ? "Menyiapkan CSV..." : "Export CSV"}</Text>
           </Pressable>
-          <Pressable disabled={Boolean(exporting)} onPress={() => void exportPdf()} style={[styles.secondaryButton, exporting && styles.disabledButton]}>
+          <Pressable disabled={Boolean(exporting)} onPress={() => void exportPdf()} style={[styles.secondaryButton, compact && styles.reportActionButtonMobile, exporting && styles.disabledButton]}>
             <Text style={styles.secondaryButtonText}>{exporting === "pdf" ? "Menyiapkan PDF..." : "Export PDF"}</Text>
           </Pressable>
         </View>
         <Text style={styles.upgrade}>Export mengikuti filter aktif. PDF memakai generator ringan agar aman di shared hosting.</Text>
       </View>
-      <View style={styles.pageHead}>
+      <View style={[styles.pageHead, compact && styles.pageHeadMobile]}>
         <View>
-          <Text style={styles.noticeTitle}>{title}</Text>
-          <Text style={styles.pageSubheading}>Tampilan ini mengambil data langsung dari API backend.</Text>
+          <Text style={[styles.noticeTitle, compact && styles.noticeTitleMobile]}>{title}</Text>
+          <Text style={[styles.pageSubheading, compact && styles.pageSubheadingMobile]}>Tampilan ini mengambil data langsung dari API backend.</Text>
         </View>
         <Pressable onPress={onBack} style={styles.backButton}><Text style={styles.backText}>Kembali</Text></Pressable>
       </View>
