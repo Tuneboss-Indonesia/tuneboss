@@ -86,15 +86,20 @@ async function downloadFile(path: string, token: string | null, filename: string
   }
 
   const blob = await response.blob();
-  const typedBlob = blob.type ? blob : new Blob([blob], { type: mimeType });
-  const url = URL.createObjectURL(typedBlob);
+  const typedBlob = blob.type === mimeType ? blob : new Blob([blob], { type: mimeType });
+  const downloadable = typeof File === "undefined" ? typedBlob : new File([typedBlob], filename, { type: mimeType });
+  const url = URL.createObjectURL(downloadable);
   const link = document.createElement("a");
   link.href = url;
-  link.download = filename;
+  link.setAttribute("download", filename);
+  link.style.display = "none";
   document.body.appendChild(link);
   link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+
+  setTimeout(() => {
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, 1000);
 }
 
 export function formatCurrency(value: number): string {
