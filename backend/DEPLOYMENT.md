@@ -84,7 +84,36 @@ php artisan route:cache
 php artisan view:cache
 ```
 
+`php artisan migrate --force` wajib dijalankan setiap deploy/update. Jika dilewati, endpoint baru bisa gagal karena tabel/kolom production tertinggal, misalnya workflow restock membutuhkan tabel `restock_orders`.
+
 Jika server tidak menyediakan Composer, jalankan `composer install --no-dev --optimize-autoloader` di lokal, lalu upload folder `vendor/` bersama source backend.
+
+### Verifikasi Setelah Deploy
+
+Jalankan smoke check berikut setelah command deployment selesai:
+
+```bash
+php artisan migrate:status
+php artisan route:list --path=reports
+curl -I https://api.tuneboss.id/health
+```
+
+Ekspektasi `/health`:
+
+```json
+{"status":"ok","database":"ok","service":"tuneboss-inventory-api"}
+```
+
+Login dari frontend lalu cek endpoint berikut dari browser/network tab atau API client:
+
+```text
+GET /app/bootstrap
+GET /dashboard/realtime
+GET /reports/stock?per_page=1
+GET /reports/stock/export.pdf?per_page=1
+```
+
+Report PDF harus mengembalikan `Content-Type: application/pdf` dan file yang diawali `%PDF-1.4`.
 
 ## Seeder Awal
 
@@ -106,12 +135,26 @@ Ganti password setelah login pertama atau jangan jalankan seeder di production f
 Saat ada update source:
 
 ```bash
+php artisan down
 composer install --no-dev --optimize-autoloader
 php artisan migrate --force
+php artisan optimize:clear
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
+php artisan up
 ```
+
+Jika `php artisan down` tidak cocok untuk shared hosting yang traffic-nya kecil, minimal jalankan update saat jam sepi dan tetap pastikan `migrate --force` selesai sebelum user memakai aplikasi.
+
+### Rollback Darurat
+
+Jika deploy gagal setelah source baru diupload:
+
+1. Restore source backend versi sebelumnya dari backup hosting/Git artifact.
+2. Restore database dari backup terakhir jika migration sudah mengubah struktur/data secara breaking.
+3. Jalankan `php artisan optimize:clear` lalu cache ulang config/route/view.
+4. Cek `/health` dan login frontend.
 
 ## Permission
 
@@ -127,6 +170,29 @@ Jika tersedia SSH:
 ```bash
 chmod -R 775 storage bootstrap/cache
 ```
+
+Folder `public/storage` harus mengarah ke `storage/app/public` setelah `php artisan storage:link`. Ini diperlukan untuk akses gambar produk yang diupload dari web/mobile.
+
+Jika shared hosting tidak mengizinkan symlink, buat mapping manual melalui File Manager/cPanel atau gunakan document root yang mengizinkan `public/storage` membaca isi `storage/app/public`.
+
+## Frontend Production URL
+
+Frontend Expo/Web harus dibuild dengan API URL production:
+
+```env
+EXPO_PUBLIC_API_URL=https://api.tuneboss.id
+```
+
+Untuk Expo web:
+
+```bash
+npm install
+EXPO_PUBLIC_API_URL=https://api.tuneboss.id npm run web
+```
+
+Jika membuat static web build, pastikan environment variable di-set sebelum build agar bundle tidak memakai default `http://localhost:8000`.
+
+Untuk mobile native, gunakan URL yang bisa dijangkau perangkat. Jangan gunakan `localhost` kecuali backend berjalan di perangkat yang sama.
 
 ## Backup Database
 
@@ -220,10 +286,18 @@ Jangan commit file backup database ke Git.
 - `APP_ENV=production`.
 - `APP_DEBUG=false`.
 - `APP_KEY` sudah dibuat.
+- `APP_URL` mengarah ke domain API HTTPS.
+- `APP_VERSION` diisi sesuai release/deploy.
 - HTTPS aktif.
 - Document root ke `public/`.
 - `.env` tidak bisa diakses dari browser.
-- Database sudah migrate.
+- `composer install --no-dev --optimize-autoloader` sudah dijalankan.
+- `php artisan migrate --force` sudah dijalankan dan `php artisan migrate:status` tidak menunjukkan pending migration.
+- `php artisan storage:link` sudah dijalankan dan upload gambar produk bisa dibuka.
+- `php artisan config:cache`, `route:cache`, dan `view:cache` sudah dijalankan setelah `.env` final.
 - CORS origin hanya domain yang dipakai.
 - Akun default sudah diganti password.
 - Backup database aktif.
+- `/health` mengembalikan `database: ok`.
+- Frontend production memakai `EXPO_PUBLIC_API_URL` domain API, bukan `localhost`.
+- Export PDF/CSV report berhasil di browser production.
