@@ -150,6 +150,7 @@ export const styles = StyleSheet.create({
   scanModeText: { color: colors.muted, fontFamily: fonts.body, fontSize: 15, lineHeight: 22 },
   scanGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   cameraPanel: { alignItems: "center", backgroundColor: colors.panel, borderColor: colors.primaryBorder, borderRadius: radius.md, borderWidth: 1, flex: 1, justifyContent: "center", minHeight: 340, minWidth: 280, overflow: "hidden", padding: spacing.xl },
+  cameraView: { bottom: 0, left: 0, position: "absolute", right: 0, top: 0 },
   scanLine: { backgroundColor: colors.primary, height: 2, marginVertical: spacing.lg, width: "78%" },
   scanCornerTop: { borderColor: colors.primary, borderLeftWidth: 3, borderTopWidth: 3, height: 42, left: 26, position: "absolute", top: 26, width: 42 },
   scanCornerBottom: { borderBottomWidth: 3, borderColor: colors.primary, borderRightWidth: 3, bottom: 26, height: 42, position: "absolute", right: 26, width: 42 },

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Alert, Modal, Pressable, Text, TextInput, View } from "react-native";
+import { Alert, Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
 import { ChevronDown, PackageMinus, PackagePlus, ScanBarcode } from "lucide-react-native";
 import { colors } from "../../../theme/tokens";
 import type { StockItem } from "../../../types/dashboard";
@@ -13,9 +14,11 @@ type LookupResponse = StockItem & { salePrice?: number; categoryId?: string };
 export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: (productId?: string) => void; onGoOutbound: (productId?: string) => void }) {
   const { categories, refreshProducts, stockItems, token } = useInventoryData();
   const [mode, setMode] = useState<"camera" | "scanner">("scanner");
+  const [permission, requestPermission] = useCameraPermissions();
   const [barcode, setBarcode] = useState(stockItems[0]?.barcode || stockItems[0]?.sku || "");
   const [result, setResult] = useState<StockItem | null>(stockItems[0] ?? null);
   const [error, setError] = useState("");
+  const [scanned, setScanned] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -36,6 +39,13 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: (productI
       setError(fallback ? "" : "Barcode/SKU tidak ditemukan di API.");
       if (!fallback) setNewProduct((current) => ({ ...current, barcode: code, categoryId: current.categoryId || categories[0]?.id || "", sku: code }));
     }
+  };
+
+  const handleCameraBarcode = ({ data }: BarcodeScanningResult) => {
+    if (scanned || !data) return;
+    setScanned(true);
+    setBarcode(data);
+    void processBarcode(data).finally(() => setTimeout(() => setScanned(false), 1200));
   };
 
   const createProduct = async () => {
@@ -80,18 +90,20 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: (productI
           <Text style={styles.scanModeTitle}>Scanner Fisik</Text>
           <Text style={styles.scanModeText}>Fokus ke input, scan barcode, tekan Enter atau tombol Proses.</Text>
         </Pressable>
-        <Pressable onPress={() => setMode("camera")} style={[styles.scanModeCard, mode === "camera" && styles.scanModeActive]}>
+        <Pressable onPress={() => { setMode("camera"); if (Platform.OS !== "web" && !permission?.granted) void requestPermission(); }} style={[styles.scanModeCard, mode === "camera" && styles.scanModeActive]}>
           <ScanBarcode color={mode === "camera" ? colors.white : colors.primary} size={28} />
           <Text style={styles.scanModeTitle}>Kamera HP</Text>
-          <Text style={styles.scanModeText}>Preview kamera tetap UI-only; integrasi kamera masuk tahap berikutnya.</Text>
+          <Text style={styles.scanModeText}>Scan barcode langsung dari kamera perangkat.</Text>
         </Pressable>
       </View>
       <View style={styles.scanGrid}>
         <View style={styles.cameraPanel}>
+          {mode === "camera" && Platform.OS !== "web" && permission?.granted ? <CameraView barcodeScannerSettings={{ barcodeTypes: ["qr", "ean13", "ean8", "code128", "code39", "upc_a", "upc_e"] }} onBarcodeScanned={handleCameraBarcode} style={styles.cameraView} /> : null}
           <View style={styles.scanCornerTop} />
           <View style={styles.scanLine} />
-          <Text style={styles.cameraTitle}>{mode === "camera" ? "Camera Preview" : "Scanner Input Mode"}</Text>
-          <Text style={styles.cameraHint}>{mode === "camera" ? "Arahkan kamera ke barcode barang." : "Gunakan scanner USB/Bluetooth lalu barcode masuk ke field."}</Text>
+          <Text style={styles.cameraTitle}>{mode === "camera" ? "Camera Scanner" : "Scanner Input Mode"}</Text>
+          <Text style={styles.cameraHint}>{mode === "camera" ? (Platform.OS === "web" ? "Kamera barcode tersedia di aplikasi mobile." : permission?.granted ? "Arahkan kamera ke barcode barang." : "Izinkan kamera untuk mulai scan barcode.") : "Gunakan scanner USB/Bluetooth lalu barcode masuk ke field."}</Text>
+          {mode === "camera" && Platform.OS !== "web" && !permission?.granted ? <Pressable onPress={() => void requestPermission()} style={styles.primaryButton}><Text style={styles.primaryButtonText}>Izinkan Kamera</Text></Pressable> : null}
           <View style={styles.scanCornerBottom} />
         </View>
         <View style={styles.scanFormCard}>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Alert, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { Eye, ImageUp } from "lucide-react-native";
 import { colors } from "../../../theme/tokens";
 import { apiRequest, formatCurrency, formatDate } from "../api";
@@ -28,10 +29,30 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
   const [saving, setSaving] = useState(false);
   const { categories, movements, refreshProducts, stockItems, token } = useInventoryData();
   const uploadImage = async (productId: string) => {
-    if (Platform.OS !== "web" || typeof document === "undefined") {
-      Alert.alert("Info", "Upload gambar saat ini tersedia di web admin.");
+    if (Platform.OS !== "web") {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Izin dibutuhkan", "Izinkan akses galeri untuk upload gambar produk.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, mediaTypes: ["images"], quality: 0.85 });
+      const asset = result.assets?.[0];
+      if (result.canceled || !asset) return;
+
+      try {
+        const form = new FormData();
+        const name = asset.fileName || `product-${productId}.jpg`;
+        form.append("image", { name, type: asset.mimeType || "image/jpeg", uri: asset.uri } as unknown as Blob);
+        await apiRequest(`/products/${productId}/image`, { body: form, method: "POST", token });
+        await refreshProducts();
+      } catch (error) {
+        Alert.alert("Gagal", error instanceof Error ? error.message : "Gambar gagal diupload.");
+      }
       return;
     }
+
+    if (typeof document === "undefined") return;
 
     const input = document.createElement("input");
     input.type = "file";

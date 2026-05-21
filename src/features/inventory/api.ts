@@ -1,4 +1,7 @@
 declare const process: { env?: Record<string, string | undefined> };
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import { Platform } from "react-native";
 
 export type ApiError = Error & { code?: string; status?: number; errors?: Record<string, string[]> };
 
@@ -52,6 +55,23 @@ export async function downloadPdf(path: string, token: string | null, filename: 
 async function downloadFile(path: string, token: string | null, filename: string, mimeType: string, unsupportedMessage: string, accept: string): Promise<void> {
   const headers = new Headers({ Accept: accept });
   if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  if (Platform.OS !== "web") {
+    const file = new FileSystem.File(FileSystem.Paths.document, filename);
+    let downloadedFile: FileSystem.File;
+    try {
+      downloadedFile = await FileSystem.File.downloadFileAsync(`${apiBaseUrl}${path}`, file, {
+        headers: Object.fromEntries(headers.entries()),
+        idempotent: true,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("401")) unauthenticatedHandler?.();
+      throw error;
+    }
+    if (!(await Sharing.isAvailableAsync())) throw new Error(unsupportedMessage);
+    await Sharing.shareAsync(downloadedFile.uri, { mimeType, UTI: mimeType === "application/pdf" ? "com.adobe.pdf" : "public.comma-separated-values-text" });
+    return;
+  }
 
   const response = await fetch(`${apiBaseUrl}${path}`, { headers });
 

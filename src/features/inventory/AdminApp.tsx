@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
+import * as SecureStore from "expo-secure-store";
 import { useFonts } from "expo-font";
 import { Layout } from "./components/Layout";
 import { ActionModal } from "./components/ActionModal";
@@ -21,13 +22,15 @@ import { styles } from "./styles";
 import { apiRequest, setUnauthenticatedHandler } from "./api";
 
 type AuthPayload = { accessToken: string; expiresAt?: string | null };
+const authStorageKey = "tuneboss.auth";
 
 export function AdminApp() {
   const [page, setPage] = useState<PageKey>("dashboard");
   const [modal, setModal] = useState<ModalKind>(null);
   const [modalMode, setModalMode] = useState<ModalMode>("add");
   const [modalProductId, setModalProductId] = useState<string | undefined>();
-  const [auth, setAuth] = useState<AuthPayload | null>(() => loadStoredAuth());
+  const [auth, setAuth] = useState<AuthPayload | null>(() => Platform.OS === "web" ? loadStoredAuth() : null);
+  const [authLoaded, setAuthLoaded] = useState(Platform.OS === "web");
   const [fontsLoaded] = useFonts({
     "Futura PT": require("../../../assets/fonts/Futura-PT-Book.woff2"),
     "Futura PT Medium": require("../../../assets/fonts/Futura-PT-Medium.woff2"),
@@ -35,14 +38,19 @@ export function AdminApp() {
   });
 
   const logout = () => {
-    clearStoredAuth();
+    void clearStoredAuth();
     setAuth(null);
   };
 
   const setLoggedIn = (payload: AuthPayload) => {
-    storeAuth(payload);
+    void storeAuth(payload);
     setAuth(payload);
   };
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    void loadStoredAuthAsync().then(setAuth).finally(() => setAuthLoaded(true));
+  }, []);
 
   useEffect(() => {
     setUnauthenticatedHandler(logout);
@@ -66,7 +74,7 @@ export function AdminApp() {
     setModal(kind);
   };
 
-  if (!fontsLoaded) return <View style={styles.loading}><Text style={styles.loadingText}>Loading TuneBoss...</Text></View>;
+  if (!fontsLoaded || !authLoaded) return <View style={styles.loading}><Text style={styles.loadingText}>Loading TuneBoss...</Text></View>;
 
   if (!auth?.accessToken) {
     return <AuthScreen onLogin={setLoggedIn} />;
@@ -127,25 +135,36 @@ function InventoryLoading() {
 
 function loadStoredAuth(): AuthPayload | null {
   try {
-    if (typeof localStorage === "undefined") return null;
-    const value = localStorage.getItem("tuneboss.auth");
+    if (Platform.OS !== "web" || typeof localStorage === "undefined") return null;
+    const value = localStorage.getItem(authStorageKey);
     return value ? JSON.parse(value) : null;
   } catch {
     return null;
   }
 }
 
-function storeAuth(payload: AuthPayload) {
+async function loadStoredAuthAsync(): Promise<AuthPayload | null> {
   try {
-    if (typeof localStorage !== "undefined") localStorage.setItem("tuneboss.auth", JSON.stringify(payload));
+    const value = await SecureStore.getItemAsync(authStorageKey);
+    return value ? JSON.parse(value) : null;
   } catch {
-    // Native builds keep the token in memory until secure storage is added.
+    return null;
   }
 }
 
-function clearStoredAuth() {
+async function storeAuth(payload: AuthPayload) {
   try {
-    if (typeof localStorage !== "undefined") localStorage.removeItem("tuneboss.auth");
+    if (Platform.OS === "web" && typeof localStorage !== "undefined") localStorage.setItem(authStorageKey, JSON.stringify(payload));
+    if (Platform.OS !== "web") await SecureStore.setItemAsync(authStorageKey, JSON.stringify(payload));
+  } catch {
+    // Keep the token in memory if persistent storage is temporarily unavailable.
+  }
+}
+
+async function clearStoredAuth() {
+  try {
+    if (Platform.OS === "web" && typeof localStorage !== "undefined") localStorage.removeItem(authStorageKey);
+    if (Platform.OS !== "web") await SecureStore.deleteItemAsync(authStorageKey);
   } catch {
     // Ignore storage cleanup failures.
   }

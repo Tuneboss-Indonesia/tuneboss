@@ -12,8 +12,13 @@
   },
   "dependencies": {
     "expo": "latest",
+    "expo-camera": "^55.0.18",
+    "expo-file-system": "^55.0.21",
     "expo-font": "latest",
+    "expo-image-picker": "^55.0.20",
     "expo-linear-gradient": "~55.0.14",
+    "expo-secure-store": "^55.0.14",
+    "expo-sharing": "^55.0.19",
     "expo-status-bar": "latest",
     "lucide-react-native": "^1.16.0",
     "react": "19.2.0",
