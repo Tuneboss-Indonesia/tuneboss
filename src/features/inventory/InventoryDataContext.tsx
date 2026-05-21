@@ -57,6 +57,8 @@ type ProductDto = {
 
 type CategoryDto = { id: string; name: string; description?: string | null; productsCount?: number };
 type MovementDto = StockMovement & { createdAt?: string; type: StockMovement["type"] };
+type BootstrapDto = { categories: CategoryDto[]; suppliers: PartyRow[]; customers: PartyRow[] };
+type RealtimeDto = { pollAfterSeconds: number; summary: DashboardSummary; priorityProducts: PriorityProduct[]; recentActivities: RecentActivity[] };
 
 type InventoryData = {
   categories: CategoryItem[];

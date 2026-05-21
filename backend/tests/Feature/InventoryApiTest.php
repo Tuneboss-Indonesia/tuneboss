@@ -50,6 +50,37 @@ class InventoryApiTest extends TestCase
         $this->withToken($login->json('accessToken'))
             ->getJson('/dashboard/recent-activities')
             ->assertOk();
+
+        $this->withToken($login->json('accessToken'))
+            ->getJson('/dashboard/realtime')
+            ->assertOk()
+            ->assertJsonStructure(['serverTime', 'pollAfterSeconds', 'lastActivityAt', 'summary', 'priorityProducts', 'recentActivities']);
+    }
+
+    public function test_user_can_refresh_access_token(): void
+    {
+        $this->seed();
+        $token = $this->loginToken('staff@tuneboss.id');
+
+        $refresh = $this->withToken($token)
+            ->postJson('/auth/refresh')
+            ->assertOk()
+            ->assertJsonStructure(['accessToken', 'tokenType', 'expiresAt', 'user']);
+
+        $this->assertNotSame($token, $refresh->json('accessToken'));
+        $this->assertSame(1, PersonalAccessToken::count());
+
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($token)
+            ->getJson('/auth/me')
+            ->assertUnauthorized();
+
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($refresh->json('accessToken'))
+            ->getJson('/auth/me')
+            ->assertOk();
     }
 
     public function test_outbound_rejects_insufficient_stock(): void
@@ -254,6 +285,52 @@ class InventoryApiTest extends TestCase
             ->assertOk();
 
         $this->assertSame('resolved', $alert->refresh()->status);
+    }
+
+    public function test_admin_can_create_and_receive_restock_order(): void
+    {
+        $this->seed();
+        $adminToken = $this->loginToken('admin@tuneboss.id');
+        $staffToken = $this->loginToken('staff@tuneboss.id');
+        $product = Product::where('sku', 'TB-ECU-NMAX')->firstOrFail();
+        $supplier = Supplier::where('name', 'Supplier Malaysia')->firstOrFail();
+        $initialStock = $product->stock->quantity;
+
+        $this->withToken($staffToken)
+            ->postJson('/restock-orders', [
+                'product_id' => $product->id,
+                'supplier_id' => $supplier->id,
+                'quantity' => 5,
+            ])
+            ->assertForbidden();
+
+        $this->app['auth']->forgetGuards();
+
+        $order = $this->withToken($adminToken)
+            ->postJson('/restock-orders', [
+                'product_id' => $product->id,
+                'supplier_id' => $supplier->id,
+                'quantity' => 5,
+                'status' => 'ordered',
+                'note' => 'Reorder dari alert',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('status', 'ordered')
+            ->assertJsonPath('quantity', 5);
+
+        $this->withToken($adminToken)
+            ->postJson('/restock-orders/'.$order->json('id').'/receive', ['note' => 'Barang diterima gudang'])
+            ->assertOk()
+            ->assertJsonPath('status', 'received')
+            ->assertJsonStructure(['receivedBy', 'receivedAt']);
+
+        $this->assertSame($initialStock + 5, ProductStock::where('product_id', $product->id)->value('quantity'));
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $product->id,
+            'supplier_id' => $supplier->id,
+            'type' => 'inbound',
+            'quantity' => 5,
+        ]);
     }
 
     public function test_admin_can_manage_suppliers_and_customers(): void
@@ -492,6 +569,16 @@ class InventoryApiTest extends TestCase
             ->assertJsonStructure(['data']);
 
         $this->withToken($adminToken)
+            ->getJson('/reports/sales?product_id='.$product->id.'&category_id='.$product->category_id)
+            ->assertOk()
+            ->assertJsonStructure(['data']);
+
+        $this->withToken($adminToken)
+            ->getJson('/reports/inbound?product_id='.$product->id.'&category_id='.$product->category_id)
+            ->assertOk()
+            ->assertJsonStructure(['data']);
+
+        $this->withToken($adminToken)
             ->getJson('/sales?status=completed')
             ->assertOk()
             ->assertJsonStructure(['data', 'meta' => ['currentPage', 'lastPage', 'perPage', 'total']]);
@@ -533,6 +620,11 @@ class InventoryApiTest extends TestCase
                 ->get("/reports/{$report}/export")
                 ->assertOk()
                 ->assertHeader('content-type', 'text/csv; charset=UTF-8');
+
+            $this->withToken($adminToken)
+                ->get("/reports/{$report}/export.pdf")
+                ->assertOk()
+                ->assertHeader('content-type', 'application/pdf');
         }
 
         $this->withToken($adminToken)

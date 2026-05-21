@@ -39,6 +39,7 @@ export const styles = StyleSheet.create({
   secondaryButtonText: { color: colors.primary, fontFamily: fonts.bodyMedium, fontSize: 18 },
 
   whiteCard: { backgroundColor: colors.panel, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, flexGrow: 1, minHeight: 180, minWidth: 290, padding: 22 },
+  whiteCard: { backgroundColor: colors.panel, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, flexGrow: 1, minHeight: 180, minWidth: 290, padding: 22 },
   whiteCardMobile: { minHeight: 0, minWidth: 0, padding: 14, width: "100%" },
   cardHeader: { alignItems: "flex-start", flexDirection: "row", flexWrap: "wrap", gap: spacing.md, justifyContent: "space-between" },
   cardHeaderMobile: { flexDirection: "column", gap: spacing.sm },
@@ -251,6 +252,7 @@ export const styles = StyleSheet.create({
   loadingTitle: { color: colors.white, fontFamily: fonts.display, fontSize: 30, textTransform: "uppercase" },
   loadingHint: { color: colors.muted, fontFamily: fonts.body, fontSize: 16, textAlign: "center" },
   skeletonGrid: { flexDirection: "row", flexWrap: "wrap", gap: 18, width: "100%" },
+  skeletonCard: { backgroundColor: colors.panelSoft, borderColor: colors.border, borderLeftColor: colors.primaryBorder, borderLeftWidth: 1, borderRadius: radius.md, borderWidth: 1, flex: 1, minHeight: 114, minWidth: 180, opacity: 0.65 },
   pressed: { opacity: 0.75 },
   loading: { alignItems: "center", backgroundColor: colors.black, flex: 1, justifyContent: "center" },
   loadingText: { color: colors.white, fontFamily: fonts.bodyMedium },

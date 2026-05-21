@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\RestockAlertController;
+use App\Http\Controllers\Api\RestockOrderController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\StockController;
 use App\Http\Controllers\Api\SupplierController;
@@ -22,6 +23,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/app/bootstrap', [AppController::class, 'bootstrap']);
 
     Route::get('/auth/me', [AuthController::class, 'me']);
+    Route::post('/auth/refresh', [AuthController::class, 'refresh']);
     Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);
     Route::patch('/auth/password', [AuthController::class, 'updatePassword']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
@@ -45,6 +47,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::post('/restock-alerts/{restockAlert}/resolve', [RestockAlertController::class, 'resolve']);
 
+        Route::post('/restock-orders', [RestockOrderController::class, 'store']);
+        Route::patch('/restock-orders/{restockOrder}', [RestockOrderController::class, 'update']);
+        Route::post('/restock-orders/{restockOrder}/receive', [RestockOrderController::class, 'receive']);
+        Route::post('/restock-orders/{restockOrder}/cancel', [RestockOrderController::class, 'cancel']);
+
         Route::get('/audit-logs/export', [AuditLogController::class, 'export']);
         Route::get('/audit-logs', [AuditLogController::class, 'index']);
     });
@@ -54,9 +61,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard/recent-activities', [DashboardController::class, 'recentActivities']);
     Route::get('/dashboard/sales-chart', [DashboardController::class, 'salesChart']);
     Route::get('/dashboard/top-products', [DashboardController::class, 'topProducts']);
+    Route::get('/dashboard/realtime', [DashboardController::class, 'realtime']);
 
     Route::get('/restock-alerts', [RestockAlertController::class, 'index']);
     Route::post('/restock-alerts/{restockAlert}/acknowledge', [RestockAlertController::class, 'acknowledge']);
+    Route::get('/restock-orders', [RestockOrderController::class, 'index']);
 
     Route::get('/products/lookup', [ProductController::class, 'lookup']);
     Route::get('/products', [ProductController::class, 'index']);
@@ -94,11 +103,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/reports/stock', [ReportController::class, 'stock']);
     Route::get('/reports/stock/export', [ReportController::class, 'stockExport']);
+    Route::get('/reports/stock/export.pdf', [ReportController::class, 'stockPdf']);
     Route::get('/reports/summary', [ReportController::class, 'summary']);
     Route::get('/reports/sales', [ReportController::class, 'sales']);
     Route::get('/reports/sales/export', [ReportController::class, 'salesExport']);
+    Route::get('/reports/sales/export.pdf', [ReportController::class, 'salesPdf']);
     Route::get('/reports/inbound', [ReportController::class, 'inbound']);
     Route::get('/reports/inbound/export', [ReportController::class, 'inboundExport']);
+    Route::get('/reports/inbound/export.pdf', [ReportController::class, 'inboundPdf']);
     Route::get('/reports/outbound', [ReportController::class, 'outbound']);
     Route::get('/reports/outbound/export', [ReportController::class, 'outboundExport']);
+    Route::get('/reports/outbound/export.pdf', [ReportController::class, 'outboundPdf']);
 });

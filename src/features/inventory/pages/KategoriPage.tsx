@@ -75,6 +75,19 @@ export function KategoriPage({ onOpenModal }: { onOpenModal: (mode: ModalMode, i
       setPendingDelete(null);
     }
   };
+  const saveEdit = async () => {
+    if (!editing) return;
+    setSaving(true);
+    try {
+      await apiRequest(`/categories/${editing.id}`, { body: JSON.stringify({ description: editing.desc, name: editing.name }), method: "PATCH", token });
+      await refreshCategories();
+      setEditing(null);
+    } catch (error) {
+      Alert.alert("Gagal", error instanceof Error ? error.message : "Kategori gagal disimpan.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <>

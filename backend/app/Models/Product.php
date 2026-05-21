@@ -50,4 +50,9 @@ class Product extends Model
     {
         return $this->hasOne(RestockAlert::class);
     }
+
+    public function restockOrders(): HasMany
+    {
+        return $this->hasMany(RestockOrder::class);
+    }
 }

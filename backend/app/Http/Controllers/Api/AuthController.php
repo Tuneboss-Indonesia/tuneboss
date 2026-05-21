@@ -57,6 +57,29 @@ class AuthController extends Controller
         return response()->json(['user' => $this->userPayload($request->user())]);
     }
 
+    public function refresh(Request $request)
+    {
+        $user = $request->user();
+        $request->user()->currentAccessToken()?->delete();
+
+        $expiresAt = $this->tokenExpiresAt();
+        $token = $user->createToken('mobile-api', ['*'], $expiresAt)->plainTextToken;
+
+        AuditLog::create([
+            'user_id' => $user->id,
+            'action' => 'auth.token_refreshed',
+            'entity' => 'users',
+            'entity_id' => $user->id,
+        ]);
+
+        return response()->json([
+            'accessToken' => $token,
+            'tokenType' => 'Bearer',
+            'expiresAt' => $expiresAt?->toISOString(),
+            'user' => $this->userPayload($user),
+        ]);
+    }
+
     public function updateProfile(Request $request)
     {
         $data = $request->validate([

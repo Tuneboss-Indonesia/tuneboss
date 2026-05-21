@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
-import { PackageMinus, PackagePlus, ScanBarcode } from "lucide-react-native";
+import { Alert, Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
+import { ChevronDown, PackageMinus, PackagePlus, ScanBarcode } from "lucide-react-native";
 import { colors } from "../../../theme/tokens";
 import type { StockItem } from "../../../types/dashboard";
 import { apiRequest } from "../api";
@@ -11,12 +12,19 @@ import type { PressState } from "../types";
 
 type LookupResponse = StockItem & { categoryId?: string };
 
-export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => void; onGoOutbound: () => void }) {
-  const { stockItems, token } = useInventoryData();
+export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: (productId?: string) => void; onGoOutbound: (productId?: string) => void }) {
+  const { categories, refreshProducts, stockItems, token } = useInventoryData();
   const [mode, setMode] = useState<"camera" | "scanner">("scanner");
+  const [permission, requestPermission] = useCameraPermissions();
   const [barcode, setBarcode] = useState(stockItems[0]?.barcode || stockItems[0]?.sku || "");
   const [result, setResult] = useState<StockItem | null>(stockItems[0] ?? null);
   const [error, setError] = useState("");
+  const [scanned, setScanned] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [newProduct, setNewProduct] = useState({ barcode: "", categoryId: categories[0]?.id ?? "", minStock: "1", name: "", price: "0", sku: "" });
+  const selectedCategory = categories.find((category) => category.id === newProduct.categoryId);
 
   const processBarcode = async (value = barcode) => {
     const code = value.trim();
@@ -30,6 +38,42 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => voi
       const fallback = stockItems.find((item) => item.barcode.toLowerCase() === code.toLowerCase() || item.sku.toLowerCase() === code.toLowerCase());
       setResult(fallback ?? null);
       setError(fallback ? "" : "Barcode/SKU tidak ditemukan di API.");
+      if (!fallback) setNewProduct((current) => ({ ...current, barcode: code, categoryId: current.categoryId || categories[0]?.id || "", sku: code }));
+    }
+  };
+
+  const handleCameraBarcode = ({ data }: BarcodeScanningResult) => {
+    if (scanned || !data) return;
+    setScanned(true);
+    setBarcode(data);
+    void processBarcode(data).finally(() => setTimeout(() => setScanned(false), 1200));
+  };
+
+  const createProduct = async () => {
+    if (!newProduct.categoryId) {
+      Alert.alert("Gagal", "Pilih kategori barang terlebih dahulu.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const product = await apiRequest<LookupResponse>("/products", {
+        body: JSON.stringify({ barcode: newProduct.barcode || null, category_id: newProduct.categoryId, min_stock: Number(newProduct.minStock || 0), name: newProduct.name, sale_price: Number(newProduct.price || 0), sku: newProduct.sku }),
+        method: "POST",
+        token,
+      });
+
+      await refreshProducts();
+      setResult({ ...product, category: product.category || selectedCategory?.name || "-", lastUpdated: "-", location: "-" });
+      setBarcode(product.barcode || product.sku);
+      setError("");
+      setCreateOpen(false);
+      setNewProduct({ barcode: "", categoryId: categories[0]?.id ?? "", minStock: "1", name: "", price: "0", sku: "" });
+    } catch (requestError) {
+      Alert.alert("Gagal", requestError instanceof Error ? requestError.message : "Barang gagal ditambahkan.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -50,15 +94,17 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => voi
         <Pressable onPress={() => setMode("camera")} style={({ hovered, pressed }: PressState) => [styles.scanModeCard, mode === "camera" && styles.scanModeActive, hovered && mode !== "camera" && styles.scanModeCardHover, pressed && styles.pressed]}>
           <ScanBarcode color={mode === "camera" ? colors.white : colors.primary} size={28} />
           <Text style={styles.scanModeTitle}>Kamera HP</Text>
-          <Text style={styles.scanModeText}>Preview kamera tetap UI-only; integrasi kamera masuk tahap berikutnya.</Text>
+          <Text style={styles.scanModeText}>Scan barcode langsung dari kamera perangkat.</Text>
         </Pressable>
       </View>
       <View style={styles.scanGrid}>
         <View style={styles.cameraPanel}>
+          {mode === "camera" && Platform.OS !== "web" && permission?.granted ? <CameraView barcodeScannerSettings={{ barcodeTypes: ["qr", "ean13", "ean8", "code128", "code39", "upc_a", "upc_e"] }} onBarcodeScanned={handleCameraBarcode} style={styles.cameraView} /> : null}
           <View style={styles.scanCornerTop} />
           <View style={styles.scanLine} />
-          <Text style={styles.cameraTitle}>{mode === "camera" ? "Camera Preview" : "Scanner Input Mode"}</Text>
-          <Text style={styles.cameraHint}>{mode === "camera" ? "Arahkan kamera ke barcode barang." : "Gunakan scanner USB/Bluetooth lalu barcode masuk ke field."}</Text>
+          <Text style={styles.cameraTitle}>{mode === "camera" ? "Camera Scanner" : "Scanner Input Mode"}</Text>
+          <Text style={styles.cameraHint}>{mode === "camera" ? (Platform.OS === "web" ? "Kamera barcode tersedia di aplikasi mobile." : permission?.granted ? "Arahkan kamera ke barcode barang." : "Izinkan kamera untuk mulai scan barcode.") : "Gunakan scanner USB/Bluetooth lalu barcode masuk ke field."}</Text>
+          {mode === "camera" && Platform.OS !== "web" && !permission?.granted ? <Pressable onPress={() => void requestPermission()} style={styles.primaryButton}><Text style={styles.primaryButtonText}>Izinkan Kamera</Text></Pressable> : null}
           <View style={styles.scanCornerBottom} />
         </View>
         <View style={styles.scanFormCard}>
@@ -81,6 +127,7 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => voi
             <Text style={styles.primaryButtonText}>Proses</Text>
           </Pressable>
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error && !result ? <Pressable onPress={() => setCreateOpen(true)} style={styles.secondaryButton}><PackagePlus color={colors.primary} size={18} /><Text style={styles.secondaryButtonText}>Tambah Barang Baru</Text></Pressable> : null}
           {result ? (
             <View style={styles.scanResultCard}>
               <Text style={styles.cardEyebrow}>Hasil Lookup</Text>
@@ -99,6 +146,28 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => voi
           ) : null}
         </View>
       </View>
+      <Modal visible={createOpen} transparent animationType="fade" onRequestClose={() => setCreateOpen(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Tambah Barang Baru</Text>
+            <Text style={styles.pageSubheading}>Barcode/SKU belum ada di database. Lengkapi data barang untuk menyimpan produk baru.</Text>
+            <TextInput onChangeText={(sku) => setNewProduct((current) => ({ ...current, sku }))} style={styles.modalInput} placeholder="SKU" placeholderTextColor={colors.muted} value={newProduct.sku} />
+            <TextInput onChangeText={(name) => setNewProduct((current) => ({ ...current, name }))} style={styles.modalInput} placeholder="Nama Barang" placeholderTextColor={colors.muted} value={newProduct.name} />
+            <TextInput onChangeText={(value) => setNewProduct((current) => ({ ...current, barcode: value }))} style={styles.modalInput} placeholder="Barcode" placeholderTextColor={colors.muted} value={newProduct.barcode} />
+            <View style={styles.modalFieldGroup}>
+              <Text style={styles.modalLabel}>Kategori</Text>
+              <Pressable onPress={() => setCategoryOpen((open) => !open)} style={styles.modalSelect}><Text style={styles.modalSelectText}>{selectedCategory?.name || "Pilih kategori"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
+              {categoryOpen ? <View style={styles.modalSelectOptions}>{categories.map((category) => <Pressable key={category.id} onPress={() => { setNewProduct((current) => ({ ...current, categoryId: category.id })); setCategoryOpen(false); }} style={[styles.modalSelectOption, newProduct.categoryId === category.id && styles.modalSelectOptionActive]}><Text style={[styles.modalSelectOptionText, newProduct.categoryId === category.id && styles.modalSelectOptionTextActive]}>{category.name}</Text></Pressable>)}</View> : null}
+            </View>
+            <TextInput onChangeText={(value) => setNewProduct((current) => ({ ...current, price: value.replace(/\D/g, "") }))} style={styles.modalInput} placeholder="Harga Jual" placeholderTextColor={colors.muted} value={newProduct.price} keyboardType="number-pad" inputMode="numeric" />
+            <TextInput onChangeText={(value) => setNewProduct((current) => ({ ...current, minStock: value.replace(/\D/g, "") }))} style={styles.modalInput} placeholder="Minimum Stok" placeholderTextColor={colors.muted} value={newProduct.minStock} keyboardType="number-pad" inputMode="numeric" />
+            <View style={styles.modalActions}>
+              <Pressable onPress={() => setCreateOpen(false)} style={styles.cancelButton}><Text style={styles.cancelText}>Batal</Text></Pressable>
+              <Pressable disabled={saving} onPress={() => void createProduct()} style={styles.saveButton}><Text style={styles.saveText}>{saving ? "Menyimpan..." : "Simpan"}</Text></Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

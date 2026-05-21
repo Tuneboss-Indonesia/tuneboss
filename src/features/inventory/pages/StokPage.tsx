@@ -11,6 +11,9 @@ import { styles } from "../styles";
 
 const statusFilters = ["Semua", "Tersedia", "Menipis", "Habis"];
 
+type RestockOrderRow = { createdAt?: string | null; id: string; quantity: number; status: string; supplier?: string | null };
+type Paginated<T> = { data: T[] };
+
 function getStatus(stock: number, minStock: number) {
   if (stock === 0) return "Habis";
   if (stock < minStock) return "Menipis";
@@ -139,7 +142,7 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
 
   const deleteProduct = async (productId: string) => {
     await apiRequest(`/products/${productId}`, { method: "DELETE", token });
-    await refresh();
+    await refreshProducts();
   };
 
   const executeDelete = async () => {
@@ -176,7 +179,7 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
         method: "PATCH",
         token,
       });
-      await refresh();
+      await refreshProducts();
       setEditing(null);
     } catch (error) {
       Alert.alert("Gagal", error instanceof Error ? error.message : "Barang gagal diedit.");
