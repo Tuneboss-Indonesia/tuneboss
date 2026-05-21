@@ -191,6 +191,7 @@ export const styles = StyleSheet.create({
   cancelText: { color: colors.white, fontFamily: fonts.bodyMedium },
   saveButton: { alignItems: "center", backgroundColor: colors.primary, borderRadius: radius.sm, justifyContent: "center", minHeight: 48, paddingHorizontal: 18, paddingVertical: 12 },
   saveText: { color: colors.white, fontFamily: fonts.bodyMedium },
+  disabledButton: { opacity: 0.55 },
   loadingPanel: { alignItems: "center", backgroundColor: colors.panel, borderColor: colors.border, borderRadius: radius.md, borderWidth: 1, gap: 14, justifyContent: "center", minHeight: 360, padding: 28 },
   loadingTitle: { color: colors.white, fontFamily: fonts.display, fontSize: 30, textTransform: "uppercase" },
   loadingHint: { color: colors.muted, fontFamily: fonts.body, fontSize: 16, textAlign: "center" },

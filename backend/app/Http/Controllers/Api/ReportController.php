@@ -65,7 +65,7 @@ class ReportController extends Controller
     {
         $products = $this->stockQuery($request)->orderBy('name')->get();
 
-        return $this->pdf('stock-report.pdf', 'TuneBoss Stock Report', $this->stockHeaders(), $this->stockRows($products));
+        return $this->pdf('stock-report.pdf', 'TuneBoss Stock Report', $this->stockHeaders(), $this->stockRows($products), $request);
     }
 
     public function sales(Request $request)
@@ -88,7 +88,7 @@ class ReportController extends Controller
     {
         $sales = $this->salesQuery($request)->latest()->get();
 
-        return $this->pdf('sales-report.pdf', 'TuneBoss Sales Report', $this->salesHeaders(), $this->salesRows($sales));
+        return $this->pdf('sales-report.pdf', 'TuneBoss Sales Report', $this->salesHeaders(), $this->salesRows($sales), $request);
     }
 
     public function inbound(Request $request)
@@ -169,7 +169,7 @@ class ReportController extends Controller
     {
         $movements = $this->movementQuery($request, $types)->latest()->get();
 
-        return $this->pdf($filename, $title, $this->movementHeaders(), $this->movementRows($movements));
+        return $this->pdf($filename, $title, $this->movementHeaders(), $this->movementRows($movements), $request);
     }
 
     private function movementQuery(Request $request, array $types)
@@ -216,12 +216,30 @@ class ReportController extends Controller
         return preg_match('/^[=+\-@]/', $value) ? "'{$value}" : $value;
     }
 
-    private function pdf(string $filename, string $title, array $headers, array $rows)
+    private function pdf(string $filename, string $title, array $headers, array $rows, Request $request)
     {
-        return response(SimplePdf::make($title, $headers, $rows), 200, [
+        return response(SimplePdf::make($title, $headers, $rows, $this->pdfMetadata($request)), 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ]);
+    }
+
+    private function pdfMetadata(Request $request): array
+    {
+        $filters = collect([
+            'from' => $request->query('from'),
+            'to' => $request->query('to'),
+            'category_id' => $request->query('category_id'),
+            'product_id' => $request->query('product_id'),
+            'status' => $request->query('status'),
+            'supplier_id' => $request->query('supplier_id'),
+            'customer_id' => $request->query('customer_id'),
+        ])->filter(fn ($value) => $value !== null && $value !== '')->map(fn ($value, $key) => "{$key}={$value}")->implode(', ');
+
+        return [
+            'Generated At' => now()->toDateTimeString(),
+            'Filters' => $filters ?: 'none',
+        ];
     }
 
     private function stockHeaders(): array
