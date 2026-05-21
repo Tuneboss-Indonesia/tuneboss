@@ -148,6 +148,7 @@ export const styles = StyleSheet.create({
   backButton: { alignSelf: "flex-start", backgroundColor: colors.primary, borderRadius: radius.sm, paddingHorizontal: 18, paddingVertical: 10 },
   backText: { color: colors.white, fontFamily: fonts.bodyMedium, fontSize: 16 },
   reportActionButtonMobile: { alignItems: "center", width: "100%" },
+  loadMoreButton: { alignSelf: "center", marginTop: spacing.md },
 
   scanModeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   scanModeCard: { backgroundColor: colors.panel, borderColor: colors.border, borderLeftColor: colors.primaryBorder, borderLeftWidth: 1, borderRadius: radius.md, borderWidth: 1, flex: 1, gap: spacing.xs, minWidth: 240, padding: spacing.lg },

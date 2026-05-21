@@ -13,13 +13,14 @@ type ReportType = "stok" | "penjualan" | "masuk" | "keluar";
 type ReportFilters = { categoryId: string; from: string; partyId: string; productId: string; status: string; to: string };
 type FilterKey = "category" | "party" | "product" | "status";
 type FilterOption = { label: string; value: string };
-type Paginated<T> = { data: T[] };
+type Paginated<T> = { data: T[]; meta?: { currentPage?: number; lastPage?: number; total?: number } };
 type ReportProduct = { category?: { name?: string } | null; id: string; name: string; stock: number; status: string };
 type ReportSale = { cashier: string | null; createdAt: string; customer?: string | null; invoiceNumber: string; status: string; totalAmount: number };
 type ReportMovement = { createdAt?: string; customer?: string | null; note?: string | null; operator?: string | null; party?: string | null; productName: string; quantity: number; supplier?: string | null };
 
 const defaultFilters: ReportFilters = { categoryId: "", from: "", partyId: "", productId: "", status: "", to: "" };
 const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+const reportPageSize = 20;
 
 function dateValue(date: Date) {
   const year = date.getFullYear();
@@ -118,8 +119,9 @@ function reportPath(type: ReportType, exportType?: "csv" | "pdf") {
   return base;
 }
 
-function filterQuery(type: ReportType, filters: ReportFilters) {
-  const query = new URLSearchParams({ per_page: "100" });
+function filterQuery(type: ReportType, filters: ReportFilters, page?: number) {
+  const query = new URLSearchParams({ per_page: String(reportPageSize) });
+  if (page) query.set("page", String(page));
   if (filters.from) query.set("from", filters.from);
   if (filters.to) query.set("to", filters.to);
   if (filters.productId) query.set("product_id", filters.productId);
@@ -165,7 +167,11 @@ export function ReportDetail({ type, onBack }: { type: ReportType; onBack: () =>
   const [totalAmount, setTotalAmount] = useState(0);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [exporting, setExporting] = useState<"csv" | "pdf" | null>(null);
+  const [page, setPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [totalRows, setTotalRows] = useState(0);
   const title = type === "stok" ? "Daftar Stok Barang" : type === "penjualan" ? "Daftar Transaksi Penjualan" : type === "masuk" ? "Daftar Barang Masuk" : "Daftar Barang Keluar";
   const exportCsvPath = `${reportPath(type, "csv")}?${filterQuery(type, filters)}`;
   const exportPdfPath = `${reportPath(type, "pdf")}?${filterQuery(type, filters)}`;
@@ -179,31 +185,51 @@ export function ReportDetail({ type, onBack }: { type: ReportType; onBack: () =>
     setOpenFilter(null);
   };
 
-  const loadReport = async (nextFilters = filters) => {
-    setLoading(true);
+  const loadReport = async (nextFilters = filters, nextPage = 1, append = false) => {
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     try {
-      const path = `${reportPath(type)}?${filterQuery(type, nextFilters)}`;
+      const path = `${reportPath(type)}?${filterQuery(type, nextFilters, nextPage)}`;
+      let nextRows: string[][] = [];
+      let nextTotalAmount = 0;
+      let nextLowStockCount = lowStockCount;
+      let meta: Paginated<unknown>["meta"];
+
       if (type === "stok") {
         const response = await apiRequest<Paginated<ReportProduct>>(path, { token });
-        setRows(response.data.map((item) => [item.name, item.category?.name ?? "-", String(item.stock), item.status]));
-        setTotalAmount(0);
-        setLowStockCount(response.data.filter((item) => item.status === "low").length);
+        nextRows = response.data.map((item) => [item.name, item.category?.name ?? "-", String(item.stock), item.status]);
+        nextLowStockCount = append ? lowStockCount + response.data.filter((item) => item.status === "low").length : response.data.filter((item) => item.status === "low").length;
+        meta = response.meta;
       } else if (type === "penjualan") {
         const response = await apiRequest<Paginated<ReportSale>>(path, { token });
-        setRows(response.data.map((sale) => [sale.invoiceNumber, formatDate(sale.createdAt), sale.status, sale.cashier ?? "-", sale.customer ?? "-", formatCurrency(sale.totalAmount)]));
-        setTotalAmount(response.data.reduce((total, sale) => total + sale.totalAmount, 0));
-        setLowStockCount(stockItems.filter((item) => item.status === "low").length);
+        nextRows = response.data.map((sale) => [sale.invoiceNumber, formatDate(sale.createdAt), sale.status, sale.cashier ?? "-", sale.customer ?? "-", formatCurrency(sale.totalAmount)]);
+        nextTotalAmount = response.data.reduce((total, sale) => total + sale.totalAmount, 0);
+        nextLowStockCount = stockItems.filter((item) => item.status === "low").length;
+        meta = response.meta;
       } else {
         const response = await apiRequest<Paginated<ReportMovement>>(path, { token });
-        setRows(response.data.map((item) => [formatDate(item.createdAt), item.productName, String(item.quantity), type === "masuk" ? item.supplier ?? item.party ?? "-" : item.customer ?? item.note ?? "-", item.operator ?? "-"]));
-        setTotalAmount(0);
-        setLowStockCount(stockItems.filter((item) => item.status === "low").length);
+        nextRows = response.data.map((item) => [formatDate(item.createdAt), item.productName, String(item.quantity), type === "masuk" ? item.supplier ?? item.party ?? "-" : item.customer ?? item.note ?? "-", item.operator ?? "-"]);
+        nextLowStockCount = stockItems.filter((item) => item.status === "low").length;
+        meta = response.meta;
       }
+
+      setRows((current) => append ? [...current, ...nextRows] : nextRows);
+      setTotalAmount((current) => append ? current + nextTotalAmount : nextTotalAmount);
+      setLowStockCount(nextLowStockCount);
+      setPage(meta?.currentPage ?? nextPage);
+      setLastPage(meta?.lastPage ?? nextPage);
+      setTotalRows(meta?.total ?? (append ? rows.length + nextRows.length : nextRows.length));
     } catch (error) {
       Alert.alert("Gagal", error instanceof Error ? error.message : "Laporan gagal dimuat.");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
+  };
+
+  const loadMore = () => {
+    if (loadingMore || loading || page >= lastPage) return;
+    void loadReport(filters, page + 1, true);
   };
 
   useEffect(() => {
@@ -273,7 +299,7 @@ export function ReportDetail({ type, onBack }: { type: ReportType; onBack: () =>
         <Pressable onPress={onBack} style={styles.backButton}><Text style={styles.backText}>Kembali</Text></Pressable>
       </View>
       <View style={styles.metricGrid}>
-        <Metric title="Total Data" value={String(rows.length)} />
+        <Metric title="Data Tampil" value={`${rows.length}/${totalRows || rows.length}`} />
         <Metric title="Total Nilai" value={formatCurrency(totalAmount)} />
         <Metric title="Stok Menipis" value={String(lowStockCount)} />
       </View>
@@ -282,6 +308,11 @@ export function ReportDetail({ type, onBack }: { type: ReportType; onBack: () =>
           {rows.map((row, index) => <TableRow key={`${type}-${index}`} cells={row} />)}
           {!rows.length ? <EmptyRow text={loading ? "Memuat laporan..." : "Tidak ada data laporan"} /> : null}
         </DataTable>
+        {page < lastPage ? (
+          <Pressable disabled={loadingMore} onPress={loadMore} style={[styles.secondaryButton, styles.loadMoreButton, loadingMore && styles.disabledButton]}>
+            <Text style={styles.secondaryButtonText}>{loadingMore ? "Memuat data..." : `Muat Lagi (${rows.length}/${totalRows})`}</Text>
+          </Pressable>
+        ) : null}
       </WhiteCard>
     </View>
   );
