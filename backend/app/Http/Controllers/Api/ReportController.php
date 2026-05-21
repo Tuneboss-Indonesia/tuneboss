@@ -58,7 +58,7 @@ class ReportController extends Controller
         $products = $this->stockQuery($request)->orderBy('name')->get();
 
         return $this->csv('stock-report.csv', [
-            ['SKU', 'Name', 'Category', 'Stock', 'Minimum Stock', 'Status', 'Sale Price', 'Active'],
+            ['SKU', 'Name', 'Category', 'Stock', 'Minimum Stock', 'Status', 'Active'],
             ...$products->map(fn (Product $product) => [
                 $product->sku,
                 $product->name,
@@ -66,7 +66,6 @@ class ReportController extends Controller
                 $product->stock?->quantity ?? 0,
                 $product->min_stock,
                 $this->stockStatus($product->stock?->quantity ?? 0, $product->min_stock),
-                (float) $product->sale_price,
                 $product->is_active ? 'yes' : 'no',
             ])->all(),
         ]);

@@ -78,19 +78,20 @@ class DashboardController extends Controller
     {
         $period = $this->period($request);
         $format = match ($period) {
-            'day' => 'H:00',
-            'week', 'month' => 'Y-m-d',
-            'year' => 'Y-m',
+            'day' => 'Y-m-d',
+            'week' => 'o-\WW',
+            'month' => 'Y-m',
+            'year' => 'Y',
         };
 
-        $sales = Sale::query()
+        $sales = Sale::with('items')
             ->where('status', 'completed')
             ->where('created_at', '>=', $this->periodStart($period))
             ->get()
             ->groupBy(fn (Sale $sale) => $sale->created_at->format($format))
             ->map(fn ($sales, string $label) => [
                 'label' => $label,
-                'value' => (float) $sales->sum('total_amount'),
+                'value' => (int) $sales->sum(fn (Sale $sale) => $sale->items->sum('quantity')),
             ])
             ->sortBy('label')
             ->values();

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { useFonts } from "expo-font";
 import { Layout } from "./components/Layout";
@@ -14,13 +14,14 @@ import { MovementPage } from "./pages/MovementPage";
 import { PenjualanPage } from "./pages/PenjualanPage";
 import { ScanPage } from "./pages/ScanPage";
 import { StokPage } from "./pages/StokPage";
-import type { ModalKind, ModalMode, PageKey } from "./types";
+import type { CategoryItem, ModalKind, ModalMode, PageKey } from "./types";
 import { styles } from "./styles";
 
 export function AdminApp() {
-  const [page, setPage] = useState<PageKey>("dashboard");
+  const [page, setPage] = useState<PageKey>(() => loadStoredPage() ?? "dashboard");
   const [modal, setModal] = useState<ModalKind>(null);
   const [modalMode, setModalMode] = useState<ModalMode>("add");
+  const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
   const [token, setToken] = useState(() => loadStoredAuth()?.accessToken ?? "");
   const [fontsLoaded] = useFonts({
     "Futura PT": require("../../../assets/fonts/Futura-PT-Book.woff2"),
@@ -28,9 +29,16 @@ export function AdminApp() {
     SQR721BE: require("../../../assets/fonts/SQR721BE.woff2"),
   });
 
-  const openModal = (kind: Exclude<ModalKind, null>, mode: ModalMode = "add") => {
+  // Persist page changes to localStorage
+  useEffect(() => {
+    storePage(page);
+  }, [page]);
+
+  const openModal = (kind: Exclude<ModalKind, null>, mode: ModalMode = "add", item?: CategoryItem) => {
     setModalMode(mode);
     setModal(kind);
+    if (kind === "kategori" && item) setEditingCategory(item);
+    else setEditingCategory(null);
   };
 
   if (!fontsLoaded) return <View style={styles.loading}><Text style={styles.loadingText}>Loading TuneBoss...</Text></View>;
@@ -41,10 +49,10 @@ export function AdminApp() {
 
   return (
     <ErrorBoundary>
-      <InventoryDataProvider token={token}>
-        <Layout active={page} onLogout={() => { clearStoredAuth(); setToken(""); }} onNavigate={setPage}>
+      <InventoryDataProvider activePage={page} token={token}>
+        <Layout active={page} onLogout={() => { clearStoredAuth(); clearStoredPage(); setToken(""); setPage("dashboard"); }} onNavigate={setPage}>
           {page === "dashboard" ? <DashboardPage /> : null}
-          {page === "kategori" ? <KategoriPage onOpenModal={(mode) => openModal("kategori", mode)} /> : null}
+          {page === "kategori" ? <KategoriPage onOpenModal={(mode, item) => openModal("kategori", mode, item)} /> : null}
           {page === "stok" ? <StokPage onOpenModal={(mode) => openModal("stok", mode)} /> : null}
           {page === "penjualan" ? <PenjualanPage /> : null}
           {page === "scan" ? <ScanPage onGoInbound={() => setPage("masuk")} onGoOutbound={() => setPage("keluar")} /> : null}
@@ -57,7 +65,7 @@ export function AdminApp() {
           {page === "laporan-masuk" ? <ReportDetail type="masuk" onBack={() => setPage("laporan")} /> : null}
           {page === "laporan-keluar" ? <ReportDetail type="keluar" onBack={() => setPage("laporan")} /> : null}
         </Layout>
-        <ActionModal kind={modal} mode={modalMode} onClose={() => setModal(null)} />
+        <ActionModal kind={modal} mode={modalMode} editingCategory={editingCategory} onClose={() => { setEditingCategory(null); setModal(null); }} />
       </InventoryDataProvider>
     </ErrorBoundary>
   );
@@ -84,6 +92,32 @@ function storeAuth(payload: { accessToken: string }) {
 function clearStoredAuth() {
   try {
     if (typeof localStorage !== "undefined") localStorage.removeItem("tuneboss.auth");
+  } catch {
+    // Ignore storage cleanup failures.
+  }
+}
+
+function loadStoredPage(): PageKey | null {
+  try {
+    if (typeof localStorage === "undefined") return null;
+    const value = localStorage.getItem("tuneboss.page");
+    return value as PageKey | null;
+  } catch {
+    return null;
+  }
+}
+
+function storePage(page: PageKey) {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem("tuneboss.page", page);
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function clearStoredPage() {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.removeItem("tuneboss.page");
   } catch {
     // Ignore storage cleanup failures.
   }

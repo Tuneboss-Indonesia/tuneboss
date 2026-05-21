@@ -35,7 +35,6 @@ export type StockItem = PriorityProduct & {
   category: string;
   location: string;
   lastUpdated: string;
-  salePrice?: number;
   categoryId?: string;
   isActive?: boolean;
   imageUrl?: string | null;

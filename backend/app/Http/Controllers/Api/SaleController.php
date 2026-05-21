@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\SaleCollection;
 use App\Http\Resources\SaleResource;
 use App\Models\AuditLog;
+use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductStock;
 use App\Models\Sale;
@@ -37,10 +38,17 @@ class SaleController extends Controller
 
         $sale = DB::transaction(function () use ($request, $data) {
             $preview = $this->cartPreview($data['items'], true);
+            $address = $data['address'] ?? null;
+
+            if (!$address && !empty($data['customer_id'])) {
+                $address = Customer::whereKey($data['customer_id'])->value('address');
+            }
+
             $sale = Sale::create([
                 'invoice_number' => 'INV-'.now()->format('YmdHis').'-'.random_int(100, 999),
                 'cashier_id' => $request->user()->id,
                 'customer_id' => $data['customer_id'] ?? null,
+                'address' => $address,
                 'total_amount' => 0,
             ]);
 
@@ -76,6 +84,7 @@ class SaleController extends Controller
                 'metadata' => [
                     'invoiceNumber' => $sale->invoice_number,
                     'customerId' => $sale->customer_id,
+                    'address' => $sale->address,
                     'totalAmount' => $preview['totalAmount'],
                     'items' => $sale->items()->get(['product_id', 'quantity', 'price', 'subtotal'])->toArray(),
                 ],
@@ -104,6 +113,87 @@ class SaleController extends Controller
     public function show(Sale $sale)
     {
         return new SaleResource($sale->load(['cashier', 'customer', 'voidedBy', 'items.product']));
+    }
+
+    public function update(Request $request, Sale $sale)
+    {
+        if ($sale->status === 'void') {
+            return response()->json(['message' => 'Penjualan void tidak bisa diedit.', 'code' => 'sale_void_locked'], 422);
+        }
+
+        $data = $this->validatedCart($request);
+
+        $sale = DB::transaction(function () use ($request, $sale, $data) {
+            $sale->load('items');
+            $before = $sale->only(['customer_id', 'address', 'total_amount']);
+            $this->restoreSaleStock($request, $sale, 'Edit Penjualan');
+            $preview = $this->cartPreview($data['items'], true);
+
+            $sale->items()->delete();
+            $sale->update([
+                'customer_id' => $data['customer_id'] ?? null,
+                'address' => $this->saleAddress($data),
+                'total_amount' => $preview['totalAmount'],
+            ]);
+
+            foreach ($preview['items'] as $item) {
+                $sale->items()->create([
+                    'product_id' => $item['productId'],
+                    'quantity' => $item['quantity'],
+                    'price' => $item['price'],
+                    'subtotal' => $item['subtotal'],
+                ]);
+
+                $item['stock']->update(['quantity' => $item['afterStock']]);
+                StockMovement::create([
+                    'product_id' => $item['productId'],
+                    'operator_id' => $request->user()->id,
+                    'sale_id' => $sale->id,
+                    'type' => 'sale',
+                    'quantity' => $item['quantity'],
+                    'before_quantity' => $item['availableStock'],
+                    'after_quantity' => $item['afterStock'],
+                    'party' => $sale->customer?->name ?? 'Penjualan',
+                    'customer_id' => $sale->customer_id,
+                    'note' => $sale->invoice_number.' - edit',
+                ]);
+            }
+
+            AuditLog::create([
+                'user_id' => $request->user()->id,
+                'action' => 'sale.updated',
+                'entity' => 'sales',
+                'entity_id' => $sale->id,
+                'metadata' => ['before' => $before, 'after' => $sale->only(['customer_id', 'address', 'total_amount'])],
+            ]);
+
+            return $sale;
+        });
+
+        return new SaleResource($sale->load(['cashier', 'customer', 'voidedBy', 'items.product']));
+    }
+
+    public function destroy(Request $request, Sale $sale)
+    {
+        DB::transaction(function () use ($request, $sale) {
+            $sale->load('items');
+
+            if ($sale->status !== 'void') {
+                $this->restoreSaleStock($request, $sale, 'Hapus Penjualan');
+            }
+
+            AuditLog::create([
+                'user_id' => $request->user()->id,
+                'action' => 'sale.deleted',
+                'entity' => 'sales',
+                'entity_id' => $sale->id,
+                'metadata' => $sale->only(['invoice_number', 'customer_id', 'address', 'total_amount', 'status']),
+            ]);
+
+            $sale->delete();
+        });
+
+        return response()->json(['message' => 'Transaksi berhasil dihapus.']);
     }
 
     public function void(Request $request, Sale $sale)
@@ -169,9 +259,43 @@ class SaleController extends Controller
         return $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'customer_id' => ['nullable', 'uuid', 'exists:customers,id'],
+            'address' => ['nullable', 'string', 'max:1000'],
             'items.*.product_id' => ['required', 'uuid', 'exists:products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
         ]);
+    }
+
+    private function saleAddress(array $data): ?string
+    {
+        $address = $data['address'] ?? null;
+
+        if (!$address && !empty($data['customer_id'])) {
+            $address = Customer::whereKey($data['customer_id'])->value('address');
+        }
+
+        return $address;
+    }
+
+    private function restoreSaleStock(Request $request, Sale $sale, string $reason): void
+    {
+        foreach ($sale->items as $item) {
+            $stock = ProductStock::where('product_id', $item->product_id)->lockForUpdate()->firstOrFail();
+            $before = $stock->quantity;
+            $after = $before + $item->quantity;
+            $stock->update(['quantity' => $after]);
+
+            StockMovement::create([
+                'product_id' => $item->product_id,
+                'operator_id' => $request->user()->id,
+                'sale_id' => $sale->id,
+                'type' => 'adjustment',
+                'quantity' => $item->quantity,
+                'before_quantity' => $before,
+                'after_quantity' => $after,
+                'party' => $reason,
+                'note' => $sale->invoice_number,
+            ]);
+        }
     }
 
     private function cartPreview(array $items, bool $lockStock = false): array
@@ -201,7 +325,7 @@ class SaleController extends Controller
                 ], 422));
             }
 
-            $price = (float) $product->sale_price;
+            $price = 0.0;
             $subtotal = $price * $item['quantity'];
 
             return [

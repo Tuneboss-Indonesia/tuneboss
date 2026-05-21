@@ -19,7 +19,6 @@ class Product extends Model
         'sku',
         'barcode',
         'image_path',
-        'sale_price',
         'min_stock',
         'is_active',
     ];
@@ -27,9 +26,8 @@ class Product extends Model
     protected function casts(): array
     {
         return [
-            'sale_price' => 'decimal:2',
-            'min_stock' => 'integer',
-            'is_active' => 'boolean',
+        'min_stock' => 'integer',
+        'is_active' => 'boolean',
         ];
     }
 
