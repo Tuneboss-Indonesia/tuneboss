@@ -49,10 +49,10 @@ function ConfirmModal({ title, message, confirmText, onCancel, onConfirm, hideCa
 
 export function KategoriPage({ onOpenModal }: { onOpenModal: (mode: ModalMode, item?: CategoryItem) => void }) {
   const [query, setQuery] = useState("");
-  const { categories, loading, refresh, token } = useInventoryData();
-  const [deleting, setDeleting] = useState("");
-  const [pendingDelete, setPendingDelete] = useState<CategoryItem | null>(null);
   const [blockedMsg, setBlockedMsg] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<CategoryItem | null>(null);
+  const { categories, refresh, token } = useInventoryData();
+  const [deleting, setDeleting] = useState("");
   const items = categories;
   const filtered = items.filter((item) => `${item.name} ${item.desc}`.toLowerCase().includes(query.toLowerCase()));
 
@@ -70,30 +70,20 @@ export function KategoriPage({ onOpenModal }: { onOpenModal: (mode: ModalMode, i
     try {
       await apiRequest(`/categories/${pendingDelete.id}`, { method: "DELETE", token });
       await refresh();
-    } catch (error) {
-      setBlockedMsg(error instanceof Error ? error.message : "Gagal menghapus kategori.");
     } finally {
       setDeleting("");
       setPendingDelete(null);
     }
   };
 
-  if (loading) return <CrudShell title="Kategori Produk" button="Tambah Kategori" onButton={() => onOpenModal("add")} search="Cari kategori..." searchValue={query} onSearchChange={setQuery} loading><CategorySkeleton /></CrudShell>;
-
   return (
     <>
-      <CrudShell title="Kategori Produk" button="Tambah Kategori" onButton={() => onOpenModal("add")} search="Cari kategori..." searchValue={query} onSearchChange={setQuery}>
-        <View style={styles.categoryGrid}>
-          {filtered.map((item) => (
-            <View key={item.id} style={styles.categoryGridItem}>
-              <CategoryCard name={item.name} desc={item.desc} count={item.count} onEdit={() => onOpenModal("edit", item)} onDelete={() => handleDelete(item)} />
-            </View>
-          ))}
-        </View>
+      <CrudShell title="Kategori Barang" button="Tambah Kategori" onButton={() => onOpenModal("add")} search="Cari kategori..." searchValue={query} onSearchChange={setQuery}>
+        <View style={styles.categoryGrid}>{filtered.map((item) => <View key={item.id} style={styles.categoryGridItem}><CategoryCard name={item.name} desc={item.desc} count={item.count} onEdit={() => onOpenModal("edit", item)} onDelete={() => { if (!deleting) void handleDelete(item); }} /></View>)}</View>
         {!filtered.length ? <EmptyText text="Kategori tidak ditemukan" /> : null}
       </CrudShell>
-      {blockedMsg ? <ConfirmModal title="Gagal" message={blockedMsg} confirmText="OK" onConfirm={() => setBlockedMsg("")} hideCancel /> : null}
-      {pendingDelete ? <ConfirmModal title="Hapus Kategori" message={`Yakin ingin menghapus kategori "${pendingDelete.name}"?`} confirmText="Hapus" onCancel={() => setPendingDelete(null)} onConfirm={executeDelete} loading={Boolean(deleting)} /> : null}
+      {blockedMsg ? <ConfirmModal title="Tidak Bisa Dihapus" message={blockedMsg} confirmText="OK" hideCancel onCancel={() => setBlockedMsg("")} onConfirm={() => setBlockedMsg("")} /> : null}
+      {pendingDelete ? <ConfirmModal title="Hapus Kategori" message={`Yakin ingin menghapus kategori "${pendingDelete.name}"?`} confirmText="Hapus" onCancel={() => setPendingDelete(null)} onConfirm={executeDelete} loading={!!deleting} /> : null}
     </>
   );
 }
