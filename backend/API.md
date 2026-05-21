@@ -103,6 +103,10 @@ Response:
 
 Mengembalikan user aktif.
 
+### POST /auth/refresh
+
+Merotasi access token aktif sebelum expired. Request wajib memakai Bearer token yang masih valid. Token lama langsung dihapus dan response mengembalikan `accessToken`, `tokenType`, `expiresAt`, dan `user` baru.
+
 ### PATCH /auth/profile
 
 Request:
@@ -163,6 +167,9 @@ Mengembalikan user, permissions, kategori, dan summary ringan untuk initial load
 - `GET /dashboard/recent-activities`
 - `GET /dashboard/sales-chart?period=day|week|month|year`
 - `GET /dashboard/top-products?period=day|week|month|year`
+- `GET /dashboard/realtime`
+
+`/dashboard/realtime` adalah endpoint polling ringan untuk shared hosting. Response berisi `serverTime`, `pollAfterSeconds`, `lastActivityAt`, `summary`, `priorityProducts`, dan `recentActivities`.
 
 ## Categories
 
@@ -383,14 +390,18 @@ Request void sale:
 - `GET /reports/summary?from=&to=`
 - `GET /reports/stock?category_id=&product_id=&status=&per_page=15`
 - `GET /reports/stock/export?category_id=&product_id=&status=` CSV
+- `GET /reports/stock/export.pdf?category_id=&product_id=&status=` PDF
 - `GET /reports/sales?search=&status=&cashier_id=&customer_id=&from=&to=&per_page=15`
 - `GET /reports/sales/export?search=&status=&cashier_id=&customer_id=&from=&to=` CSV
+- `GET /reports/sales/export.pdf?search=&status=&cashier_id=&customer_id=&from=&to=` PDF
 - `GET /reports/inbound?product_id=&operator_id=&supplier_id=&from=&to=&per_page=15`
 - `GET /reports/inbound/export?product_id=&operator_id=&supplier_id=&from=&to=` CSV
+- `GET /reports/inbound/export.pdf?product_id=&operator_id=&supplier_id=&from=&to=` PDF
 - `GET /reports/outbound?product_id=&operator_id=&customer_id=&from=&to=&per_page=15`
 - `GET /reports/outbound/export?product_id=&operator_id=&customer_id=&from=&to=` CSV
+- `GET /reports/outbound/export.pdf?product_id=&operator_id=&customer_id=&from=&to=` PDF
 
-Endpoint export memakai filter yang sama dengan endpoint list, tetapi mengembalikan file `text/csv` tanpa pagination.
+Endpoint export memakai filter yang sama dengan endpoint list. CSV mengembalikan `text/csv`; PDF mengembalikan `application/pdf` dan dibatasi ringkas untuk preview/cetak. Gunakan CSV untuk data penuh.
 
 ## Users Admin-Only
 

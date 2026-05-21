@@ -11,6 +11,10 @@ import type { PressState } from "../types";
 type SaleItem = { productId: string; productName?: string | null; quantity: number };
 type SaleForAction = { id: string; address?: string | null; items?: SaleItem[] };
 
+function newCartItem(): CartItem {
+  return { id: `${Date.now()}-${Math.random()}`, quantity: "1", sku: "" };
+}
+
 export function PenjualanPage() {
   const [query, setQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");

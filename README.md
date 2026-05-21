@@ -24,7 +24,7 @@ Visual frontend mengikuti karakter TuneBoss: background gelap, aksen orange, typ
 - Supplier dan customer/dealer.
 - Penjualan dengan cart preview backend, validasi stok, dan void transaksi admin.
 - Restock alerts otomatis saat stok habis/menipis.
-- Laporan stok, penjualan, barang masuk, barang keluar, dan export CSV.
+- Laporan stok, penjualan, barang masuk, barang keluar, dan export CSV/PDF.
 - Audit logs admin-only dan export CSV.
 - Command backup database untuk MySQL/MariaDB.
 
@@ -157,6 +157,7 @@ php artisan inventory:backup
 API tidak memakai prefix `/api`. Contoh endpoint utama:
 
 - `POST /auth/login`
+- `POST /auth/refresh`
 - `GET /health`
 - `GET /app/bootstrap`
 - `GET /dashboard/summary`
@@ -169,6 +170,7 @@ API tidak memakai prefix `/api`. Contoh endpoint utama:
 - `POST /sales/preview`
 - `POST /sales`
 - `GET /reports/stock/export`
+- `GET /reports/stock/export.pdf`
 - `GET /audit-logs/export`
 
 Dokumentasi lengkap ada di `backend/API.md`.
@@ -256,6 +258,16 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 ```
+
+Setiap update production wajib menjalankan `php artisan migrate --force` sebelum aplikasi dipakai user. Setelah deploy, cek `GET /health` dan pastikan response berisi `database: ok`.
+
+Frontend production harus dibuild dengan API URL production:
+
+```env
+EXPO_PUBLIC_API_URL=https://api.tuneboss.id
+```
+
+Jangan gunakan default `http://localhost:8000` untuk build production atau mobile device.
 
 Document root domain/subdomain API harus mengarah ke `backend/public`.
 

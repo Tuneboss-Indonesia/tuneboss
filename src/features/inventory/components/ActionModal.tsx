@@ -10,9 +10,12 @@ import { colors } from "../../../theme/tokens";
 export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: ModalKind; mode: ModalMode; editingCategory?: CategoryItem | null; onClose: () => void }) {
   const { categories, customers, refresh, stockItems, suppliers, token } = useInventoryData();
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedPartyId, setSelectedPartyId] = useState("");
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const [productOpen, setProductOpen] = useState(false);
   const [partyOpen, setPartyOpen] = useState(false);
+  const [productQuery, setProductQuery] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [sku, setSku] = useState("");
@@ -24,12 +27,23 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
   const actionLabel = mode === "edit" ? "Edit" : "Tambah";
   const title = kind === "kategori" ? `${actionLabel} Kategori` : kind === "stok" ? `${actionLabel} Barang` : kind === "masuk" ? "Tambah Stok Masuk" : kind === "keluar" ? "Kurangi Stok" : "";
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
+  const selectedProduct = stockItems.find((item) => item.id === selectedProductId);
+  const productOptions = stockItems.filter((item) => `${item.name} ${item.sku} ${item.barcode}`.toLowerCase().includes(productQuery.toLowerCase())).slice(0, 25);
   const parties = kind === "masuk" ? suppliers : customers;
   const selectedParty = parties.find((item) => item.id === selectedPartyId);
+  const transactionProduct = selectedProduct ?? stockItems.find((item) => item.sku.toLowerCase() === sku.toLowerCase() || item.barcode.toLowerCase() === sku.toLowerCase());
+  const transactionQuantity = Number(stock || 0);
+  const afterStock = transactionProduct ? transactionProduct.stock + (kind === "keluar" ? -transactionQuantity : transactionQuantity) : 0;
+  const insufficientStock = Boolean(kind === "keluar" && transactionProduct && transactionQuantity > transactionProduct.stock);
 
   useEffect(() => {
     if (kind === "masuk" || kind === "keluar") setSelectedPartyId("");
-  }, [kind]);
+    if (kind === "masuk" || kind === "keluar") {
+      const product = stockItems.find((item) => item.id === initialProductId);
+      setSelectedProductId(product?.id ?? "");
+      setSku(product?.sku ?? "");
+    }
+  }, [initialProductId, kind, stockItems]);
 
   // Pre-fill form when editing category
   const [originalName, setOriginalName] = useState("");
@@ -101,7 +115,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
       }
 
       if (kind === "masuk" || kind === "keluar") {
-        const product = stockItems.find((item) => item.sku.toLowerCase() === sku.toLowerCase() || item.barcode.toLowerCase() === sku.toLowerCase());
+        const product = selectedProduct ?? stockItems.find((item) => item.sku.toLowerCase() === sku.toLowerCase() || item.barcode.toLowerCase() === sku.toLowerCase());
         if (!product) throw new Error("Produk tidak ditemukan. Isi SKU/barcode yang valid.");
 
         await apiRequest(kind === "masuk" ? "/stock/inbound" : "/stock/outbound", {
@@ -111,7 +125,9 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
         });
       }
 
-      await refresh();
+      if (kind === "kategori") await refreshCategories();
+      if (kind === "stok") await refreshProducts();
+      if (kind === "masuk" || kind === "keluar") await refreshStockActivity();
       close();
     } catch (error) {
       Alert.alert("Gagal", error instanceof Error ? error.message : "Data gagal disimpan.");
@@ -163,7 +179,13 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
           ) : null}
           {kind === "masuk" || kind === "keluar" ? (
             <>
+              <View style={styles.modalFieldGroup}>
+                <Text style={styles.modalLabel}>Produk</Text>
+                <Pressable onPress={() => setProductOpen((open) => !open)} style={styles.modalSelect}><Text style={styles.modalSelectText}>{selectedProduct ? `${selectedProduct.sku} - ${selectedProduct.name}` : "Pilih barang dari data API"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
+                {productOpen ? <View style={styles.modalSelectOptions}><TextInput onChangeText={setProductQuery} style={styles.modalInput} placeholder="Cari nama / SKU / barcode" placeholderTextColor="#9aa4b5" value={productQuery} />{productOptions.map((item) => <Pressable key={item.id} onPress={() => { setSelectedProductId(item.id); setSku(item.sku); setProductQuery(""); setProductOpen(false); }} style={[styles.modalSelectOption, selectedProductId === item.id && styles.modalSelectOptionActive]}><Text style={[styles.modalSelectOptionText, selectedProductId === item.id && styles.modalSelectOptionTextActive]}>{item.sku} - {item.name} | stok {item.stock}</Text></Pressable>)}{!productOptions.length ? <Text style={styles.emptyText}>Produk tidak ditemukan</Text> : null}</View> : null}
+              </View>
               <TextInput onChangeText={setSku} style={styles.modalInput} placeholder="SKU / Barcode" placeholderTextColor="#9aa4b5" value={sku} />
+              {transactionProduct ? <View style={styles.searchPanel}><Text style={styles.cardEyebrow}>Info Barang</Text><Text style={styles.scanResultTitle}>{transactionProduct.name}</Text><Text style={styles.scanResultMeta}>Stok saat ini: {transactionProduct.stock}</Text><Text style={styles.scanResultMeta}>Setelah transaksi: {afterStock}</Text>{insufficientStock ? <Text style={styles.errorText}>Jumlah keluar melebihi stok saat ini.</Text> : null}</View> : null}
               <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
               <View style={styles.modalFieldGroup}>
                 <Text style={styles.modalLabel}>{kind === "masuk" ? "Supplier" : "Customer"}</Text>
@@ -178,6 +200,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
             <Pressable onPress={close} style={({ hovered, pressed }: PressState) => [styles.cancelButton, hovered && styles.cancelButtonHover, pressed && styles.pressed]}><Text style={styles.cancelText}>Batal</Text></Pressable>
             <Pressable disabled={saving || (kind === "kategori" && !name.trim()) || (kind === "stok" && (!sku.trim() || !name.trim() || !selectedCategoryId)) || (mode === "edit" && kind === "kategori" && name === originalName && description === originalDesc)} onPress={save} style={({ hovered, pressed }: PressState) => [styles.saveButton, hovered && !saving && styles.saveButtonHover, pressed && styles.pressed, (saving || (kind === "kategori" && !name.trim()) || (kind === "stok" && (!sku.trim() || !name.trim() || !selectedCategoryId)) || (mode === "edit" && kind === "kategori" && name === originalName && description === originalDesc)) && styles.tablePagerButtonDisabled]}><Text style={styles.saveText}>{saving ? "Menyimpan..." : "Simpan"}</Text></Pressable>
           </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>

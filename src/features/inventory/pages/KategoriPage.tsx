@@ -77,6 +77,19 @@ export function KategoriPage({ onOpenModal }: { onOpenModal: (mode: ModalMode, i
       setPendingDelete(null);
     }
   };
+  const saveEdit = async () => {
+    if (!editing) return;
+    setSaving(true);
+    try {
+      await apiRequest(`/categories/${editing.id}`, { body: JSON.stringify({ description: editing.desc, name: editing.name }), method: "PATCH", token });
+      await refreshCategories();
+      setEditing(null);
+    } catch (error) {
+      Alert.alert("Gagal", error instanceof Error ? error.message : "Kategori gagal disimpan.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) return <CrudShell title="Kategori Produk" button="Tambah Kategori" onButton={() => onOpenModal("add")} search="Cari kategori..." searchValue={query} onSearchChange={setQuery} loading><CategorySkeleton /></CrudShell>;
 
