@@ -58,14 +58,18 @@ class ReportController extends Controller
     {
         $products = $this->stockQuery($request)->orderBy('name')->get();
 
-        return $this->csv('stock-report.csv', [$this->stockHeaders(), ...$this->stockRows($products)]);
-    }
-
-    public function stockPdf(Request $request)
-    {
-        $products = $this->stockQuery($request)->orderBy('name')->get();
-
-        return $this->pdf('stock-report.pdf', 'TuneBoss Stock Report', $this->stockHeaders(), $this->stockRows($products), $request);
+        return $this->csv('stock-report.csv', [
+            ['SKU', 'Name', 'Category', 'Stock', 'Minimum Stock', 'Status', 'Active'],
+            ...$products->map(fn (Product $product) => [
+                $product->sku,
+                $product->name,
+                $product->category?->name,
+                $product->stock?->quantity ?? 0,
+                $product->min_stock,
+                $this->stockStatus($product->stock?->quantity ?? 0, $product->min_stock),
+                $product->is_active ? 'yes' : 'no',
+            ])->all(),
+        ]);
     }
 
     public function sales(Request $request)

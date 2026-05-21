@@ -16,6 +16,7 @@ class SaleResource extends JsonResource
             'cashier' => $this->cashier?->name,
             'customerId' => $this->customer_id,
             'customer' => $this->customer?->name,
+            'address' => $this->address ?? $this->customer?->address,
             'totalAmount' => (float) $this->total_amount,
             'status' => $this->status,
             'voidedBy' => $this->voidedBy?->name,

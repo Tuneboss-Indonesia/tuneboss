@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Platform, Text, View } from "react-native";
-import * as SecureStore from "expo-secure-store";
+import { Text, View } from "react-native";
 import { useFonts } from "expo-font";
 import { Layout } from "./components/Layout";
 import { ActionModal } from "./components/ActionModal";
@@ -17,7 +16,7 @@ import { ScanPage } from "./pages/ScanPage";
 import { RestockPage } from "./pages/RestockPage";
 import { StockOpnamePage } from "./pages/StockOpnamePage";
 import { StokPage } from "./pages/StokPage";
-import type { ModalKind, ModalMode, PageKey } from "./types";
+import type { CategoryItem, ModalKind, ModalMode, PageKey } from "./types";
 import { styles } from "./styles";
 import { apiRequest, setUnauthenticatedHandler } from "./api";
 
@@ -25,53 +24,28 @@ type AuthPayload = { accessToken: string; expiresAt?: string | null };
 const authStorageKey = "tuneboss.auth";
 
 export function AdminApp() {
-  const [page, setPage] = useState<PageKey>("dashboard");
+  const [page, setPage] = useState<PageKey>(() => loadStoredPage() ?? "dashboard");
   const [modal, setModal] = useState<ModalKind>(null);
   const [modalMode, setModalMode] = useState<ModalMode>("add");
-  const [modalProductId, setModalProductId] = useState<string | undefined>();
-  const [auth, setAuth] = useState<AuthPayload | null>(() => Platform.OS === "web" ? loadStoredAuth() : null);
-  const [authLoaded, setAuthLoaded] = useState(Platform.OS === "web");
+  const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
+  const [token, setToken] = useState(() => loadStoredAuth()?.accessToken ?? "");
   const [fontsLoaded] = useFonts({
     "Futura PT": require("../../../assets/fonts/Futura-PT-Book.woff2"),
     "Futura PT Medium": require("../../../assets/fonts/Futura-PT-Medium.woff2"),
     SQR721BE: require("../../../assets/fonts/SQR721BE.woff2"),
   });
 
-  const logout = () => {
-    void clearStoredAuth();
-    setAuth(null);
-  };
-
-  const setLoggedIn = (payload: AuthPayload) => {
-    void storeAuth(payload);
-    setAuth(payload);
-  };
-
+  // Persist page changes to localStorage
   useEffect(() => {
-    if (Platform.OS === "web") return;
-    void loadStoredAuthAsync().then(setAuth).finally(() => setAuthLoaded(true));
-  }, []);
+    storePage(page);
+  }, [page]);
 
-  useEffect(() => {
-    setUnauthenticatedHandler(logout);
-    return () => setUnauthenticatedHandler(null);
-  }, []);
-
-  useEffect(() => {
-    if (!auth?.accessToken || !auth.expiresAt) return;
-
-    const refreshInMs = Math.max(new Date(auth.expiresAt).getTime() - Date.now() - 5 * 60 * 1000, 30 * 1000);
-    const timer = setTimeout(() => {
-      void apiRequest<AuthPayload>("/auth/refresh", { method: "POST", token: auth.accessToken }).then(setLoggedIn).catch(logout);
-    }, refreshInMs);
-
-    return () => clearTimeout(timer);
-  }, [auth?.accessToken, auth?.expiresAt]);
-
-  const openModal = (kind: Exclude<ModalKind, null>, mode: ModalMode = "add", productId?: string) => {
+  const openModal = (kind: Exclude<ModalKind, null>, mode: ModalMode = "add", item?: CategoryItem) => {
     setModalMode(mode);
     setModalProductId(productId);
     setModal(kind);
+    if (kind === "kategori" && item) setEditingCategory(item);
+    else setEditingCategory(null);
   };
 
   if (!fontsLoaded || !authLoaded) return <View style={styles.loading}><Text style={styles.loadingText}>Loading TuneBoss...</Text></View>;
@@ -82,9 +56,23 @@ export function AdminApp() {
 
   return (
     <ErrorBoundary>
-      <InventoryDataProvider token={auth.accessToken}>
-        <InventoryContent page={page} onLogout={logout} onNavigate={setPage} openModal={openModal} />
-        <ActionModal initialProductId={modalProductId} kind={modal} mode={modalMode} onClose={() => { setModal(null); setModalProductId(undefined); }} />
+      <InventoryDataProvider activePage={page} token={token}>
+        <Layout active={page} onLogout={() => { clearStoredAuth(); clearStoredPage(); setToken(""); setPage("dashboard"); }} onNavigate={setPage}>
+          {page === "dashboard" ? <DashboardPage /> : null}
+          {page === "kategori" ? <KategoriPage onOpenModal={(mode, item) => openModal("kategori", mode, item)} /> : null}
+          {page === "stok" ? <StokPage onOpenModal={(mode) => openModal("stok", mode)} /> : null}
+          {page === "penjualan" ? <PenjualanPage /> : null}
+          {page === "scan" ? <ScanPage onGoInbound={() => setPage("masuk")} onGoOutbound={() => setPage("keluar")} /> : null}
+          {page === "masuk" ? <MovementPage kind="inbound" onOpenModal={() => openModal("masuk")} /> : null}
+          {page === "keluar" ? <MovementPage kind="outbound" onOpenModal={() => openModal("keluar")} /> : null}
+          {page === "laporan" ? <LaporanPage onNavigate={setPage} /> : null}
+          {page === "admin" ? <AdminPage /> : null}
+          {page === "laporan-stok" ? <ReportDetail type="stok" onBack={() => setPage("laporan")} /> : null}
+          {page === "laporan-penjualan" ? <ReportDetail type="penjualan" onBack={() => setPage("laporan")} /> : null}
+          {page === "laporan-masuk" ? <ReportDetail type="masuk" onBack={() => setPage("laporan")} /> : null}
+          {page === "laporan-keluar" ? <ReportDetail type="keluar" onBack={() => setPage("laporan")} /> : null}
+        </Layout>
+        <ActionModal kind={modal} mode={modalMode} editingCategory={editingCategory} onClose={() => { setEditingCategory(null); setModal(null); }} />
       </InventoryDataProvider>
     </ErrorBoundary>
   );
@@ -165,6 +153,32 @@ async function clearStoredAuth() {
   try {
     if (Platform.OS === "web" && typeof localStorage !== "undefined") localStorage.removeItem(authStorageKey);
     if (Platform.OS !== "web") await SecureStore.deleteItemAsync(authStorageKey);
+  } catch {
+    // Ignore storage cleanup failures.
+  }
+}
+
+function loadStoredPage(): PageKey | null {
+  try {
+    if (typeof localStorage === "undefined") return null;
+    const value = localStorage.getItem("tuneboss.page");
+    return value as PageKey | null;
+  } catch {
+    return null;
+  }
+}
+
+function storePage(page: PageKey) {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem("tuneboss.page", page);
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function clearStoredPage() {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.removeItem("tuneboss.page");
   } catch {
     // Ignore storage cleanup failures.
   }

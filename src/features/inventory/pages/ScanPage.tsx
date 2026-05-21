@@ -4,12 +4,13 @@ import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "ex
 import { ChevronDown, PackageMinus, PackagePlus, ScanBarcode } from "lucide-react-native";
 import { colors } from "../../../theme/tokens";
 import type { StockItem } from "../../../types/dashboard";
-import { apiRequest, formatCurrency } from "../api";
+import { apiRequest } from "../api";
 import { useInventoryData } from "../InventoryDataContext";
 import { styles } from "../styles";
 import { Metric } from "../components/common";
+import type { PressState } from "../types";
 
-type LookupResponse = StockItem & { salePrice?: number; categoryId?: string };
+type LookupResponse = StockItem & { categoryId?: string };
 
 export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: (productId?: string) => void; onGoOutbound: (productId?: string) => void }) {
   const { categories, refreshProducts, stockItems, token } = useInventoryData();
@@ -85,12 +86,12 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: (productI
         </View>
       </View>
       <View style={styles.scanModeRow}>
-        <Pressable onPress={() => setMode("scanner")} style={[styles.scanModeCard, mode === "scanner" && styles.scanModeActive]}>
+        <Pressable onPress={() => setMode("scanner")} style={({ hovered, pressed }: PressState) => [styles.scanModeCard, mode === "scanner" && styles.scanModeActive, hovered && mode !== "scanner" && styles.scanModeCardHover, pressed && styles.pressed]}>
           <ScanBarcode color={mode === "scanner" ? colors.white : colors.primary} size={28} />
           <Text style={styles.scanModeTitle}>Scanner Fisik</Text>
           <Text style={styles.scanModeText}>Fokus ke input, scan barcode, tekan Enter atau tombol Proses.</Text>
         </Pressable>
-        <Pressable onPress={() => { setMode("camera"); if (Platform.OS !== "web" && !permission?.granted) void requestPermission(); }} style={[styles.scanModeCard, mode === "camera" && styles.scanModeActive]}>
+        <Pressable onPress={() => setMode("camera")} style={({ hovered, pressed }: PressState) => [styles.scanModeCard, mode === "camera" && styles.scanModeActive, hovered && mode !== "camera" && styles.scanModeCardHover, pressed && styles.pressed]}>
           <ScanBarcode color={mode === "camera" ? colors.white : colors.primary} size={28} />
           <Text style={styles.scanModeTitle}>Kamera HP</Text>
           <Text style={styles.scanModeText}>Scan barcode langsung dari kamera perangkat.</Text>
@@ -122,7 +123,7 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: (productI
               value={barcode}
             />
           </View>
-          <Pressable onPress={() => void processBarcode()} style={styles.primaryButton}>
+          <Pressable onPress={() => void processBarcode()} style={({ hovered, pressed }: PressState) => [styles.primaryButton, hovered && styles.primaryButtonHover, pressed && styles.pressed]}>
             <Text style={styles.primaryButtonText}>Proses</Text>
           </Pressable>
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -132,14 +133,14 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: (productI
               <Text style={styles.cardEyebrow}>Hasil Lookup</Text>
               <Text style={styles.scanResultTitle}>{result.name}</Text>
               <Text style={styles.scanResultMeta}>{result.sku} / {result.barcode}</Text>
-              <Text style={styles.scanResultMeta}>{result.category} - {formatCurrency(result.salePrice ?? 0)}</Text>
+              <Text style={styles.scanResultMeta}>{result.category} - Stok: {result.stock}</Text>
               <View style={styles.scanResultStats}>
                 <Metric title="Stok" value={String(result.stock)} />
                 <Metric title="Min" value={String(result.minStock)} />
               </View>
               <View style={styles.scanActionRow}>
-                <Pressable onPress={() => onGoInbound(result.id)} style={styles.secondaryButton}><PackagePlus color={colors.primary} size={18} /><Text style={styles.secondaryButtonText}>Stok Masuk</Text></Pressable>
-                <Pressable onPress={() => onGoOutbound(result.id)} style={styles.secondaryButton}><PackageMinus color={colors.primary} size={18} /><Text style={styles.secondaryButtonText}>Stok Keluar</Text></Pressable>
+                <Pressable onPress={onGoInbound} style={({ hovered, pressed }: PressState) => [styles.secondaryButton, hovered && styles.secondaryButtonHover, pressed && styles.pressed]}><PackagePlus color={colors.primary} size={18} /><Text style={styles.secondaryButtonText}>Stok Masuk</Text></Pressable>
+                <Pressable onPress={onGoOutbound} style={({ hovered, pressed }: PressState) => [styles.secondaryButton, hovered && styles.secondaryButtonHover, pressed && styles.pressed]}><PackageMinus color={colors.primary} size={18} /><Text style={styles.secondaryButtonText}>Stok Keluar</Text></Pressable>
               </View>
             </View>
           ) : null}

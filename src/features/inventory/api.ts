@@ -10,8 +10,17 @@ let unauthenticatedHandler: (() => void) | null = null;
 
 export const apiBaseUrl = process.env?.EXPO_PUBLIC_API_URL ?? defaultBaseUrl;
 
-export function setUnauthenticatedHandler(handler: (() => void) | null) {
-  unauthenticatedHandler = handler;
+function errorMessageFromPayload(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "Request failed";
+
+  const errors = "errors" in payload ? payload.errors : undefined;
+  if (errors && typeof errors === "object") {
+    const firstMessages = Object.values(errors).find((value) => Array.isArray(value) && value.every((item) => typeof item === "string"));
+    if (Array.isArray(firstMessages) && firstMessages.length) return firstMessages[0];
+  }
+
+  const message = "message" in payload ? payload.message : undefined;
+  return typeof message === "string" ? message : "Request failed";
 }
 
 export async function apiRequest<T>(path: string, options: RequestInit & { token?: string | null } = {}): Promise<T> {
@@ -33,7 +42,7 @@ export async function apiRequest<T>(path: string, options: RequestInit & { token
   const payload = contentType.includes("application/json") ? await response.json() : await response.text();
 
   if (!response.ok) {
-    const error = new Error(typeof payload === "object" && payload?.message ? payload.message : "Request failed") as ApiError;
+    const error = new Error(errorMessageFromPayload(payload)) as ApiError;
     error.status = response.status;
     error.code = typeof payload === "object" ? payload?.code : undefined;
     error.errors = typeof payload === "object" ? payload?.errors : undefined;

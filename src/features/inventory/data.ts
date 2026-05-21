@@ -9,7 +9,7 @@ export const logoUri = "https://tuneboss.com/wp-content/uploads/2022/11/logo-Tun
 export const mainMenu: MenuItem[] = [
   ["dashboard", LayoutDashboard, "Dashboard"],
   ["kategori", Tag, "Kategori"],
-  ["stok", Package, "Data Barang"],
+  ["stok", Package, "Data Produk"],
   ["penjualan", ShoppingCart, "Penjualan"],
   ["scan", ScanBarcode, "Scan Barcode"],
 ];

@@ -97,6 +97,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/sales/preview', [SaleController::class, 'preview']);
     Route::post('/sales', [SaleController::class, 'store']);
     Route::get('/sales/{sale}', [SaleController::class, 'show']);
+    Route::patch('/sales/{sale}', [SaleController::class, 'update'])->middleware('role:admin');
+    Route::delete('/sales/{sale}', [SaleController::class, 'destroy'])->middleware('role:admin');
     Route::post('/sales/{sale}/void', [SaleController::class, 'void'])->middleware('role:admin');
 
     Route::get('/reports/stock', [ReportController::class, 'stock']);

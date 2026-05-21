@@ -12,7 +12,7 @@ class Sale extends Model
 {
     use HasFactory, HasUuids;
 
-    protected $fillable = ['invoice_number', 'cashier_id', 'customer_id', 'total_amount', 'status', 'voided_by', 'voided_at', 'void_reason'];
+    protected $fillable = ['invoice_number', 'cashier_id', 'customer_id', 'address', 'total_amount', 'status', 'voided_by', 'voided_at', 'void_reason'];
 
     protected function casts(): array
     {

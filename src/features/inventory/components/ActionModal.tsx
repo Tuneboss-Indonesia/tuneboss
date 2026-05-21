@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { ChevronDown } from "lucide-react-native";
+import { Alert, Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { ChevronDown, ImageUp } from "lucide-react-native";
 import { apiRequest } from "../api";
 import { useInventoryData } from "../InventoryDataContext";
-import type { ModalKind, ModalMode } from "../types";
+import type { CategoryItem, ModalKind, ModalMode, PressState } from "../types";
 import { styles } from "../styles";
 import { colors } from "../../../theme/tokens";
 
-export function ActionModal({ initialProductId, kind, mode, onClose }: { initialProductId?: string; kind: ModalKind; mode: ModalMode; onClose: () => void }) {
-  const { categories, customers, refreshCategories, refreshProducts, refreshStockActivity, stockItems, suppliers, token } = useInventoryData();
+export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: ModalKind; mode: ModalMode; editingCategory?: CategoryItem | null; onClose: () => void }) {
+  const { categories, customers, refresh, stockItems, suppliers, token } = useInventoryData();
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedPartyId, setSelectedPartyId] = useState("");
@@ -19,12 +19,11 @@ export function ActionModal({ initialProductId, kind, mode, onClose }: { initial
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [sku, setSku] = useState("");
-  const [barcode, setBarcode] = useState("");
-  const [price, setPrice] = useState("");
   const [stock, setStock] = useState("");
   const [party, setParty] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const actionLabel = mode === "edit" ? "Edit" : "Tambah";
   const title = kind === "kategori" ? `${actionLabel} Kategori` : kind === "stok" ? `${actionLabel} Barang` : kind === "masuk" ? "Tambah Stok Masuk" : kind === "keluar" ? "Kurangi Stok" : "";
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
@@ -38,10 +37,6 @@ export function ActionModal({ initialProductId, kind, mode, onClose }: { initial
   const insufficientStock = Boolean(kind === "keluar" && transactionProduct && transactionQuantity > transactionProduct.stock);
 
   useEffect(() => {
-    if (kind && !selectedCategoryId) setSelectedCategoryId(categories[0]?.id ?? "");
-  }, [categories, kind, selectedCategoryId]);
-
-  useEffect(() => {
     if (kind === "masuk" || kind === "keluar") setSelectedPartyId("");
     if (kind === "masuk" || kind === "keluar") {
       const product = stockItems.find((item) => item.id === initialProductId);
@@ -50,23 +45,51 @@ export function ActionModal({ initialProductId, kind, mode, onClose }: { initial
     }
   }, [initialProductId, kind, stockItems]);
 
+  // Pre-fill form when editing category
+  const [originalName, setOriginalName] = useState("");
+  const [originalDesc, setOriginalDesc] = useState("");
+
+  useEffect(() => {
+    if (mode === "edit" && kind === "kategori" && editingCategory) {
+      setName(editingCategory.name);
+      const desc = editingCategory.desc === "-" ? "" : editingCategory.desc;
+      setDescription(desc);
+      setOriginalName(editingCategory.name);
+      setOriginalDesc(desc);
+    } else if (mode === "add") {
+      setName("");
+      setDescription("");
+      setOriginalName("");
+      setOriginalDesc("");
+    }
+  }, [mode, kind, editingCategory]);
+
   const reset = () => {
     setName("");
     setDescription("");
     setSku("");
-    setSelectedProductId("");
-    setProductQuery("");
-    setBarcode("");
-    setPrice("");
     setStock("");
     setParty("");
+    setSelectedCategoryId("");
     setSelectedPartyId("");
     setNote("");
+    setImageFile(null);
   };
 
   const close = () => {
     reset();
     onClose();
+  };
+
+  const uploadImage = async (productId: string) => {
+    if (!imageFile) return;
+    try {
+      const form = new FormData();
+      form.append("image", imageFile);
+      await apiRequest(`/products/${productId}/image`, { body: form, method: "POST", token });
+    } catch (error) {
+      Alert.alert("Gagal", error instanceof Error ? error.message : "Gambar gagal diupload.");
+    }
   };
 
   const save = async () => {
@@ -75,15 +98,20 @@ export function ActionModal({ initialProductId, kind, mode, onClose }: { initial
 
     try {
       if (kind === "kategori") {
-        await apiRequest("/categories", { body: JSON.stringify({ description, name }), method: "POST", token });
+        if (mode === "edit" && editingCategory) {
+          await apiRequest(`/categories/${editingCategory.id}`, { body: JSON.stringify({ description: description || null, name }), method: "PATCH", token });
+        } else {
+          await apiRequest("/categories", { body: JSON.stringify({ description: description || null, name }), method: "POST", token });
+        }
       }
 
       if (kind === "stok") {
-        await apiRequest("/products", {
-          body: JSON.stringify({ barcode: barcode || null, category_id: selectedCategoryId, min_stock: Number(stock || 0), name, sale_price: Number(price || 0), sku }),
+        const result = await apiRequest<{ id: string }>("/products", {
+          body: JSON.stringify({ barcode: null, category_id: selectedCategoryId, min_stock: 1, name, sku, initial_stock: Number(stock || 0) }),
           method: "POST",
           token,
         });
+        if (result.id) await uploadImage(result.id);
       }
 
       if (kind === "masuk" || kind === "keluar") {
@@ -108,13 +136,26 @@ export function ActionModal({ initialProductId, kind, mode, onClose }: { initial
     }
   };
 
+  const handleImagePick = () => {
+    if (Platform.OS !== "web" || typeof document === "undefined") {
+      Alert.alert("Info", "Upload gambar saat ini tersedia di web admin.");
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/jpeg,image/png,image/webp";
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (file) setImageFile(file);
+    };
+    input.click();
+  };
+
   return (
     <Modal visible={kind !== null} transparent animationType="fade" onRequestClose={close}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-          <ScrollView contentContainerStyle={styles.stack}>
-            <Text style={styles.modalTitle}>{title}</Text>
-            {mode === "edit" ? <Text style={styles.errorText}>Edit detail dari modal belum diaktifkan; gunakan tambah/nonaktif untuk sementara.</Text> : null}
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>{title}</Text>
           {kind === "kategori" ? (
             <>
               <TextInput onChangeText={setName} style={styles.modalInput} placeholder="Nama kategori barang" placeholderTextColor="#9aa4b5" value={name} />
@@ -123,16 +164,17 @@ export function ActionModal({ initialProductId, kind, mode, onClose }: { initial
           ) : null}
           {kind === "stok" ? (
             <>
-              <TextInput onChangeText={setSku} style={styles.modalInput} placeholder="SKU" placeholderTextColor="#9aa4b5" value={sku} />
-              <TextInput onChangeText={setName} style={styles.modalInput} placeholder="Nama Barang" placeholderTextColor="#9aa4b5" value={name} />
-              <TextInput onChangeText={setBarcode} style={styles.modalInput} placeholder="Barcode" placeholderTextColor="#9aa4b5" value={barcode} />
+              <TextInput onChangeText={setSku} style={styles.modalInput} placeholder="Kode Produk" placeholderTextColor="#9aa4b5" value={sku} />
+              <TextInput onChangeText={setName} style={styles.modalInput} placeholder="Produk" placeholderTextColor="#9aa4b5" value={name} />
               <View style={styles.modalFieldGroup}>
                 <Text style={styles.modalLabel}>Kategori</Text>
-                <Pressable onPress={() => setCategoryOpen((open) => !open)} style={styles.modalSelect}><Text style={styles.modalSelectText}>{selectedCategory?.name || "Pilih kategori"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
-                {categoryOpen ? <View style={styles.modalSelectOptions}>{categories.map((category) => <Pressable key={category.id} onPress={() => { setSelectedCategoryId(category.id); setCategoryOpen(false); }} style={[styles.modalSelectOption, selectedCategoryId === category.id && styles.modalSelectOptionActive]}><Text style={[styles.modalSelectOptionText, selectedCategoryId === category.id && styles.modalSelectOptionTextActive]}>{category.name}</Text></Pressable>)}</View> : null}
+                <Pressable onPress={() => setCategoryOpen((open) => !open)} style={({ hovered, pressed }: PressState) => [styles.modalSelect, hovered && styles.modalSelectHover, pressed && styles.pressed]}><Text style={styles.modalSelectText}>{selectedCategory?.name || "Pilih kategori"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
+                {categoryOpen ? <View style={[styles.modalSelectOptions, { maxHeight: 160, overflow: "scroll", scrollbarWidth: "none", msOverflowStyle: "none" } as any]}>{categories.map((category) => <Pressable key={category.id} onPress={() => { setSelectedCategoryId(category.id); setCategoryOpen(false); }} style={({ hovered, pressed }: PressState) => [styles.modalSelectOption, selectedCategoryId === category.id && styles.modalSelectOptionActive, hovered && selectedCategoryId !== category.id && styles.modalSelectOptionHover, pressed && styles.pressed]}><Text style={[styles.modalSelectOptionText, selectedCategoryId === category.id && styles.modalSelectOptionTextActive]}>{category.name}</Text></Pressable>)}</View> : null}
               </View>
-              <TextInput style={styles.modalInput} placeholder="Harga Jual" placeholderTextColor="#9aa4b5" value={price} onChangeText={(value) => setPrice(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
-              <TextInput style={styles.modalInput} placeholder="Minimum Stok" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
+              <TextInput style={styles.modalInput} placeholder="Stok Awal" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
+              {Platform.OS === "web" && (
+                <Pressable onPress={handleImagePick} style={({ hovered, pressed }: PressState) => [styles.modalSelect, hovered && styles.modalSelectHover, pressed && styles.pressed, { justifyContent: "center" }]}><Text style={[styles.modalSelectText, { textAlign: "center" }]}>{imageFile ? `${imageFile.name}` : "Upload Gambar (Opsional) "}</Text></Pressable>
+              )}
             </>
           ) : null}
           {kind === "masuk" || kind === "keluar" ? (
@@ -147,16 +189,16 @@ export function ActionModal({ initialProductId, kind, mode, onClose }: { initial
               <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
               <View style={styles.modalFieldGroup}>
                 <Text style={styles.modalLabel}>{kind === "masuk" ? "Supplier" : "Customer"}</Text>
-                <Pressable onPress={() => setPartyOpen((open) => !open)} style={styles.modalSelect}><Text style={styles.modalSelectText}>{selectedParty?.name || "Pilih dari data API"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
-                {partyOpen ? <View style={styles.modalSelectOptions}>{parties.map((item) => <Pressable key={item.id} onPress={() => { setSelectedPartyId(item.id); setParty(""); setPartyOpen(false); }} style={[styles.modalSelectOption, selectedPartyId === item.id && styles.modalSelectOptionActive]}><Text style={[styles.modalSelectOptionText, selectedPartyId === item.id && styles.modalSelectOptionTextActive]}>{item.name}</Text></Pressable>)}</View> : null}
+                <Pressable onPress={() => setPartyOpen((open) => !open)} style={({ hovered, pressed }: PressState) => [styles.modalSelect, hovered && styles.modalSelectHover, pressed && styles.pressed]}><Text style={styles.modalSelectText}>{selectedParty?.name || "Pilih dari data API"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
+                {partyOpen ? <View style={[styles.modalSelectOptions, { maxHeight: 160, overflow: "scroll", scrollbarWidth: "none", msOverflowStyle: "none" } as any]}>{parties.map((item) => <Pressable key={item.id} onPress={() => { setSelectedPartyId(item.id); setParty(""); setPartyOpen(false); }} style={({ hovered, pressed }: PressState) => [styles.modalSelectOption, selectedPartyId === item.id && styles.modalSelectOptionActive, hovered && selectedPartyId !== item.id && styles.modalSelectOptionHover, pressed && styles.pressed]}><Text style={[styles.modalSelectOptionText, selectedPartyId === item.id && styles.modalSelectOptionTextActive]}>{item.name}</Text></Pressable>)}</View> : null}
               </View>
               <TextInput onChangeText={setParty} style={styles.modalInput} placeholder={kind === "masuk" ? "Supplier" : "Tujuan / Customer"} placeholderTextColor="#9aa4b5" value={party} />
               <TextInput onChangeText={setNote} style={styles.modalInput} placeholder="Catatan" placeholderTextColor="#9aa4b5" value={note} />
             </>
           ) : null}
           <View style={styles.modalActions}>
-            <Pressable onPress={close} style={styles.cancelButton}><Text style={styles.cancelText}>Batal</Text></Pressable>
-            <Pressable disabled={saving || mode === "edit"} onPress={save} style={styles.saveButton}><Text style={styles.saveText}>{saving ? "Menyimpan..." : "Simpan"}</Text></Pressable>
+            <Pressable onPress={close} style={({ hovered, pressed }: PressState) => [styles.cancelButton, hovered && styles.cancelButtonHover, pressed && styles.pressed]}><Text style={styles.cancelText}>Batal</Text></Pressable>
+            <Pressable disabled={saving || (kind === "kategori" && !name.trim()) || (kind === "stok" && (!sku.trim() || !name.trim() || !selectedCategoryId)) || (mode === "edit" && kind === "kategori" && name === originalName && description === originalDesc)} onPress={save} style={({ hovered, pressed }: PressState) => [styles.saveButton, hovered && !saving && styles.saveButtonHover, pressed && styles.pressed, (saving || (kind === "kategori" && !name.trim()) || (kind === "stok" && (!sku.trim() || !name.trim() || !selectedCategoryId)) || (mode === "edit" && kind === "kategori" && name === originalName && description === originalDesc)) && styles.tablePagerButtonDisabled]}><Text style={styles.saveText}>{saving ? "Menyimpan..." : "Simpan"}</Text></Pressable>
           </View>
           </ScrollView>
         </View>

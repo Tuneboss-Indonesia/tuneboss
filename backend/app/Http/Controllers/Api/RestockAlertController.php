@@ -17,8 +17,16 @@ class RestockAlertController extends Controller
         $this->syncAlerts();
 
         $alerts = RestockAlert::with(['product.category', 'acknowledgedBy', 'resolvedBy'])
+            ->whereHas('product', fn ($query) => $query->where('is_active', true))
             ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))
             ->when($request->query('severity'), fn ($query, string $severity) => $query->where('severity', $severity))
+            ->when($request->query('search'), function ($query, string $search) {
+                $query->whereHas('product', function ($query) use ($search) {
+                    $query->where('name', 'like', "%{$search}%")
+                        ->orWhere('sku', 'like', "%{$search}%")
+                        ->orWhere('barcode', 'like', "%{$search}%");
+                });
+            })
             ->when($request->query('product_id'), fn ($query, string $productId) => $query->where('product_id', $productId))
             ->when($request->query('active_only') !== null, fn ($query) => $query->whereIn('status', ['open', 'acknowledged']))
             ->orderByRaw("CASE status WHEN 'open' THEN 0 WHEN 'acknowledged' THEN 1 ELSE 2 END")
