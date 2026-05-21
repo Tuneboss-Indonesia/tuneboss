@@ -55,6 +55,8 @@ type ProductDto = {
 
 type CategoryDto = { id: string; name: string; description?: string | null; productsCount?: number };
 type MovementDto = StockMovement & { createdAt?: string; type: StockMovement["type"] };
+type BootstrapDto = { categories: CategoryDto[]; suppliers: PartyRow[]; customers: PartyRow[] };
+type RealtimeDto = { pollAfterSeconds: number; summary: DashboardSummary; priorityProducts: PriorityProduct[]; recentActivities: RecentActivity[] };
 
 type InventoryData = {
   categories: CategoryItem[];
@@ -66,6 +68,7 @@ type InventoryData = {
   refresh: () => Promise<void>;
   refreshCategories: () => Promise<void>;
   refreshProducts: () => Promise<void>;
+  refreshRealtimeDashboard: () => Promise<number>;
   refreshRestockAlerts: () => Promise<void>;
   refreshSales: () => Promise<void>;
   refreshStockActivity: () => Promise<void>;
@@ -99,6 +102,10 @@ function mapProduct(product: ProductDto): StockItem {
   };
 }
 
+function mapCategory(category: CategoryDto): CategoryItem {
+  return { id: category.id, name: category.name, desc: category.description ?? "-", count: category.productsCount ?? 0 };
+}
+
 export function InventoryDataProvider({ children, token }: { children: ReactNode; token: string }) {
   const [summary, setSummary] = useState<DashboardSummary>(fallbackSummary);
   const [priorityProducts, setPriorityProducts] = useState<PriorityProduct[]>(fallbackPriority);
@@ -125,7 +132,13 @@ export function InventoryDataProvider({ children, token }: { children: ReactNode
   };
   const loadCategories = async () => {
     const categoryData = await apiRequest<CategoryDto[]>("/categories", { token });
-    setCategories(categoryData.map((category) => ({ id: category.id, name: category.name, desc: category.description ?? "-", count: category.productsCount ?? 0 })));
+    setCategories(categoryData.map(mapCategory));
+  };
+  const loadBootstrap = async () => {
+    const bootstrap = await apiRequest<BootstrapDto>("/app/bootstrap", { token });
+    setCategories(bootstrap.categories.map(mapCategory));
+    setSuppliers(bootstrap.suppliers);
+    setCustomers(bootstrap.customers);
   };
   const loadMovements = async () => {
     const movementData = await apiRequest<Paginated<MovementDto>>("/stock/movements?per_page=100", { token });
@@ -168,22 +181,27 @@ export function InventoryDataProvider({ children, token }: { children: ReactNode
     await Promise.all([loadSummary(), loadPriorityProducts(), loadRecentActivities(), loadProducts(), loadMovements(), loadSales(), loadRestockAlerts()]);
   };
 
+  const refreshRealtimeDashboard = async () => {
+    const realtime = await apiRequest<RealtimeDto>("/dashboard/realtime", { token });
+    setSummary(realtime.summary);
+    setPriorityProducts(realtime.priorityProducts);
+    setRecentActivities(realtime.recentActivities.map((item) => ({ ...item, timestamp: item.timestamp })));
+
+    return realtime.pollAfterSeconds;
+  };
+
   const refresh = async () => {
     setLoading(true);
     setError(null);
 
     try {
       await Promise.all([
-        loadSummary(),
-        loadPriorityProducts(),
-        loadRecentActivities(),
+        loadBootstrap(),
+        refreshRealtimeDashboard(),
         loadProducts(),
-        loadCategories(),
         loadMovements(),
         loadSales(),
         loadRestockAlerts(),
-        loadSuppliers(),
-        loadCustomers(),
       ]);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Gagal memuat data API.");
@@ -196,7 +214,7 @@ export function InventoryDataProvider({ children, token }: { children: ReactNode
     void refresh();
   }, [token]);
 
-  const value = useMemo(() => ({ categories, customers, error, loading, movements, priorityProducts, recentActivities, refresh, refreshCategories, refreshProducts, refreshRestockAlerts, refreshSales, refreshStockActivity, restockAlerts, sales, summary, stockItems, suppliers, token }), [categories, customers, error, loading, movements, priorityProducts, recentActivities, restockAlerts, sales, summary, stockItems, suppliers, token]);
+  const value = useMemo(() => ({ categories, customers, error, loading, movements, priorityProducts, recentActivities, refresh, refreshCategories, refreshProducts, refreshRealtimeDashboard, refreshRestockAlerts, refreshSales, refreshStockActivity, restockAlerts, sales, summary, stockItems, suppliers, token }), [categories, customers, error, loading, movements, priorityProducts, recentActivities, restockAlerts, sales, summary, stockItems, suppliers, token]);
 
   return <InventoryDataContext.Provider value={value}>{children}</InventoryDataContext.Provider>;
 }

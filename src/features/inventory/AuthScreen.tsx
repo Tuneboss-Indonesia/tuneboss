@@ -7,6 +7,7 @@ import { styles } from "./styles";
 
 type LoginResponse = {
   accessToken: string;
+  expiresAt?: string | null;
   user: {
     id: string;
     name: string;

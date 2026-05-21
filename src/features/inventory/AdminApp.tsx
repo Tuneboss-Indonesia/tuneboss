@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { useFonts } from "expo-font";
 import { Layout } from "./components/Layout";
@@ -18,18 +18,47 @@ import { StockOpnamePage } from "./pages/StockOpnamePage";
 import { StokPage } from "./pages/StokPage";
 import type { ModalKind, ModalMode, PageKey } from "./types";
 import { styles } from "./styles";
+import { apiRequest, setUnauthenticatedHandler } from "./api";
+
+type AuthPayload = { accessToken: string; expiresAt?: string | null };
 
 export function AdminApp() {
   const [page, setPage] = useState<PageKey>("dashboard");
   const [modal, setModal] = useState<ModalKind>(null);
   const [modalMode, setModalMode] = useState<ModalMode>("add");
   const [modalProductId, setModalProductId] = useState<string | undefined>();
-  const [token, setToken] = useState(() => loadStoredAuth()?.accessToken ?? "");
+  const [auth, setAuth] = useState<AuthPayload | null>(() => loadStoredAuth());
   const [fontsLoaded] = useFonts({
     "Futura PT": require("../../../assets/fonts/Futura-PT-Book.woff2"),
     "Futura PT Medium": require("../../../assets/fonts/Futura-PT-Medium.woff2"),
     SQR721BE: require("../../../assets/fonts/SQR721BE.woff2"),
   });
+
+  const logout = () => {
+    clearStoredAuth();
+    setAuth(null);
+  };
+
+  const setLoggedIn = (payload: AuthPayload) => {
+    storeAuth(payload);
+    setAuth(payload);
+  };
+
+  useEffect(() => {
+    setUnauthenticatedHandler(logout);
+    return () => setUnauthenticatedHandler(null);
+  }, []);
+
+  useEffect(() => {
+    if (!auth?.accessToken || !auth.expiresAt) return;
+
+    const refreshInMs = Math.max(new Date(auth.expiresAt).getTime() - Date.now() - 5 * 60 * 1000, 30 * 1000);
+    const timer = setTimeout(() => {
+      void apiRequest<AuthPayload>("/auth/refresh", { method: "POST", token: auth.accessToken }).then(setLoggedIn).catch(logout);
+    }, refreshInMs);
+
+    return () => clearTimeout(timer);
+  }, [auth?.accessToken, auth?.expiresAt]);
 
   const openModal = (kind: Exclude<ModalKind, null>, mode: ModalMode = "add", productId?: string) => {
     setModalMode(mode);
@@ -39,14 +68,14 @@ export function AdminApp() {
 
   if (!fontsLoaded) return <View style={styles.loading}><Text style={styles.loadingText}>Loading TuneBoss...</Text></View>;
 
-  if (!token) {
-    return <AuthScreen onLogin={(payload) => { storeAuth(payload); setToken(payload.accessToken); }} />;
+  if (!auth?.accessToken) {
+    return <AuthScreen onLogin={setLoggedIn} />;
   }
 
   return (
     <ErrorBoundary>
-      <InventoryDataProvider token={token}>
-        <InventoryContent page={page} onLogout={() => { clearStoredAuth(); setToken(""); }} onNavigate={setPage} openModal={openModal} />
+      <InventoryDataProvider token={auth.accessToken}>
+        <InventoryContent page={page} onLogout={logout} onNavigate={setPage} openModal={openModal} />
         <ActionModal initialProductId={modalProductId} kind={modal} mode={modalMode} onClose={() => { setModal(null); setModalProductId(undefined); }} />
       </InventoryDataProvider>
     </ErrorBoundary>
@@ -96,7 +125,7 @@ function InventoryLoading() {
   );
 }
 
-function loadStoredAuth(): { accessToken: string } | null {
+function loadStoredAuth(): AuthPayload | null {
   try {
     if (typeof localStorage === "undefined") return null;
     const value = localStorage.getItem("tuneboss.auth");
@@ -106,7 +135,7 @@ function loadStoredAuth(): { accessToken: string } | null {
   }
 }
 
-function storeAuth(payload: { accessToken: string }) {
+function storeAuth(payload: AuthPayload) {
   try {
     if (typeof localStorage !== "undefined") localStorage.setItem("tuneboss.auth", JSON.stringify(payload));
   } catch {

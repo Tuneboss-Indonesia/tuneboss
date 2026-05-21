@@ -3,7 +3,7 @@ import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-nativ
 import { ChevronDown } from "lucide-react-native";
 import { colors } from "../../../theme/tokens";
 import { reportCards } from "../data";
-import { apiRequest, downloadCsv, formatCurrency, formatDate } from "../api";
+import { apiRequest, downloadCsv, downloadPdf, formatCurrency, formatDate } from "../api";
 import { useInventoryData } from "../InventoryDataContext";
 import { styles } from "../styles";
 import type { PageKey } from "../types";
@@ -19,6 +19,60 @@ type ReportSale = { cashier: string | null; createdAt: string; customer?: string
 type ReportMovement = { createdAt?: string; customer?: string | null; note?: string | null; operator?: string | null; party?: string | null; productName: string; quantity: number; supplier?: string | null };
 
 const defaultFilters: ReportFilters = { categoryId: "", from: "", partyId: "", productId: "", status: "", to: "" };
+const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+
+function dateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function DateField({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
+  const selectedDate = value ? new Date(`${value}T00:00:00`) : new Date();
+  const [open, setOpen] = useState(false);
+  const [month, setMonth] = useState(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+  const firstDay = new Date(month.getFullYear(), month.getMonth(), 1).getDay();
+  const totalDays = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  const blanks = Array.from({ length: firstDay });
+  const days = Array.from({ length: totalDays }, (_, index) => index + 1);
+  const monthLabel = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric" }).format(month);
+
+  const moveMonth = (step: number) => {
+    setMonth((current) => new Date(current.getFullYear(), current.getMonth() + step, 1));
+  };
+
+  const selectDay = (day: number) => {
+    onChange(dateValue(new Date(month.getFullYear(), month.getMonth(), day)));
+    setOpen(false);
+  };
+
+  return (
+    <View style={[styles.filterInputGroup, open && { zIndex: 30 }]}>
+      <Text style={styles.filterLabel}>{label}</Text>
+      <Pressable onPress={() => setOpen((current) => !current)} style={styles.filterBox}>
+        <Text style={value ? styles.modalSelectText : styles.scanResultMeta}>{value || "Pilih tanggal"}</Text>
+      </Pressable>
+      {open ? (
+        <View style={styles.calendarPopover}>
+          <View style={styles.calendarHeader}>
+            <Pressable onPress={() => moveMonth(-1)} style={styles.calendarNav}><Text style={styles.secondaryButtonText}>‹</Text></Pressable>
+            <Text style={styles.calendarTitle}>{monthLabel}</Text>
+            <Pressable onPress={() => moveMonth(1)} style={styles.calendarNav}><Text style={styles.secondaryButtonText}>›</Text></Pressable>
+          </View>
+          <View style={styles.calendarGrid}>{dayNames.map((day) => <Text key={day} style={styles.calendarDayName}>{day}</Text>)}{blanks.map((_, index) => <View key={`blank-${index}`} style={styles.calendarDay} />)}{days.map((day) => {
+            const current = dateValue(new Date(month.getFullYear(), month.getMonth(), day));
+            return <Pressable key={day} onPress={() => selectDay(day)} style={[styles.calendarDay, current === value && styles.calendarDayActive]}><Text style={[styles.calendarDayText, current === value && styles.calendarDayTextActive]}>{day}</Text></Pressable>;
+          })}</View>
+          <View style={styles.calendarActions}>
+            <Pressable onPress={() => { onChange(""); setOpen(false); }} style={styles.cancelButton}><Text style={styles.cancelText}>Clear</Text></Pressable>
+            <Pressable onPress={() => { onChange(dateValue(new Date())); setOpen(false); }} style={styles.saveButton}><Text style={styles.saveText}>Hari ini</Text></Pressable>
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 export function LaporanPage({ onNavigate }: { onNavigate: (page: PageKey) => void }) {
   const { movements, sales, summary } = useInventoryData();
@@ -35,9 +89,11 @@ function reportColumns(type: ReportType) {
   return ["Tanggal", "Barang", "Jumlah", "Alasan", "User"];
 }
 
-function reportPath(type: ReportType, exportCsv = false) {
+function reportPath(type: ReportType, exportType?: "csv" | "pdf") {
   const base = type === "stok" ? "/reports/stock" : type === "penjualan" ? "/reports/sales" : type === "masuk" ? "/reports/inbound" : "/reports/outbound";
-  return exportCsv ? `${base}/export` : base;
+  if (exportType === "csv") return `${base}/export`;
+  if (exportType === "pdf") return `${base}/export.pdf`;
+  return base;
 }
 
 function filterQuery(type: ReportType, filters: ReportFilters) {
@@ -67,7 +123,8 @@ export function ReportDetail({ type, onBack }: { type: ReportType; onBack: () =>
   const [lowStockCount, setLowStockCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const title = type === "stok" ? "Daftar Stok Barang" : type === "penjualan" ? "Daftar Transaksi Penjualan" : type === "masuk" ? "Daftar Barang Masuk" : "Daftar Barang Keluar";
-  const exportPath = `${reportPath(type, true)}?${filterQuery(type, filters)}`;
+  const exportCsvPath = `${reportPath(type, "csv")}?${filterQuery(type, filters)}`;
+  const exportPdfPath = `${reportPath(type, "pdf")}?${filterQuery(type, filters)}`;
   const categoryOptions = [{ label: "Semua kategori", value: "" }, ...categories.map((category) => ({ label: category.name, value: category.id }))];
   const productOptions = [{ label: "Semua produk", value: "" }, ...stockItems.map((product) => ({ label: `${product.sku} - ${product.name}`, value: product.id }))];
   const partyOptions = [{ label: type === "masuk" ? "Semua supplier" : "Semua customer", value: "" }, ...(type === "masuk" ? suppliers : customers).map((party) => ({ label: party.name, value: party.id }))];
@@ -111,9 +168,17 @@ export function ReportDetail({ type, onBack }: { type: ReportType; onBack: () =>
 
   const exportCsv = async () => {
     try {
-      await downloadCsv(exportPath, token, `laporan-${type}.csv`);
+      await downloadCsv(exportCsvPath, token, `laporan-${type}.csv`);
     } catch (error) {
       Alert.alert("Gagal", error instanceof Error ? error.message : "Export CSV gagal.");
+    }
+  };
+
+  const exportPdf = async () => {
+    try {
+      await downloadPdf(exportPdfPath, token, `laporan-${type}.pdf`);
+    } catch (error) {
+      Alert.alert("Gagal", error instanceof Error ? error.message : "Export PDF gagal.");
     }
   };
 
@@ -123,5 +188,5 @@ export function ReportDetail({ type, onBack }: { type: ReportType; onBack: () =>
     void loadReport(defaultFilters);
   };
 
-  return <View style={styles.stack}><View style={styles.reportFilter}><View style={styles.filterInputGroup}><Text style={styles.filterLabel}>Dari</Text><TextInput style={styles.filterBox} placeholder="YYYY-MM-DD" placeholderTextColor={colors.muted} value={filters.from} onChangeText={(from) => updateFilter({ from })} /></View><View style={styles.filterInputGroup}><Text style={styles.filterLabel}>Sampai</Text><TextInput style={styles.filterBox} placeholder="YYYY-MM-DD" placeholderTextColor={colors.muted} value={filters.to} onChangeText={(to) => updateFilter({ to })} /></View><FilterSelect label="Kategori" options={categoryOptions} value={filters.categoryId} open={openFilter === "category"} onToggle={() => setOpenFilter(openFilter === "category" ? null : "category")} onChange={(categoryId) => updateFilter({ categoryId })} /><FilterSelect label="Produk" options={productOptions} value={filters.productId} open={openFilter === "product"} onToggle={() => setOpenFilter(openFilter === "product" ? null : "product")} onChange={(productId) => updateFilter({ productId })} />{type === "stok" || type === "penjualan" ? <FilterSelect label="Status" options={statusOptions} value={filters.status} open={openFilter === "status"} onToggle={() => setOpenFilter(openFilter === "status" ? null : "status")} onChange={(status) => updateFilter({ status })} /> : null}{type === "masuk" || type === "keluar" || type === "penjualan" ? <FilterSelect label={type === "masuk" ? "Supplier" : "Customer"} options={partyOptions} value={filters.partyId} open={openFilter === "party"} onToggle={() => setOpenFilter(openFilter === "party" ? null : "party")} onChange={(partyId) => updateFilter({ partyId })} /> : null}<View style={styles.inlineActions}><Pressable onPress={() => void loadReport()} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>{loading ? "Memuat..." : "Terapkan"}</Text></Pressable><Pressable onPress={resetFilters} style={styles.cancelButton}><Text style={styles.cancelText}>Reset</Text></Pressable><Pressable onPress={() => void exportCsv()} style={styles.saveButton}><Text style={styles.saveText}>Export CSV</Text></Pressable></View><Text style={styles.upgrade}>{exportPath}</Text></View><Pressable onPress={onBack} style={styles.backButton}><Text style={styles.backText}>Kembali</Text></Pressable><View style={styles.metricGrid}><Metric title="Total" value={type === "penjualan" ? formatCurrency(totalAmount) : `${rows.length} data`} /><Metric title="Total Transaksi" value={String(rows.length)} /><Metric title="Stok Menipis" value={`${lowStockCount} barang`} /></View><WhiteCard title={title}><DataTable columns={reportColumns(type)}>{rows.length ? rows.map((row, index) => <TableRow key={`${type}-${index}`} cells={row} />) : <EmptyRow text={type === "penjualan" ? "Tidak ada data penjualan" : "Tidak ada data pada periode ini"} />}</DataTable></WhiteCard></View>;
+  return <View style={styles.stack}><View style={styles.reportFilter}><DateField label="Dari" value={filters.from} onChange={(from) => updateFilter({ from })} /><DateField label="Sampai" value={filters.to} onChange={(to) => updateFilter({ to })} /><FilterSelect label="Kategori" options={categoryOptions} value={filters.categoryId} open={openFilter === "category"} onToggle={() => setOpenFilter(openFilter === "category" ? null : "category")} onChange={(categoryId) => updateFilter({ categoryId })} /><FilterSelect label="Produk" options={productOptions} value={filters.productId} open={openFilter === "product"} onToggle={() => setOpenFilter(openFilter === "product" ? null : "product")} onChange={(productId) => updateFilter({ productId })} />{type === "stok" || type === "penjualan" ? <FilterSelect label="Status" options={statusOptions} value={filters.status} open={openFilter === "status"} onToggle={() => setOpenFilter(openFilter === "status" ? null : "status")} onChange={(status) => updateFilter({ status })} /> : null}{type === "masuk" || type === "keluar" || type === "penjualan" ? <FilterSelect label={type === "masuk" ? "Supplier" : "Customer"} options={partyOptions} value={filters.partyId} open={openFilter === "party"} onToggle={() => setOpenFilter(openFilter === "party" ? null : "party")} onChange={(partyId) => updateFilter({ partyId })} /> : null}<View style={styles.inlineActions}><Pressable onPress={() => void loadReport()} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>{loading ? "Memuat..." : "Terapkan"}</Text></Pressable><Pressable onPress={resetFilters} style={styles.cancelButton}><Text style={styles.cancelText}>Reset</Text></Pressable><Pressable onPress={() => void exportCsv()} style={styles.saveButton}><Text style={styles.saveText}>Export CSV</Text></Pressable><Pressable onPress={() => void exportPdf()} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Export PDF</Text></Pressable></View><Text style={styles.upgrade}>{exportCsvPath}</Text></View><Pressable onPress={onBack} style={styles.backButton}><Text style={styles.backText}>Kembali</Text></Pressable><View style={styles.metricGrid}><Metric title="Total" value={type === "penjualan" ? formatCurrency(totalAmount) : `${rows.length} data`} /><Metric title="Total Transaksi" value={String(rows.length)} /><Metric title="Stok Menipis" value={`${lowStockCount} barang`} /></View><WhiteCard title={title}><DataTable columns={reportColumns(type)}>{rows.length ? rows.map((row, index) => <TableRow key={`${type}-${index}`} cells={row} />) : <EmptyRow text={type === "penjualan" ? "Tidak ada data penjualan" : "Tidak ada data pada periode ini"} />}</DataTable></WhiteCard></View>;
 }

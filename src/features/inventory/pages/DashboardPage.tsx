@@ -40,7 +40,7 @@ export function DashboardPage() {
   const [topPeriod, setTopPeriod] = useState<PeriodKey>("bulan");
   const [salesData, setSalesData] = useState<ChartPoint[]>(salesChartData.bulan);
   const [topData, setTopData] = useState<ChartPoint[]>(topProductsData.bulan);
-  const { error, loading, refreshRestockAlerts, restockAlerts, summary, token } = useInventoryData();
+  const { error, loading, refreshRealtimeDashboard, refreshRestockAlerts, restockAlerts, summary, token } = useInventoryData();
   const { width } = useWindowDimensions();
   const compact = width < 760;
 
@@ -51,6 +51,27 @@ export function DashboardPage() {
   useEffect(() => {
     void loadChart(token, "top", periodMap[topPeriod]).then((data) => setTopData(data.length ? data : topProductsData[topPeriod])).catch(() => setTopData(topProductsData[topPeriod]));
   }, [topPeriod, token]);
+
+  useEffect(() => {
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const poll = async () => {
+      try {
+        const seconds = await refreshRealtimeDashboard();
+        if (active) timer = setTimeout(poll, Math.max(seconds, 5) * 1000);
+      } catch {
+        if (active) timer = setTimeout(poll, 15000);
+      }
+    };
+
+    timer = setTimeout(poll, 15000);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [token]);
 
   const updateAlert = async (id: string, action: "acknowledge" | "resolve") => {
     try {

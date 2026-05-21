@@ -3,8 +3,13 @@ declare const process: { env?: Record<string, string | undefined> };
 export type ApiError = Error & { code?: string; status?: number; errors?: Record<string, string[]> };
 
 const defaultBaseUrl = "http://localhost:8000";
+let unauthenticatedHandler: (() => void) | null = null;
 
 export const apiBaseUrl = process.env?.EXPO_PUBLIC_API_URL ?? defaultBaseUrl;
+
+export function setUnauthenticatedHandler(handler: (() => void) | null) {
+  unauthenticatedHandler = handler;
+}
 
 export async function apiRequest<T>(path: string, options: RequestInit & { token?: string | null } = {}): Promise<T> {
   const headers = new Headers(options.headers);
@@ -29,6 +34,7 @@ export async function apiRequest<T>(path: string, options: RequestInit & { token
     error.status = response.status;
     error.code = typeof payload === "object" ? payload?.code : undefined;
     error.errors = typeof payload === "object" ? payload?.errors : undefined;
+    if (error.status === 401 || error.code === "unauthenticated") unauthenticatedHandler?.();
     throw error;
   }
 
@@ -36,22 +42,32 @@ export async function apiRequest<T>(path: string, options: RequestInit & { token
 }
 
 export async function downloadCsv(path: string, token: string | null, filename: string): Promise<void> {
-  const headers = new Headers({ Accept: "text/csv" });
+  return downloadFile(path, token, filename, "text/csv;charset=utf-8", "Download CSV tersedia di web dashboard.", "text/csv");
+}
+
+export async function downloadPdf(path: string, token: string | null, filename: string): Promise<void> {
+  return downloadFile(path, token, filename, "application/pdf", "Download PDF tersedia di web dashboard.", "application/pdf");
+}
+
+async function downloadFile(path: string, token: string | null, filename: string, mimeType: string, unsupportedMessage: string, accept: string): Promise<void> {
+  const headers = new Headers({ Accept: accept });
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const response = await fetch(`${apiBaseUrl}${path}`, { headers });
-  const payload = await response.text();
 
   if (!response.ok) {
+    const payload = await response.text();
+    if (response.status === 401) unauthenticatedHandler?.();
     throw new Error(payload || "Export CSV gagal.");
   }
 
   if (typeof document === "undefined" || typeof Blob === "undefined" || typeof URL === "undefined") {
-    throw new Error("Download CSV tersedia di web dashboard.");
+    throw new Error(unsupportedMessage);
   }
 
-  const blob = new Blob([payload], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
+  const blob = await response.blob();
+  const typedBlob = blob.type ? blob : new Blob([blob], { type: mimeType });
+  const url = URL.createObjectURL(typedBlob);
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
