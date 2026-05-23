@@ -11,6 +11,16 @@ const defaultBaseUrl = Platform.select({
 
 export const apiBaseUrl = process.env?.EXPO_PUBLIC_API_URL ?? defaultBaseUrl;
 
+function apiRootUrl(): string {
+  const base = apiBaseUrl.replace(/\/+$/, "");
+  return base.endsWith("/api") ? base : `${base}/api`;
+}
+
+function apiUrl(path: string): string {
+  const normalizedPath = path.replace(/^\/+/, "");
+  return `${apiRootUrl()}/${normalizedPath}`;
+}
+
 function errorMessageFromPayload(payload: unknown): string {
   if (!payload || typeof payload !== "object") return "Request failed";
 
@@ -38,7 +48,7 @@ export async function apiRequest<T>(path: string, options: RequestInit & { token
     headers.set("Authorization", `Bearer ${options.token}`);
   }
 
-  const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers });
+  const response = await fetch(apiUrl(path), { ...options, headers });
   const contentType = response.headers.get("content-type") ?? "";
   const payload = contentType.includes("application/json") ? await response.json() : await response.text();
 

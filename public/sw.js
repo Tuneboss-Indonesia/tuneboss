@@ -1,4 +1,4 @@
-const CACHE = "tuneboss-v1";
+const CACHE = "tuneboss-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -39,12 +39,10 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    caches.match(request).then(
-      (cached) => cached || fetch(request).then((response) => {
+    fetch(request).then((response) => {
         const clone = response.clone();
         caches.open(CACHE).then((cache) => cache.put(request, clone)).catch(() => {});
         return response;
-      })
-    )
+      }).catch(() => caches.match(request))
   );
 });

@@ -86,6 +86,13 @@ function useWebChromePolish() {
 function useServiceWorker() {
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+    if (["localhost", "127.0.0.1"].includes(window.location.hostname)) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => registration.unregister());
+      }).catch(() => {});
+      return;
+    }
+
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   }, []);
 }
