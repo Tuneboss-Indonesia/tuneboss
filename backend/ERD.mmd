@@ -1,19 +1,29 @@
 erDiagram
   users {
     uuid id PK
-    varchar name
-    varchar email UK
-    varchar password
-    enum role
+    string name
+    string email
+    string password
+    string role
     boolean is_active
-    timestamp email_verified_at
     timestamp created_at
     timestamp updated_at
   }
 
+  personal_access_tokens {
+    bigint id PK
+    string tokenable_type
+    uuid tokenable_id
+    string name
+    string token
+    text abilities
+    timestamp last_used_at
+    timestamp expires_at
+  }
+
   categories {
     uuid id PK
-    varchar name UK
+    string name
     text description
     timestamp created_at
     timestamp updated_at
@@ -22,11 +32,11 @@ erDiagram
   products {
     uuid id PK
     uuid category_id FK
-    varchar name
-    varchar sku UK
-    varchar barcode UK
-    decimal sale_price
-    int min_stock
+    string name
+    string sku
+    string barcode
+    string image_path
+    integer min_stock
     boolean is_active
     timestamp created_at
     timestamp updated_at
@@ -35,7 +45,29 @@ erDiagram
   product_stocks {
     uuid id PK
     uuid product_id FK
-    int quantity
+    integer quantity
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  sales {
+    uuid id PK
+    string invoice_number
+    uuid cashier_id FK
+    text address
+    string status
+    uuid voided_by FK
+    timestamp voided_at
+    text void_reason
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  sale_items {
+    uuid id PK
+    uuid sale_id FK
+    uuid product_id FK
+    integer quantity
     timestamp created_at
     timestamp updated_at
   }
@@ -45,32 +77,28 @@ erDiagram
     uuid product_id FK
     uuid operator_id FK
     uuid sale_id FK
-    enum type
-    int quantity
-    int before_quantity
-    int after_quantity
-    varchar party
+    string type
+    integer quantity
+    integer before_quantity
+    integer after_quantity
+    string party
     text note
     timestamp created_at
     timestamp updated_at
   }
 
-  sales {
+  restock_alerts {
     uuid id PK
-    varchar invoice_number UK
-    uuid cashier_id FK
-    decimal total_amount
-    timestamp created_at
-    timestamp updated_at
-  }
-
-  sale_items {
-    uuid id PK
-    uuid sale_id FK
     uuid product_id FK
-    int quantity
-    decimal price
-    decimal subtotal
+    string status
+    string severity
+    integer current_stock
+    integer threshold
+    uuid acknowledged_by FK
+    timestamp acknowledged_at
+    uuid resolved_by FK
+    timestamp resolved_at
+    text note
     timestamp created_at
     timestamp updated_at
   }
@@ -78,20 +106,26 @@ erDiagram
   audit_logs {
     uuid id PK
     uuid user_id FK
-    varchar action
-    varchar entity
-    uuid entity_id
+    string action
+    string entity
+    string entity_id
     json metadata
+    string ip_address
+    string user_agent
     timestamp created_at
-    timestamp updated_at
   }
 
-  categories ||--o{ products : has
-  products ||--|| product_stocks : has
-  products ||--o{ stock_movements : records
-  users ||--o{ stock_movements : operates
+  users ||--o{ personal_access_tokens : owns
   users ||--o{ sales : cashiers
-  sales ||--o{ sale_items : contains
+  users ||--o{ sales : voids
+  users ||--o{ stock_movements : operates
+  users ||--o{ restock_alerts : acknowledges
+  users ||--o{ restock_alerts : resolves
+  users ||--o{ audit_logs : writes
+  categories ||--o{ products : groups
+  products ||--|| product_stocks : has
   products ||--o{ sale_items : sold_as
+  products ||--o{ stock_movements : moves
+  products ||--o{ restock_alerts : alerts
+  sales ||--o{ sale_items : contains
   sales ||--o{ stock_movements : creates
-  users ||--o{ audit_logs : performs

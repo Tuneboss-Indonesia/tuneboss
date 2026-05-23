@@ -1,0 +1,146 @@
+@startuml TuneBossInventoryERD
+hide circle
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+
+entity "users" as users {
+  * id : uuid <<PK>>
+  --
+  name : string
+  email : string
+  password : string
+  role : string
+  is_active : boolean
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "personal_access_tokens" as personal_access_tokens {
+  * id : bigint <<PK>>
+  --
+  tokenable_type : string
+  tokenable_id : uuid
+  name : string
+  token : string
+  abilities : text
+  last_used_at : timestamp
+  expires_at : timestamp
+}
+
+entity "categories" as categories {
+  * id : uuid <<PK>>
+  --
+  name : string
+  description : text
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "products" as products {
+  * id : uuid <<PK>>
+  --
+  category_id : uuid <<FK>>
+  name : string
+  sku : string
+  barcode : string
+  image_path : string
+  min_stock : integer
+  is_active : boolean
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "product_stocks" as product_stocks {
+  * id : uuid <<PK>>
+  --
+  product_id : uuid <<FK>>
+  quantity : integer
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "sales" as sales {
+  * id : uuid <<PK>>
+  --
+  invoice_number : string
+  cashier_id : uuid <<FK>>
+  address : text
+  status : string
+  voided_by : uuid <<FK>>
+  voided_at : timestamp
+  void_reason : text
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "sale_items" as sale_items {
+  * id : uuid <<PK>>
+  --
+  sale_id : uuid <<FK>>
+  product_id : uuid <<FK>>
+  quantity : integer
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "stock_movements" as stock_movements {
+  * id : uuid <<PK>>
+  --
+  product_id : uuid <<FK>>
+  operator_id : uuid <<FK>>
+  sale_id : uuid <<FK>>
+  type : string
+  quantity : integer
+  before_quantity : integer
+  after_quantity : integer
+  party : string
+  note : text
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "restock_alerts" as restock_alerts {
+  * id : uuid <<PK>>
+  --
+  product_id : uuid <<FK>>
+  status : string
+  severity : string
+  current_stock : integer
+  threshold : integer
+  acknowledged_by : uuid <<FK>>
+  acknowledged_at : timestamp
+  resolved_by : uuid <<FK>>
+  resolved_at : timestamp
+  note : text
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "audit_logs" as audit_logs {
+  * id : uuid <<PK>>
+  --
+  user_id : uuid <<FK>>
+  action : string
+  entity : string
+  entity_id : string
+  metadata : json
+  ip_address : string
+  user_agent : string
+  created_at : timestamp
+}
+
+users ||--o{ personal_access_tokens : owns
+users ||--o{ sales : cashiers
+users ||--o{ sales : voids
+users ||--o{ stock_movements : operates
+users ||--o{ restock_alerts : acknowledges
+users ||--o{ restock_alerts : resolves
+users ||--o{ audit_logs : writes
+categories ||--o{ products : groups
+products ||--|| product_stocks : has
+products ||--o{ sale_items : sold_as
+products ||--o{ stock_movements : moves
+products ||--o{ restock_alerts : alerts
+sales ||--o{ sale_items : contains
+sales ||--o{ stock_movements : creates
+@enduml

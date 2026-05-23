@@ -22,7 +22,7 @@ class AuthController extends Controller
 
         $user = User::where('email', $credentials['email'])->first();
 
-        if (! $user || ! $user->is_active || ! Hash::check($credentials['password'], $user->password)) {
+        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
             AuditLog::create([
                 'action' => 'auth.login_failed',
                 'entity' => 'users',
@@ -31,6 +31,20 @@ class AuthController extends Controller
 
             throw ValidationException::withMessages([
                 'email' => ['Email atau password salah.'],
+            ]);
+        }
+
+        if (! $user->is_active) {
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => 'auth.login_inactive',
+                'entity' => 'users',
+                'entity_id' => $user->id,
+                'metadata' => ['email' => $credentials['email']],
+            ]);
+
+            throw ValidationException::withMessages([
+                'email' => ['Akun ini nonaktif. Hubungi admin untuk mengaktifkan kembali.'],
             ]);
         }
 

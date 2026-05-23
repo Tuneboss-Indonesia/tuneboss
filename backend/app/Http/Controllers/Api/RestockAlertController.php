@@ -77,7 +77,7 @@ class RestockAlertController extends Controller
 
         foreach ($products as $product) {
             $currentStock = $product->stock?->quantity ?? 0;
-            $severity = $currentStock === 0 ? 'empty' : ($currentStock < $product->min_stock ? 'low' : null);
+            $severity = $currentStock === 0 ? 'empty' : ($currentStock < 5 ? 'low' : null);
 
             if ($severity) {
                 $alert = RestockAlert::firstOrNew(['product_id' => $product->id]);

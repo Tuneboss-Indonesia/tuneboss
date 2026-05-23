@@ -20,8 +20,6 @@ class StockMovement extends Model
         'before_quantity',
         'after_quantity',
         'party',
-        'supplier_id',
-        'customer_id',
         'note',
     ];
 
@@ -44,13 +42,8 @@ class StockMovement extends Model
         return $this->belongsTo(User::class, 'operator_id');
     }
 
-    public function supplier(): BelongsTo
+    public function sale(): BelongsTo
     {
-        return $this->belongsTo(Supplier::class);
-    }
-
-    public function customer(): BelongsTo
-    {
-        return $this->belongsTo(Customer::class);
+        return $this->belongsTo(Sale::class);
     }
 }

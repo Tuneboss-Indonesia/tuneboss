@@ -1,0 +1,119 @@
+  @startuml
+  title TuneBoss Inventory Flow
+  skinparam shadowing false
+  skinparam BackgroundColor #ffffff
+  skinparam ActivityBackgroundColor #ffffff
+  skinparam ActivityBorderColor #555555
+  skinparam ActivityFontColor #111111
+  skinparam ActivityDiamondBackgroundColor #ffffff
+  skinparam ActivityDiamondBorderColor #555555
+
+  start
+  :User membuka aplikasi;
+  :Login;
+  :GET /auth/me;
+
+  if (Role admin?) then (Ya)
+    :Menu Admin aktif;
+  else (Tidak)
+    :Menu Admin disembunyikan;
+  endif
+
+  :Halaman inventory;
+
+  partition "Dashboard" {
+    :Buka Dashboard;
+    :GET /dashboard/summary;
+    :GET /restock-alerts?severity=empty;
+    :GET /dashboard/sales-chart;
+    :GET /dashboard/top-products;
+  }
+
+  partition "Kategori" {
+    :Buka Kategori;
+    :GET /categories;
+    :Admin tambah/edit/hapus kategori;
+    :POST/PATCH/DELETE /categories;
+  }
+
+  partition "Data Produk" {
+    :Buka Data Produk;
+    :GET /products;
+    :Admin tambah/edit/hapus produk;
+    :POST/PATCH/DELETE /products;
+    :Upload atau hapus gambar;
+    :POST/DELETE /products/{id}/image;
+  }
+
+  partition "Penjualan" {
+    :Buka Penjualan;
+    :GET /sales;
+    :Tambah/edit/hapus transaksi;
+    :POST/PATCH/DELETE /sales;
+    :Simpan sale_items berisi product_id dan quantity;
+    :Stok produk berkurang;
+  }
+
+  partition "Scan Barcode" {
+    :Buka Scan Barcode;
+    :Scan alat atau kamera;
+    :GET /products/lookup?barcode=;
+
+    if (Produk ditemukan?) then (Tidak)
+      :Tampilkan error produk tidak ditemukan;
+    else (Ya)
+      :Tampilkan popup produk;
+      :Pilih Produk Masuk atau Produk Keluar;
+
+      if (Produk Masuk?) then (Ya)
+        :Input jumlah, supplier teks bebas, catatan;
+        :POST /stock/inbound;
+        :Masuk ke stock_movements;
+      else (Produk Keluar)
+        :Input jumlah, alamat/tujuan, catatan;
+        if (Masukkan ke Penjualan?) then (Ya)
+          :POST /stock/outbound;
+          :POST /sales stock_already_moved=true;
+          :Masuk ke stock_movements;
+          :Masuk ke sales dan sale_items;
+        else (Tidak)
+          :POST /stock/outbound;
+          :Masuk ke stock_movements;
+        endif
+      endif
+    endif
+  }
+
+  partition "Produk Masuk" {
+    :Buka Produk Masuk;
+    :GET /stock/movements?type=inbound;
+    :Admin edit/hapus riwayat inbound;
+    :PATCH/DELETE /stock/movements/{id};
+  }
+
+  partition "Produk Keluar" {
+    :Buka Produk Keluar;
+    :GET /stock/movements?type=outbound;
+    :Admin edit/hapus riwayat outbound;
+    :PATCH/DELETE /stock/movements/{id};
+  }
+
+  partition "Data Laporan" {
+    :Buka Data Laporan;
+    :Laporan Stok -> GET /products;
+    :Laporan Penjualan -> GET /sales;
+    :Laporan Produk Masuk -> GET /stock/movements?type=inbound;
+    :Laporan Produk Keluar -> GET /stock/movements?type=outbound;
+    :Export Excel sesuai filter;
+  }
+
+  partition "Admin" {
+    :Buka Admin;
+    :GET /users;
+    :POST/PATCH/DELETE /users;
+    :GET /audit-logs;
+  }
+
+  :audit_logs mencatat aksi produk, stok, penjualan, user;
+  stop
+  @enduml

@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 export const colors = {
   black: "#070707",
   panel: "#111111",
@@ -13,9 +15,9 @@ export const colors = {
 };
 
 export const fonts = {
-  body: "Futura PT",
-  bodyMedium: "Futura PT Medium",
-  display: "SQR721BE",
+  body: Platform.OS === "web" ? "Futura PT" : "System",
+  bodyMedium: Platform.OS === "web" ? "Futura PT Medium" : "System",
+  display: Platform.OS === "web" ? "SQR721BE" : "System",
 };
 
 export const radius = {

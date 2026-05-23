@@ -28,7 +28,6 @@ class ReportController extends Controller
             'sales' => [
                 'completedCount' => (clone $sales)->where('status', 'completed')->count(),
                 'voidCount' => (clone $sales)->where('status', 'void')->count(),
-                'totalAmount' => (float) (clone $sales)->where('status', 'completed')->sum('total_amount'),
             ],
             'stockMovements' => [
                 'inboundQuantity' => (int) (clone $movements)->where('type', 'inbound')->sum('quantity'),
@@ -39,7 +38,8 @@ class ReportController extends Controller
             'stock' => [
                 'totalSku' => (clone $stock)->count('products.id'),
                 'totalUnits' => (int) (clone $stock)->sum(DB::raw('COALESCE(product_stocks.quantity, 0)')),
-                'lowStockCount' => (clone $stock)->whereRaw('COALESCE(product_stocks.quantity, 0) > 0')->whereColumn('product_stocks.quantity', '<', 'products.min_stock')->count(),
+                'lowStockUnits' => (int) (clone $stock)->whereRaw('COALESCE(product_stocks.quantity, 0) > 0')->whereRaw('COALESCE(product_stocks.quantity, 0) < 5')->sum(DB::raw('COALESCE(product_stocks.quantity, 0)')),
+                'lowStockCount' => (clone $stock)->whereRaw('COALESCE(product_stocks.quantity, 0) > 0')->whereRaw('COALESCE(product_stocks.quantity, 0) < 5')->count(),
                 'outOfStockCount' => (clone $stock)->whereRaw('COALESCE(product_stocks.quantity, 0) = 0')->count(),
             ],
         ]);
@@ -59,7 +59,7 @@ class ReportController extends Controller
         $products = $this->stockQuery($request)->orderBy('name')->get();
 
         return $this->csv('stock-report.csv', [
-            ['SKU', 'Name', 'Category', 'Stock', 'Minimum Stock', 'Status', 'Sale Price', 'Active'],
+            ['SKU', 'Name', 'Category', 'Stock', 'Minimum Stock', 'Status', 'Active'],
             ...$products->map(fn (Product $product) => [
                 $product->sku,
                 $product->name,
@@ -67,7 +67,6 @@ class ReportController extends Controller
                 $product->stock?->quantity ?? 0,
                 $product->min_stock,
                 $this->stockStatus($product->stock?->quantity ?? 0, $product->min_stock),
-                (float) $product->sale_price,
                 $product->is_active ? 'yes' : 'no',
             ])->all(),
         ]);
@@ -135,8 +134,8 @@ class ReportController extends Controller
                 $query->whereHas('stock', function ($query) use ($status) {
                     match ($status) {
                         'empty' => $query->where('quantity', 0),
-                        'low' => $query->where('quantity', '>', 0)->whereColumn('quantity', '<', 'products.min_stock'),
-                        'safe' => $query->whereColumn('quantity', '>=', 'products.min_stock'),
+                        'low' => $query->where('quantity', '>', 0)->where('quantity', '<', 5),
+                        'safe' => $query->where('quantity', '>=', 5),
                         default => null,
                     };
                 });
@@ -145,10 +144,9 @@ class ReportController extends Controller
 
     private function salesQuery(Request $request)
     {
-        return $this->dateFilter(Sale::with(['cashier', 'customer', 'voidedBy', 'items.product']), $request)
+        return $this->dateFilter(Sale::with(['cashier', 'voidedBy', 'items.product']), $request)
             ->when($request->query('status'), fn ($query, string $status) => $query->where('status', $status))
             ->when($request->query('cashier_id'), fn ($query, string $cashierId) => $query->where('cashier_id', $cashierId))
-            ->when($request->query('customer_id'), fn ($query, string $customerId) => $query->where('customer_id', $customerId))
             ->when($request->query('product_id'), fn ($query, string $productId) => $query->whereHas('items', fn ($query) => $query->where('product_id', $productId)))
             ->when($request->query('category_id'), fn ($query, string $categoryId) => $query->whereHas('items.product', fn ($query) => $query->where('category_id', $categoryId)))
             ->when($request->query('search'), fn ($query, string $search) => $query->where('invoice_number', 'like', "%{$search}%"));
@@ -179,14 +177,12 @@ class ReportController extends Controller
 
     private function movementQuery(Request $request, array $types)
     {
-        $query = StockMovement::with(['product', 'operator', 'supplier', 'customer'])->whereIn('type', $types);
+        $query = StockMovement::with(['product', 'operator'])->whereIn('type', $types);
 
         return $this->dateFilter($query, $request)
             ->when($request->query('product_id'), fn ($query, string $productId) => $query->where('product_id', $productId))
             ->when($request->query('category_id'), fn ($query, string $categoryId) => $query->whereHas('product', fn ($query) => $query->where('category_id', $categoryId)))
-            ->when($request->query('operator_id'), fn ($query, string $operatorId) => $query->where('operator_id', $operatorId))
-            ->when($request->query('supplier_id'), fn ($query, string $supplierId) => $query->where('supplier_id', $supplierId))
-            ->when($request->query('customer_id'), fn ($query, string $customerId) => $query->where('customer_id', $customerId));
+            ->when($request->query('operator_id'), fn ($query, string $operatorId) => $query->where('operator_id', $operatorId));
     }
 
     private function dateFilter($query, Request $request)
@@ -198,7 +194,7 @@ class ReportController extends Controller
 
     private function stockStatus(int $stock, int $minStock): string
     {
-        return $stock === 0 ? 'empty' : ($stock < $minStock ? 'low' : 'safe');
+        return $stock === 0 ? 'empty' : ($stock < 5 ? 'low' : 'safe');
     }
 
     private function csv(string $filename, array $rows)
@@ -237,8 +233,6 @@ class ReportController extends Controller
             'category_id' => $request->query('category_id'),
             'product_id' => $request->query('product_id'),
             'status' => $request->query('status'),
-            'supplier_id' => $request->query('supplier_id'),
-            'customer_id' => $request->query('customer_id'),
         ])->filter(fn ($value) => $value !== null && $value !== '')->map(fn ($value, $key) => "{$key}={$value}")->implode(', ');
 
         return [
@@ -249,7 +243,7 @@ class ReportController extends Controller
 
     private function stockHeaders(): array
     {
-        return ['SKU', 'Name', 'Category', 'Stock', 'Minimum Stock', 'Status', 'Sale Price', 'Active'];
+        return ['SKU', 'Name', 'Category', 'Stock', 'Minimum Stock', 'Status', 'Active'];
     }
 
     private function stockRows($products): array
@@ -261,14 +255,13 @@ class ReportController extends Controller
             $product->stock?->quantity ?? 0,
             $product->min_stock,
             $this->stockStatus($product->stock?->quantity ?? 0, $product->min_stock),
-            (float) $product->sale_price,
             $product->is_active ? 'yes' : 'no',
         ])->all();
     }
 
     private function salesHeaders(): array
     {
-        return ['Invoice', 'Status', 'Cashier', 'Customer', 'Total Amount', 'Void Reason', 'Created At'];
+        return ['Invoice', 'Status', 'Cashier', 'Items', 'Void Reason', 'Created At'];
     }
 
     private function salesRows($sales): array
@@ -277,8 +270,7 @@ class ReportController extends Controller
             $sale->invoice_number,
             $sale->status,
             $sale->cashier?->name,
-            $sale->customer?->name,
-            (float) $sale->total_amount,
+            $sale->items->sum('quantity'),
             $sale->void_reason,
             $sale->created_at?->toDateTimeString(),
         ])->all();

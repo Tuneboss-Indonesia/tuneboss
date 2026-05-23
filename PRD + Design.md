@@ -444,7 +444,7 @@ Mengikuti pola `mobile-dock` di clone.
 * Integrasi API stok.
 * Login admin/pegawai.
 * Halaman produk dan detail produk.
-* Riwayat transaksi real.
+* Riwayat Penjualan real.
 
 ### Fase 3
 

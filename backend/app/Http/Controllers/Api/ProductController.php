@@ -31,7 +31,7 @@ class ProductController extends Controller
                 if ($status === 'Habis') {
                     $query->whereHas('stock', fn ($q) => $q->where('quantity', 0));
                 } elseif ($status === 'Menipis') {
-                    $query->whereHas('stock', fn ($q) => $q->whereColumn('quantity', '<', 'products.min_stock')->where('quantity', '>', 0));
+                    $query->whereHas('stock', fn ($q) => $q->where('quantity', '>', 0)->where('quantity', '<', 5));
                 } elseif ($status === 'Tersedia') {
                     $query->whereHas('stock', fn ($q) => $q->where('quantity', '>', 0));
                 }
@@ -115,16 +115,11 @@ class ProductController extends Controller
     public function destroy(Request $request, Product $product)
     {
         $before = $this->auditPayload($product);
-        
-        // Delete image file if exists
-        if ($product->image_path) {
-            Storage::disk('public')->delete($product->image_path);
-        }
 
-        $product->delete();
-        $this->audit($request, 'product.deleted', $product, $before);
+        $product->update(['is_active' => false]);
+        $this->audit($request, 'product.deleted', $product, $before, $this->auditPayload($product));
 
-        return response()->json(['message' => 'Produk dan gambar berhasil dihapus.']);
+        return response()->json(['message' => 'Produk berhasil dinonaktifkan.']);
     }
 
     public function uploadImage(Request $request, Product $product)
@@ -200,7 +195,7 @@ class ProductController extends Controller
 
     private function status(int $stock, int $minStock): string
     {
-        return $stock === 0 ? 'empty' : ($stock < $minStock ? 'low' : 'safe');
+        return $stock === 0 ? 'empty' : ($stock < 5 ? 'low' : 'safe');
     }
 
     private function audit(Request $request, string $action, Product $product, ?array $before = null, ?array $after = null): void

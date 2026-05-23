@@ -48,13 +48,15 @@ class DashboardController extends Controller
         $products = Product::query()->where('is_active', true)->leftJoin('product_stocks', 'products.id', '=', 'product_stocks.product_id');
         $totalSku = (clone $products)->count('products.id');
         $totalUnits = (clone $products)->sum(DB::raw('COALESCE(product_stocks.quantity, 0)'));
-        $lowStockCount = (clone $products)->whereRaw('COALESCE(product_stocks.quantity, 0) > 0')->whereColumn('product_stocks.quantity', '<', 'products.min_stock')->count();
+        $lowStockUnits = (clone $products)->whereRaw('COALESCE(product_stocks.quantity, 0) > 0')->whereRaw('COALESCE(product_stocks.quantity, 0) < 5')->sum(DB::raw('COALESCE(product_stocks.quantity, 0)'));
+        $lowStockCount = (clone $products)->whereRaw('COALESCE(product_stocks.quantity, 0) > 0')->whereRaw('COALESCE(product_stocks.quantity, 0) < 5')->count();
         $outOfStockCount = (clone $products)->whereRaw('COALESCE(product_stocks.quantity, 0) = 0')->count();
         $safeCount = max($totalSku - $lowStockCount - $outOfStockCount, 0);
 
         return [
             'totalSku' => $totalSku,
             'totalUnits' => (int) $totalUnits,
+            'lowStockUnits' => (int) $lowStockUnits,
             'lowStockCount' => $lowStockCount,
             'outOfStockCount' => $outOfStockCount,
             'stockHealth' => [
@@ -69,7 +71,7 @@ class DashboardController extends Controller
     {
         return Product::with(['category', 'stock'])
             ->where('is_active', true)
-            ->whereHas('stock', fn ($query) => $query->whereColumn('quantity', '<=', 'products.min_stock'))
+            ->whereHas('stock', fn ($query) => $query->where('quantity', '>', 0)->where('quantity', '<', 5))
             ->limit(10)
             ->get()
             ->map(function (Product $product) {
@@ -82,7 +84,7 @@ class DashboardController extends Controller
                     'barcode' => $product->barcode,
                     'stock' => $stock,
                     'minStock' => $product->min_stock,
-                    'status' => $stock === 0 ? 'empty' : 'low',
+                    'status' => $stock === 0 ? 'empty' : ($stock < 5 ? 'low' : 'safe'),
                 ];
             });
     }
@@ -137,7 +139,6 @@ class DashboardController extends Controller
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
             ->select('products.id', 'products.name', 'products.sku')
             ->selectRaw('SUM(sale_items.quantity) as quantity')
-            ->selectRaw('SUM(sale_items.subtotal) as totalAmount')
             ->where('sales.status', 'completed')
             ->where('sales.created_at', '>=', $this->periodStart($period))
             ->groupBy('products.id', 'products.name', 'products.sku')
@@ -149,7 +150,6 @@ class DashboardController extends Controller
                 'label' => $product->name,
                 'sku' => $product->sku,
                 'value' => (int) $product->quantity,
-                'totalAmount' => (float) $product->totalAmount,
             ]);
 
         return response()->json($products);

@@ -1,0 +1,10 @@
+backend/
+.omx/
+.git/
+.expo/
+node_modules/
+dist/
+web-build/
+android/
+ios/
+*.log

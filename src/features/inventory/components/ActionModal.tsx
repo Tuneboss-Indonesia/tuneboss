@@ -1,49 +1,38 @@
-import { useEffect, useState } from "react";
-import { Alert, Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { ChevronDown, ImageUp } from "lucide-react-native";
 import { apiRequest } from "../api";
 import { useInventoryData } from "../InventoryDataContext";
+import { appendPickedImage, pickedImageName, pickImage, type PickedImage } from "../imagePicker";
 import type { CategoryItem, ModalKind, ModalMode, PressState } from "../types";
 import { styles } from "../styles";
 import { colors } from "../../../theme/tokens";
 
 export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: ModalKind; mode: ModalMode; editingCategory?: CategoryItem | null; onClose: () => void }) {
-  const { categories, customers, refresh, stockItems, suppliers, token } = useInventoryData();
+  const { categories, loadProductsPage, refresh, stockItems, token } = useInventoryData();
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
-  const [selectedPartyId, setSelectedPartyId] = useState("");
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
-  const [partyOpen, setPartyOpen] = useState(false);
-  const [productQuery, setProductQuery] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [sku, setSku] = useState("");
+  const [barcode, setBarcode] = useState("");
   const [stock, setStock] = useState("");
   const [party, setParty] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageFile, setImageFile] = useState<PickedImage | null>(null);
+  const loadedOutboundProductsRef = useRef(false);
   const actionLabel = mode === "edit" ? "Edit" : "Tambah";
-  const title = kind === "kategori" ? `${actionLabel} Kategori` : kind === "stok" ? `${actionLabel} Barang` : kind === "masuk" ? "Tambah Stok Masuk" : kind === "keluar" ? "Kurangi Stok" : "";
+  const title = kind === "kategori" ? `${actionLabel} Kategori` : kind === "stok" ? `${actionLabel} Produk` : kind === "masuk" ? "Tambah Stok Masuk" : kind === "keluar" ? "Kurangi Stok" : "";
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
   const selectedProduct = stockItems.find((item) => item.id === selectedProductId);
-  const productOptions = stockItems.filter((item) => `${item.name} ${item.sku} ${item.barcode}`.toLowerCase().includes(productQuery.toLowerCase())).slice(0, 25);
-  const parties = kind === "masuk" ? suppliers : customers;
-  const selectedParty = parties.find((item) => item.id === selectedPartyId);
-  const transactionProduct = selectedProduct ?? stockItems.find((item) => item.sku.toLowerCase() === sku.toLowerCase() || item.barcode.toLowerCase() === sku.toLowerCase());
-  const transactionQuantity = Number(stock || 0);
-  const afterStock = transactionProduct ? transactionProduct.stock + (kind === "keluar" ? -transactionQuantity : transactionQuantity) : 0;
-  const insufficientStock = Boolean(kind === "keluar" && transactionProduct && transactionQuantity > transactionProduct.stock);
-
-  useEffect(() => {
-    if (kind === "masuk" || kind === "keluar") setSelectedPartyId("");
-    if (kind === "masuk" || kind === "keluar") {
-      const product = stockItems.find((item) => item.id === initialProductId);
-      setSelectedProductId(product?.id ?? "");
-      setSku(product?.sku ?? "");
-    }
-  }, [initialProductId, kind, stockItems]);
+  const productOptions = kind === "keluar" ? stockItems.filter((item) => item.stock > 0) : stockItems;
+  const quantityNumber = Number(stock || 0);
+  const stockExceeded = kind === "keluar" && Boolean(selectedProduct && quantityNumber > selectedProduct.stock);
+  const movementError = stockExceeded ? `Stok tersisa ${selectedProduct?.stock ?? 0}, jumlah tidak boleh melebihi stok.` : "";
+  const movementDisabled = (kind === "masuk" || kind === "keluar") && (!selectedProductId || !stock.trim() || quantityNumber < 1 || (kind === "keluar" && (!selectedProduct || stockExceeded)));
 
   // Pre-fill form when editing category
   const [originalName, setOriginalName] = useState("");
@@ -64,14 +53,26 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
     }
   }, [mode, kind, editingCategory]);
 
+  useEffect(() => {
+    if (kind !== "masuk" && kind !== "keluar") {
+      loadedOutboundProductsRef.current = false;
+      return;
+    }
+
+    if (loadedOutboundProductsRef.current) return;
+    loadedOutboundProductsRef.current = true;
+    void loadProductsPage(1, "", kind === "keluar" ? "Tersedia" : "", "", 100);
+  }, [kind, loadProductsPage]);
+
   const reset = () => {
     setName("");
     setDescription("");
     setSku("");
+    setBarcode("");
     setStock("");
     setParty("");
     setSelectedCategoryId("");
-    setSelectedPartyId("");
+    setSelectedProductId("");
     setNote("");
     setImageFile(null);
   };
@@ -85,7 +86,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
     if (!imageFile) return;
     try {
       const form = new FormData();
-      form.append("image", imageFile);
+      appendPickedImage(form, "image", imageFile);
       await apiRequest(`/products/${productId}/image`, { body: form, method: "POST", token });
     } catch (error) {
       Alert.alert("Gagal", error instanceof Error ? error.message : "Gambar gagal diupload.");
@@ -107,7 +108,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
 
       if (kind === "stok") {
         const result = await apiRequest<{ id: string }>("/products", {
-          body: JSON.stringify({ barcode: null, category_id: selectedCategoryId, min_stock: 1, name, sku, initial_stock: Number(stock || 0) }),
+          body: JSON.stringify({ barcode: barcode.trim() || null, category_id: selectedCategoryId, min_stock: 1, name, sku, initial_stock: Number(stock || 0) }),
           method: "POST",
           token,
         });
@@ -115,19 +116,19 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
       }
 
       if (kind === "masuk" || kind === "keluar") {
-        const product = selectedProduct ?? stockItems.find((item) => item.sku.toLowerCase() === sku.toLowerCase() || item.barcode.toLowerCase() === sku.toLowerCase());
-        if (!product) throw new Error("Produk tidak ditemukan. Isi SKU/barcode yang valid.");
+        const product = stockItems.find((item) => item.id === selectedProductId);
+        if (!product) throw new Error("Produk tidak ditemukan. Pilih produk yang valid.");
+        if (kind === "keluar" && product.stock <= 0) throw new Error("Produk ini stoknya 0, tidak bisa dikurangi.");
+        if (kind === "keluar" && Number(stock || 0) > product.stock) throw new Error(`Jumlah keluar tidak boleh lebih dari stok tersedia (${product.stock}).`);
 
         await apiRequest(kind === "masuk" ? "/stock/inbound" : "/stock/outbound", {
-          body: JSON.stringify({ customer_id: kind === "keluar" ? selectedPartyId || null : null, note, party, productId: product.id, quantity: Number(stock || 0), supplier_id: kind === "masuk" ? selectedPartyId || null : null }),
+          body: JSON.stringify({ note: note.trim() || null, party: party.trim() || null, productId: product.id, quantity: Number(stock || 0) }),
           method: "POST",
           token,
         });
       }
 
-      if (kind === "kategori") await refreshCategories();
-      if (kind === "stok") await refreshProducts();
-      if (kind === "masuk" || kind === "keluar") await refreshStockActivity();
+      await refresh();
       close();
     } catch (error) {
       Alert.alert("Gagal", error instanceof Error ? error.message : "Data gagal disimpan.");
@@ -136,71 +137,55 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
     }
   };
 
-  const handleImagePick = () => {
-    if (Platform.OS !== "web" || typeof document === "undefined") {
-      Alert.alert("Info", "Upload gambar saat ini tersedia di web admin.");
-      return;
-    }
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/jpeg,image/png,image/webp";
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (file) setImageFile(file);
-    };
-    input.click();
+  const handleImagePick = async () => {
+    const image = await pickImage();
+    if (image) setImageFile(image);
   };
 
   return (
     <Modal visible={kind !== null} transparent animationType="fade" onRequestClose={close}>
       <View style={styles.modalBackdrop}>
         <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>{title}</Text>
-          {kind === "kategori" ? (
-            <>
-              <TextInput onChangeText={setName} style={styles.modalInput} placeholder="Nama kategori barang" placeholderTextColor="#9aa4b5" value={name} />
-              <TextInput onChangeText={setDescription} style={styles.modalInput} placeholder="Deskripsi kategori" placeholderTextColor="#9aa4b5" value={description} />
-            </>
-          ) : null}
-          {kind === "stok" ? (
-            <>
-              <TextInput onChangeText={setSku} style={styles.modalInput} placeholder="Kode Produk" placeholderTextColor="#9aa4b5" value={sku} />
-              <TextInput onChangeText={setName} style={styles.modalInput} placeholder="Produk" placeholderTextColor="#9aa4b5" value={name} />
-              <View style={styles.modalFieldGroup}>
-                <Text style={styles.modalLabel}>Kategori</Text>
-                <Pressable onPress={() => setCategoryOpen((open) => !open)} style={({ hovered, pressed }: PressState) => [styles.modalSelect, hovered && styles.modalSelectHover, pressed && styles.pressed]}><Text style={styles.modalSelectText}>{selectedCategory?.name || "Pilih kategori"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
-                {categoryOpen ? <View style={[styles.modalSelectOptions, { maxHeight: 160, overflow: "scroll", scrollbarWidth: "none", msOverflowStyle: "none" } as any]}>{categories.map((category) => <Pressable key={category.id} onPress={() => { setSelectedCategoryId(category.id); setCategoryOpen(false); }} style={({ hovered, pressed }: PressState) => [styles.modalSelectOption, selectedCategoryId === category.id && styles.modalSelectOptionActive, hovered && selectedCategoryId !== category.id && styles.modalSelectOptionHover, pressed && styles.pressed]}><Text style={[styles.modalSelectOptionText, selectedCategoryId === category.id && styles.modalSelectOptionTextActive]}>{category.name}</Text></Pressable>)}</View> : null}
-              </View>
-              <TextInput style={styles.modalInput} placeholder="Stok Awal" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
-              {Platform.OS === "web" && (
-                <Pressable onPress={handleImagePick} style={({ hovered, pressed }: PressState) => [styles.modalSelect, hovered && styles.modalSelectHover, pressed && styles.pressed, { justifyContent: "center" }]}><Text style={[styles.modalSelectText, { textAlign: "center" }]}>{imageFile ? `${imageFile.name}` : "Upload Gambar (Opsional) "}</Text></Pressable>
-              )}
-            </>
-          ) : null}
-          {kind === "masuk" || kind === "keluar" ? (
-            <>
-              <View style={styles.modalFieldGroup}>
-                <Text style={styles.modalLabel}>Produk</Text>
-                <Pressable onPress={() => setProductOpen((open) => !open)} style={styles.modalSelect}><Text style={styles.modalSelectText}>{selectedProduct ? `${selectedProduct.sku} - ${selectedProduct.name}` : "Pilih barang dari data API"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
-                {productOpen ? <View style={styles.modalSelectOptions}><TextInput onChangeText={setProductQuery} style={styles.modalInput} placeholder="Cari nama / SKU / barcode" placeholderTextColor="#9aa4b5" value={productQuery} />{productOptions.map((item) => <Pressable key={item.id} onPress={() => { setSelectedProductId(item.id); setSku(item.sku); setProductQuery(""); setProductOpen(false); }} style={[styles.modalSelectOption, selectedProductId === item.id && styles.modalSelectOptionActive]}><Text style={[styles.modalSelectOptionText, selectedProductId === item.id && styles.modalSelectOptionTextActive]}>{item.sku} - {item.name} | stok {item.stock}</Text></Pressable>)}{!productOptions.length ? <Text style={styles.emptyText}>Produk tidak ditemukan</Text> : null}</View> : null}
-              </View>
-              <TextInput onChangeText={setSku} style={styles.modalInput} placeholder="SKU / Barcode" placeholderTextColor="#9aa4b5" value={sku} />
-              {transactionProduct ? <View style={styles.searchPanel}><Text style={styles.cardEyebrow}>Info Barang</Text><Text style={styles.scanResultTitle}>{transactionProduct.name}</Text><Text style={styles.scanResultMeta}>Stok saat ini: {transactionProduct.stock}</Text><Text style={styles.scanResultMeta}>Setelah transaksi: {afterStock}</Text>{insufficientStock ? <Text style={styles.errorText}>Jumlah keluar melebihi stok saat ini.</Text> : null}</View> : null}
-              <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
-              <View style={styles.modalFieldGroup}>
-                <Text style={styles.modalLabel}>{kind === "masuk" ? "Supplier" : "Customer"}</Text>
-                <Pressable onPress={() => setPartyOpen((open) => !open)} style={({ hovered, pressed }: PressState) => [styles.modalSelect, hovered && styles.modalSelectHover, pressed && styles.pressed]}><Text style={styles.modalSelectText}>{selectedParty?.name || "Pilih dari data API"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
-                {partyOpen ? <View style={[styles.modalSelectOptions, { maxHeight: 160, overflow: "scroll", scrollbarWidth: "none", msOverflowStyle: "none" } as any]}>{parties.map((item) => <Pressable key={item.id} onPress={() => { setSelectedPartyId(item.id); setParty(""); setPartyOpen(false); }} style={({ hovered, pressed }: PressState) => [styles.modalSelectOption, selectedPartyId === item.id && styles.modalSelectOptionActive, hovered && selectedPartyId !== item.id && styles.modalSelectOptionHover, pressed && styles.pressed]}><Text style={[styles.modalSelectOptionText, selectedPartyId === item.id && styles.modalSelectOptionTextActive]}>{item.name}</Text></Pressable>)}</View> : null}
-              </View>
-              <TextInput onChangeText={setParty} style={styles.modalInput} placeholder={kind === "masuk" ? "Supplier" : "Tujuan / Customer"} placeholderTextColor="#9aa4b5" value={party} />
-              <TextInput onChangeText={setNote} style={styles.modalInput} placeholder="Catatan" placeholderTextColor="#9aa4b5" value={note} />
-            </>
-          ) : null}
+          <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalBodyContent}>
+            <Text style={styles.modalTitle}>{title}</Text>
+            {kind === "kategori" ? (
+              <>
+                <TextInput onChangeText={setName} style={styles.modalInput} placeholder="Nama produk" placeholderTextColor="#9aa4b5" value={name} />
+                <TextInput onChangeText={setDescription} style={styles.modalInput} placeholder="Deskripsi kategori" placeholderTextColor="#9aa4b5" value={description} />
+              </>
+            ) : null}
+            {kind === "stok" ? (
+              <>
+                <TextInput onChangeText={setSku} style={styles.modalInput} placeholder="Kode Produk" placeholderTextColor="#9aa4b5" value={sku} />
+                <TextInput onChangeText={setBarcode} style={styles.modalInput} placeholder="Kode Barcode" placeholderTextColor="#9aa4b5" value={barcode} />
+                <TextInput onChangeText={setName} style={styles.modalInput} placeholder="Produk" placeholderTextColor="#9aa4b5" value={name} />
+                <View style={styles.modalFieldGroup}>
+                  <Text style={styles.modalLabel}>Kategori</Text>
+                  <Pressable onPress={() => setCategoryOpen((open) => !open)} style={({ hovered, pressed }: PressState) => [styles.modalSelect, hovered && styles.modalSelectHover, pressed && styles.pressed]}><Text style={styles.modalSelectText}>{selectedCategory?.name || "Pilih kategori"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
+                  {categoryOpen ? <ScrollView nestedScrollEnabled style={[styles.modalSelectOptions, styles.modalSelectOptionsScroll]} showsVerticalScrollIndicator={false}>{categories.map((category) => <Pressable key={category.id} onPress={() => { setSelectedCategoryId(category.id); setCategoryOpen(false); }} style={({ hovered, pressed }: PressState) => [styles.modalSelectOption, selectedCategoryId === category.id && styles.modalSelectOptionActive, hovered && selectedCategoryId !== category.id && styles.modalSelectOptionHover, pressed && styles.pressed]}><Text style={[styles.modalSelectOptionText, selectedCategoryId === category.id && styles.modalSelectOptionTextActive]}>{category.name}</Text></Pressable>)}</ScrollView> : null}
+                </View>
+                <TextInput style={styles.modalInput} placeholder="Stok Awal" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
+                <Pressable onPress={() => void handleImagePick()} style={({ hovered, pressed }: PressState) => [styles.modalSelect, hovered && styles.modalSelectHover, pressed && styles.pressed, { justifyContent: "center" }]}><ImageUp color={colors.primary} size={18} /><Text style={[styles.modalSelectText, { textAlign: "center" }]}>{imageFile ? pickedImageName(imageFile) : "Upload Gambar (Opsional)"}</Text></Pressable>
+              </>
+            ) : null}
+            {kind === "masuk" || kind === "keluar" ? (
+              <>
+                <View style={styles.modalFieldGroup}>
+                  <Text style={styles.modalLabel}>Produk</Text>
+                  <Pressable onPress={() => setProductOpen((open) => !open)} style={({ hovered, pressed }: PressState) => [styles.modalSelect, hovered && styles.modalSelectHover, pressed && styles.pressed]}><Text style={styles.modalSelectText}>{selectedProduct?.name || "Pilih produk"}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
+                  {productOpen ? <ScrollView nestedScrollEnabled style={[styles.modalSelectOptions, styles.modalSelectOptionsScroll]} showsVerticalScrollIndicator={false}>{productOptions.map((item) => <Pressable key={item.id} onPress={() => { setSelectedProductId(item.id); setProductOpen(false); }} style={({ hovered, pressed }: PressState) => [styles.modalSelectOption, selectedProductId === item.id && styles.modalSelectOptionActive, hovered && selectedProductId !== item.id && styles.modalSelectOptionHover, pressed && styles.pressed]}><Text style={[styles.modalSelectOptionText, selectedProductId === item.id && styles.modalSelectOptionTextActive]}>{item.name} ({item.sku}){kind === "keluar" ? ` - Stok: ${item.stock}` : ""}</Text></Pressable>)}{!productOptions.length ? <Text style={[styles.modalSelectOptionText, { padding: 16 }]}>Tidak ada produk dengan stok tersedia</Text> : null}</ScrollView> : null}
+                </View>
+                <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
+                {movementError ? <Text style={styles.errorText}>{movementError}</Text> : null}
+                <TextInput onChangeText={setParty} style={styles.modalInput} placeholder={kind === "masuk" ? "Supplier" : "Alamat"} placeholderTextColor="#9aa4b5" value={party} />
+                <TextInput onChangeText={setNote} style={styles.modalInput} placeholder="Catatan (Opsional)" placeholderTextColor="#9aa4b5" value={note} />
+              </>
+            ) : null}
+          </ScrollView>
           <View style={styles.modalActions}>
             <Pressable onPress={close} style={({ hovered, pressed }: PressState) => [styles.cancelButton, hovered && styles.cancelButtonHover, pressed && styles.pressed]}><Text style={styles.cancelText}>Batal</Text></Pressable>
-            <Pressable disabled={saving || (kind === "kategori" && !name.trim()) || (kind === "stok" && (!sku.trim() || !name.trim() || !selectedCategoryId)) || (mode === "edit" && kind === "kategori" && name === originalName && description === originalDesc)} onPress={save} style={({ hovered, pressed }: PressState) => [styles.saveButton, hovered && !saving && styles.saveButtonHover, pressed && styles.pressed, (saving || (kind === "kategori" && !name.trim()) || (kind === "stok" && (!sku.trim() || !name.trim() || !selectedCategoryId)) || (mode === "edit" && kind === "kategori" && name === originalName && description === originalDesc)) && styles.tablePagerButtonDisabled]}><Text style={styles.saveText}>{saving ? "Menyimpan..." : "Simpan"}</Text></Pressable>
+            <Pressable disabled={saving || (kind === "kategori" && !name.trim()) || (kind === "stok" && (!sku.trim() || !name.trim() || !selectedCategoryId)) || movementDisabled || (mode === "edit" && kind === "kategori" && name === originalName && description === originalDesc)} onPress={save} style={({ hovered, pressed }: PressState) => [styles.saveButton, hovered && !saving && styles.saveButtonHover, pressed && styles.pressed, (saving || (kind === "kategori" && !name.trim()) || (kind === "stok" && (!sku.trim() || !name.trim() || !selectedCategoryId)) || movementDisabled || (mode === "edit" && kind === "kategori" && name === originalName && description === originalDesc)) && styles.tablePagerButtonDisabled]}><Text style={styles.saveText}>{saving ? "Menyimpan..." : "Simpan"}</Text></Pressable>
           </View>
-          </ScrollView>
         </View>
       </View>
     </Modal>

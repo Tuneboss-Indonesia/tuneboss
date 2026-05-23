@@ -1,26 +1,36 @@
-# ERD TuneBoss Inventory Backend
+# TuneBoss Inventory ERD
 
-ERD ini mengikuti PRD backend TuneBoss Inventory dengan stack Laravel + MariaDB/MySQL. Struktur dibuat untuk kebutuhan fase awal: autentikasi, kategori, produk, stok masuk/keluar, penjualan sederhana, dashboard, laporan JSON, dan audit log.
+ERD ini mengikuti data yang benar-benar dipakai halaman frontend saat ini. Tabel/kolom legacy yang tidak dipakai FE sudah dikeluarkan: `suppliers`, `customers`, `restock_orders`, `sales.customer_id`, `sales.total_amount`, `sale_items.price`, `sale_items.subtotal`, `stock_movements.supplier_id`, dan `stock_movements.customer_id`.
 
-## Mermaid ERD
+Versi PlantUML tersedia di `ERD.puml`.
 
 ```mermaid
 erDiagram
   users {
     uuid id PK
     string name
-    string email UK
+    string email
     string password
-    enum role "admin|staff"
+    string role
     boolean is_active
-    timestamp email_verified_at
     timestamp created_at
     timestamp updated_at
   }
 
+  personal_access_tokens {
+    bigint id PK
+    string tokenable_type
+    uuid tokenable_id
+    string name
+    string token
+    text abilities
+    timestamp last_used_at
+    timestamp expires_at
+  }
+
   categories {
     uuid id PK
-    string name UK
+    string name
     text description
     timestamp created_at
     timestamp updated_at
@@ -30,9 +40,9 @@ erDiagram
     uuid id PK
     uuid category_id FK
     string name
-    string sku UK
-    string barcode UK
-    decimal sale_price
+    string sku
+    string barcode
+    string image_path
     integer min_stock
     boolean is_active
     timestamp created_at
@@ -41,7 +51,29 @@ erDiagram
 
   product_stocks {
     uuid id PK
-    uuid product_id FK,UK
+    uuid product_id FK
+    integer quantity
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  sales {
+    uuid id PK
+    string invoice_number
+    uuid cashier_id FK
+    text address
+    string status
+    uuid voided_by FK
+    timestamp voided_at
+    text void_reason
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  sale_items {
+    uuid id PK
+    uuid sale_id FK
+    uuid product_id FK
     integer quantity
     timestamp created_at
     timestamp updated_at
@@ -52,7 +84,7 @@ erDiagram
     uuid product_id FK
     uuid operator_id FK
     uuid sale_id FK
-    enum type "inbound|outbound|adjustment|sale"
+    string type
     integer quantity
     integer before_quantity
     integer after_quantity
@@ -62,22 +94,18 @@ erDiagram
     timestamp updated_at
   }
 
-  sales {
+  restock_alerts {
     uuid id PK
-    string invoice_number UK
-    uuid cashier_id FK
-    decimal total_amount
-    timestamp created_at
-    timestamp updated_at
-  }
-
-  sale_items {
-    uuid id PK
-    uuid sale_id FK
     uuid product_id FK
-    integer quantity
-    decimal price
-    decimal subtotal
+    string status
+    string severity
+    integer current_stock
+    integer threshold
+    uuid acknowledged_by FK
+    timestamp acknowledged_at
+    uuid resolved_by FK
+    timestamp resolved_at
+    text note
     timestamp created_at
     timestamp updated_at
   }
@@ -87,62 +115,31 @@ erDiagram
     uuid user_id FK
     string action
     string entity
-    uuid entity_id
+    string entity_id
     json metadata
+    string ip_address
+    string user_agent
     timestamp created_at
-    timestamp updated_at
   }
 
-  categories ||--o{ products : has
-  products ||--|| product_stocks : has
-  products ||--o{ stock_movements : records
-  users ||--o{ stock_movements : operates
+  users ||--o{ personal_access_tokens : owns
   users ||--o{ sales : cashiers
-  sales ||--o{ sale_items : contains
+  users ||--o{ sales : voids
+  users ||--o{ stock_movements : operates
+  users ||--o{ restock_alerts : acknowledges
+  users ||--o{ restock_alerts : resolves
+  users ||--o{ audit_logs : writes
+  categories ||--o{ products : groups
+  products ||--|| product_stocks : has
   products ||--o{ sale_items : sold_as
+  products ||--o{ stock_movements : moves
+  products ||--o{ restock_alerts : alerts
+  sales ||--o{ sale_items : contains
   sales ||--o{ stock_movements : creates
-  users ||--o{ audit_logs : performs
 ```
 
-## Catatan Relasi
+## Catatan Pemakaian FE
 
-- `users.role` cukup menggunakan enum `admin` dan `staff` untuk fase awal, belum perlu tabel `roles` terpisah.
-- `products.category_id` wajib ada agar produk bisa difilter berdasarkan kategori.
-- `product_stocks.product_id` dibuat unique karena satu produk hanya punya satu snapshot stok saat ini pada fase awal.
-- `stock_movements` adalah ledger perubahan stok dan wajib dibuat setiap ada inbound, outbound, adjustment, atau sale.
-- `product_stocks.quantity` adalah snapshot untuk dashboard dan lookup cepat, bukan pengganti ledger.
-- `sales` menyimpan transaksi penjualan, sedangkan detail barang ada di `sale_items`.
-- `sales` dapat menghasilkan beberapa `stock_movements` type `sale`, satu movement per produk yang terjual.
-- `audit_logs` menyimpan aktivitas penting seperti login gagal, tambah produk, edit stok, hapus kategori, dan koreksi stok.
-
-## Index Yang Disarankan
-
-- `users.email` unique.
-- `categories.name` unique.
-- `products.sku` unique.
-- `products.barcode` unique nullable.
-- `products.category_id` index.
-- `products.is_active` index.
-- `product_stocks.product_id` unique.
-- `stock_movements.product_id` index.
-- `stock_movements.operator_id` index.
-- `stock_movements.type` index.
-- `stock_movements.created_at` index.
-- `sales.invoice_number` unique.
-- `sales.cashier_id` index.
-- `sales.created_at` index.
-- `sale_items.sale_id` index.
-- `sale_items.product_id` index.
-- `audit_logs.user_id` index.
-- `audit_logs.entity` index.
-- `audit_logs.created_at` index.
-
-## Business Rules Database
-
-- SKU wajib unik.
-- Barcode wajib unik jika diisi.
-- Stok tidak boleh negatif.
-- Outbound dan sale wajib gagal jika stok tidak cukup.
-- Semua update stok wajib dilakukan dalam database transaction.
-- Produk yang sudah dipakai transaksi sebaiknya dinonaktifkan, bukan dihapus permanen.
-- Kategori tidak boleh dihapus jika masih dipakai produk.
+- `restock_alerts` tetap dipakai karena Dashboard menampilkan daftar produk habis dari endpoint `/restock-alerts`.
+- `cashier_id`, `operator_id`, dan relasi user tetap dipakai backend untuk mencatat siapa yang melakukan transaksi/pergerakan, walaupun tidak semua kolomnya ditampilkan di tabel FE.
+- Supplier dan customer sekarang hanya berupa teks bebas di `stock_movements.party` atau `sales.address`, bukan master table.
