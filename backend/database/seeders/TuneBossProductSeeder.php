@@ -10,7 +10,9 @@ class TuneBossProductSeeder extends Seeder
 {
     public function run(): void
     {
-        $categories = collect(['Yamaha', 'Honda', 'Suzuki', 'Kawasaki'])->mapWithKeys(fn (string $brand) => [
+        $brands = ['Yamaha', 'Honda', 'Suzuki', 'Kawasaki'];
+
+        $categories = collect($brands)->mapWithKeys(fn (string $brand) => [
             $brand => Category::updateOrCreate(
                 ['name' => $brand],
                 ['description' => 'Produk ECU TuneBoss untuk motor '.$brand]
@@ -43,13 +45,13 @@ class TuneBossProductSeeder extends Seeder
             ['brand' => 'Honda', 'sku' => 'TB-HND-SUPRA-GTR-150-NEW', 'name' => 'SUPRA GTR 150 NEW'],
             ['brand' => 'Honda', 'sku' => 'TB-HND-SONIC-150', 'name' => 'SONIC 150'],
             ['brand' => 'Honda', 'sku' => 'TB-HND-CB-150-VERZA-CHIP', 'name' => 'CB 150 VERZA (CHIP)'],
-            ['brand' => 'Honda', 'sku' => 'TB-HND-CB-150X-CHIP', 'name' => 'CB 150X (CHIP)'],
+            ['brand' => 'Honda', 'sku' => 'TB-HND-CB-150X-CHIP', 'name' => 'CB 150X (CHIP)', 'barcode' => 'TDYA020A0092'],
             ['brand' => 'Honda', 'sku' => 'TB-HND-CB-150R-CHIP', 'name' => 'CB 150R (CHIP)'],
-            ['brand' => 'Honda', 'sku' => 'TB-HND-CBR-150R-OLD', 'name' => 'CBR 150R OLD'],
-            ['brand' => 'Honda', 'sku' => 'TB-HND-CBR-150R-K45G', 'name' => 'CBR 150R K45G'],
-            ['brand' => 'Honda', 'sku' => 'TB-HND-CBR-150R-K45N', 'name' => 'CBR 150R K45N'],
-            ['brand' => 'Honda', 'sku' => 'TB-HND-CBR-150R-K45R', 'name' => 'CBR 150R K45R'],
-            ['brand' => 'Honda', 'sku' => 'TB-HND-CBR-150R-CBU', 'name' => 'CBR 150R CBU'],
+            ['brand' => 'Honda', 'sku' => 'TB-HND-CBR-150R-OLD', 'name' => 'CBR150R OLD'],
+            ['brand' => 'Honda', 'sku' => 'TB-HND-CBR-150R-K45G', 'name' => 'CBR150R K45G'],
+            ['brand' => 'Honda', 'sku' => 'TB-HND-CBR-150R-K45N', 'name' => 'CBR150R K45N'],
+            ['brand' => 'Honda', 'sku' => 'TB-HND-CBR-150R-K45R', 'name' => 'CBR150R K45R'],
+            ['brand' => 'Honda', 'sku' => 'TB-HND-CBR-150R-CBU', 'name' => 'CBR150R CBU'],
             ['brand' => 'Honda', 'sku' => 'TB-HND-CBR-250R-CBU', 'name' => 'CBR 250R CBU'],
             ['brand' => 'Honda', 'sku' => 'TB-HND-NEW-CB-150-V1', 'name' => 'NEW CB 150 V1'],
             ['brand' => 'Honda', 'sku' => 'TB-HND-NEW-CB-150-V2', 'name' => 'NEW CB 150 V2'],
@@ -69,9 +71,7 @@ class TuneBossProductSeeder extends Seeder
 
         $activeSkus = collect($products)->pluck('sku')->all();
 
-        Product::where('sku', 'like', 'TB-ECU-%')
-            ->whereNotIn('sku', $activeSkus)
-            ->update(['is_active' => false]);
+        Product::whereNotIn('sku', $activeSkus)->update(['is_active' => false]);
 
         foreach ($products as $item) {
             $product = Product::updateOrCreate(
@@ -79,8 +79,7 @@ class TuneBossProductSeeder extends Seeder
                 [
                     'category_id' => $categories[$item['brand']]->id,
                     'name' => $item['name'],
-                    'barcode' => null,
-                    'sale_price' => 0,
+                    'barcode' => $item['barcode'] ?? null,
                     'min_stock' => 1,
                     'is_active' => true,
                 ]

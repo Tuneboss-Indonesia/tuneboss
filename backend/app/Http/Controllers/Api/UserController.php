@@ -7,8 +7,10 @@ use App\Http\Resources\UserCollection;
 use App\Http\Resources\UserResource;
 use App\Models\AuditLog;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
@@ -32,11 +34,34 @@ class UserController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:150'],
-            'email' => ['required', 'email', 'max:150', 'unique:users,email'],
+            'email' => ['required', 'email', 'max:150'],
             'password' => ['required', 'string', 'min:8'],
             'role' => ['required', Rule::in(['admin', 'staff'])],
             'is_active' => ['sometimes', 'boolean'],
         ]);
+
+        $existing = User::where('email', $data['email'])->first();
+
+        if ($existing?->is_active) {
+            throw ValidationException::withMessages([
+                'email' => ['Email sudah digunakan.'],
+            ]);
+        }
+
+        if ($existing) {
+            $before = $this->auditPayload($existing);
+            $existing->update([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => $data['password'],
+                'role' => $data['role'],
+                'is_active' => $data['is_active'] ?? true,
+            ]);
+            $existing->tokens()->delete();
+            $this->audit($request, 'user.reactivated', $existing, $before, $this->auditPayload($existing));
+
+            return new UserResource($existing);
+        }
 
         $user = User::create($data);
         $this->audit($request, 'user.created', $user, after: $this->auditPayload($user));
@@ -96,13 +121,37 @@ class UserController extends Controller
         return response()->json(['message' => 'User dinonaktifkan.']);
     }
 
-    private function audit(Request $request, string $action, User $user, ?array $before = null, ?array $after = null, ?array $metadata = null): void
+    public function destroy(Request $request, User $user)
+    {
+        if ($request->user()->is($user)) {
+            return response()->json(['message' => 'Admin tidak bisa menghapus akun sendiri.', 'code' => 'cannot_delete_self'], 422);
+        }
+
+        $before = $this->auditPayload($user);
+        $userId = $user->id;
+        $user->tokens()->delete();
+
+        try {
+            $user->delete();
+        } catch (QueryException) {
+            return response()->json([
+                'message' => 'User sudah memiliki riwayat transaksi. Nonaktifkan akun jika riwayat masih perlu dipertahankan.',
+                'code' => 'user_has_history',
+            ], 422);
+        }
+
+        $this->audit($request, 'user.deleted', $userId, before: $before);
+
+        return response()->json(['message' => 'User dihapus.']);
+    }
+
+    private function audit(Request $request, string $action, User|string $user, ?array $before = null, ?array $after = null, ?array $metadata = null): void
     {
         AuditLog::create([
             'user_id' => $request->user()?->id,
             'action' => $action,
             'entity' => 'users',
-            'entity_id' => $user->id,
+            'entity_id' => $user instanceof User ? $user->id : $user,
             'metadata' => $metadata ?? array_filter(['before' => $before, 'after' => $after]),
         ]);
     }

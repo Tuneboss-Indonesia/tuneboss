@@ -6,6 +6,11 @@ node_modules/
 .expo-shared/
 dist/
 web-build/
+desktop-build/
+desktop-build-fixed/
+desktop-build-logo/
+desktop-build-logo-ico/
+desktop-release/
 
 # Native build output
 android/
@@ -39,3 +44,6 @@ Thumbs.db
 
 # TypeScript
 *.tsbuildinfo
+
+# Documentation
+docs/

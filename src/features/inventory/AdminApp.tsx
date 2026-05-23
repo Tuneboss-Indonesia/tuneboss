@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Platform, Text, View } from "react-native";
-import * as SecureStore from "expo-secure-store";
+import { Platform, Text, View } from "react-native";
 import { useFonts } from "expo-font";
 import { Layout } from "./components/Layout";
 import { ActionModal } from "./components/ActionModal";
@@ -8,164 +7,147 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AuthScreen } from "./AuthScreen";
 import { AdminPage } from "./pages/AdminPage";
 import { DashboardPage } from "./pages/DashboardPage";
-import { InventoryDataProvider, useInventoryData } from "./InventoryDataContext";
+import { InventoryDataProvider } from "./InventoryDataContext";
 import { KategoriPage } from "./pages/KategoriPage";
 import { LaporanPage, ReportDetail } from "./pages/LaporanPage";
 import { MovementPage } from "./pages/MovementPage";
 import { PenjualanPage } from "./pages/PenjualanPage";
 import { ScanPage } from "./pages/ScanPage";
-import { RestockPage } from "./pages/RestockPage";
-import { StockOpnamePage } from "./pages/StockOpnamePage";
 import { StokPage } from "./pages/StokPage";
-import type { ModalKind, ModalMode, PageKey } from "./types";
+import { deleteStoredValue, getStoredValue, setStoredValue, storageKeys } from "./platformStorage";
+import type { CategoryItem, ModalKind, ModalMode, PageKey, UserRole } from "./types";
 import { styles } from "./styles";
-import { apiRequest, setUnauthenticatedHandler } from "./api";
 
-type AuthPayload = { accessToken: string; expiresAt?: string | null };
-const authStorageKey = "tuneboss.auth";
+type StoredAuth = {
+  accessToken: string;
+  user?: {
+    id?: string;
+    role?: UserRole;
+  };
+};
+
+const fontAssets: Parameters<typeof useFonts>[0] = Platform.OS === "web" ? {
+  "Futura PT": require("../../../assets/fonts/Futura-PT-Book.woff2"),
+  "Futura PT Medium": require("../../../assets/fonts/Futura-PT-Medium.woff2"),
+  SQR721BE: require("../../../assets/fonts/SQR721BE.woff2"),
+} : {};
 
 export function AdminApp() {
   const [page, setPage] = useState<PageKey>("dashboard");
   const [modal, setModal] = useState<ModalKind>(null);
   const [modalMode, setModalMode] = useState<ModalMode>("add");
-  const [modalProductId, setModalProductId] = useState<string | undefined>();
-  const [auth, setAuth] = useState<AuthPayload | null>(() => Platform.OS === "web" ? loadStoredAuth() : null);
-  const [authLoaded, setAuthLoaded] = useState(Platform.OS === "web");
-  const [fontsLoaded] = useFonts({
-    "Futura PT": require("../../../assets/fonts/Futura-PT-Book.woff2"),
-    "Futura PT Medium": require("../../../assets/fonts/Futura-PT-Medium.woff2"),
-    SQR721BE: require("../../../assets/fonts/SQR721BE.woff2"),
-  });
-
-  const logout = () => {
-    void clearStoredAuth();
-    setAuth(null);
-  };
-
-  const setLoggedIn = (payload: AuthPayload) => {
-    void storeAuth(payload);
-    setAuth(payload);
-  };
+  const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
+  const [auth, setAuth] = useState<StoredAuth | null>(null);
+  const [storageReady, setStorageReady] = useState(false);
+  const token = auth?.accessToken ?? "";
+  const role = auth?.user?.role ?? "staff";
+  const [fontsLoaded] = useFonts(fontAssets);
 
   useEffect(() => {
-    if (Platform.OS === "web") return;
-    void loadStoredAuthAsync().then(setAuth).finally(() => setAuthLoaded(true));
+    let cancelled = false;
+
+    async function loadStoredSession() {
+      const [authValue, pageValue] = await Promise.all([
+        loadStoredAuth(),
+        loadStoredPage(),
+      ]);
+
+      if (cancelled) return;
+      setAuth(authValue);
+      if (pageValue) setPage(pageValue);
+      setStorageReady(true);
+    }
+
+    void loadStoredSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    setUnauthenticatedHandler(logout);
-    return () => setUnauthenticatedHandler(null);
-  }, []);
+    if (storageReady) void storePage(page);
+  }, [page, storageReady]);
 
   useEffect(() => {
-    if (!auth?.accessToken || !auth.expiresAt) return;
+    if (role !== "admin" && page === "admin") setPage("dashboard");
+  }, [page, role]);
 
-    const refreshInMs = Math.max(new Date(auth.expiresAt).getTime() - Date.now() - 5 * 60 * 1000, 30 * 1000);
-    const timer = setTimeout(() => {
-      void apiRequest<AuthPayload>("/auth/refresh", { method: "POST", token: auth.accessToken }).then(setLoggedIn).catch(logout);
-    }, refreshInMs);
+  const navigate = (nextPage: PageKey) => {
+    if (nextPage === "admin" && role !== "admin") {
+      setPage("dashboard");
+      return;
+    }
+    setPage(nextPage);
+  };
 
-    return () => clearTimeout(timer);
-  }, [auth?.accessToken, auth?.expiresAt]);
-
-  const openModal = (kind: Exclude<ModalKind, null>, mode: ModalMode = "add", productId?: string) => {
+  const openModal = (kind: Exclude<ModalKind, null>, mode: ModalMode = "add", item?: CategoryItem) => {
     setModalMode(mode);
-    setModalProductId(productId);
     setModal(kind);
+    if (kind === "kategori" && item) setEditingCategory(item);
+    else setEditingCategory(null);
   };
 
-  if (!fontsLoaded || !authLoaded) return <View style={styles.loading}><Text style={styles.loadingText}>Loading TuneBoss...</Text></View>;
+  if (!fontsLoaded || !storageReady) return <View style={styles.loading}><Text style={styles.loadingText}>Loading TuneBoss...</Text></View>;
 
-  if (!auth?.accessToken) {
-    return <AuthScreen onLogin={setLoggedIn} />;
+  if (!token) {
+    return <AuthScreen onLogin={(payload) => { void storeAuth(payload); setAuth(payload); }} />;
   }
 
   return (
     <ErrorBoundary>
-      <InventoryDataProvider token={auth.accessToken}>
-        <InventoryContent page={page} onLogout={logout} onNavigate={setPage} openModal={openModal} />
-        <ActionModal initialProductId={modalProductId} kind={modal} mode={modalMode} onClose={() => { setModal(null); setModalProductId(undefined); }} />
+      <InventoryDataProvider activePage={page} token={token}>
+        <Layout active={page} role={role} onLogout={() => { void clearStoredAuth(); void clearStoredPage(); setAuth(null); setPage("dashboard"); }} onNavigate={navigate}>
+          {page === "dashboard" ? <DashboardPage /> : null}
+          {page === "kategori" ? <KategoriPage onOpenModal={(mode, item) => openModal("kategori", mode, item)} /> : null}
+          {page === "stok" ? <StokPage onOpenModal={(mode) => openModal("stok", mode)} /> : null}
+          {page === "penjualan" ? <PenjualanPage /> : null}
+          {page === "scan" ? <ScanPage onGoInbound={() => setPage("masuk")} onGoOutbound={() => setPage("keluar")} /> : null}
+          {page === "masuk" ? <MovementPage kind="inbound" onOpenModal={() => openModal("masuk")} /> : null}
+          {page === "keluar" ? <MovementPage kind="outbound" onOpenModal={() => openModal("keluar")} /> : null}
+          {page === "laporan" ? <LaporanPage onNavigate={navigate} /> : null}
+          {page === "admin" && role === "admin" ? <AdminPage currentUserId={auth?.user?.id} /> : null}
+          {page === "laporan-stok" ? <ReportDetail type="stok" onBack={() => setPage("laporan")} /> : null}
+          {page === "laporan-penjualan" ? <ReportDetail type="penjualan" onBack={() => setPage("laporan")} /> : null}
+          {page === "laporan-masuk" ? <ReportDetail type="masuk" onBack={() => setPage("laporan")} /> : null}
+          {page === "laporan-keluar" ? <ReportDetail type="keluar" onBack={() => setPage("laporan")} /> : null}
+        </Layout>
+        <ActionModal kind={modal} mode={modalMode} editingCategory={editingCategory} onClose={() => { setEditingCategory(null); setModal(null); }} />
       </InventoryDataProvider>
     </ErrorBoundary>
   );
 }
 
-function InventoryContent({ onLogout, onNavigate, openModal, page }: { onLogout: () => void; onNavigate: (page: PageKey) => void; openModal: (kind: Exclude<ModalKind, null>, mode?: ModalMode, productId?: string) => void; page: PageKey }) {
-  const { loading } = useInventoryData();
-
-  return (
-    <Layout active={page} onLogout={onLogout} onNavigate={onNavigate}>
-      {loading ? <InventoryLoading /> : null}
-      {!loading && page === "dashboard" ? <DashboardPage /> : null}
-      {!loading && page === "kategori" ? <KategoriPage onOpenModal={(mode) => openModal("kategori", mode)} /> : null}
-      {!loading && page === "stok" ? <StokPage onOpenModal={(mode) => openModal("stok", mode)} /> : null}
-      {!loading && page === "penjualan" ? <PenjualanPage /> : null}
-      {!loading && page === "scan" ? <ScanPage onGoInbound={(productId) => openModal("masuk", "add", productId)} onGoOutbound={(productId) => openModal("keluar", "add", productId)} /> : null}
-      {!loading && page === "masuk" ? <MovementPage kind="inbound" onOpenModal={() => openModal("masuk")} /> : null}
-      {!loading && page === "keluar" ? <MovementPage kind="outbound" onOpenModal={() => openModal("keluar")} /> : null}
-      {!loading && page === "opname" ? <StockOpnamePage /> : null}
-      {!loading && page === "restock" ? <RestockPage /> : null}
-      {!loading && page === "laporan" ? <LaporanPage onNavigate={onNavigate} /> : null}
-      {!loading && page === "admin" ? <AdminPage /> : null}
-      {!loading && page === "laporan-stok" ? <ReportDetail type="stok" onBack={() => onNavigate("laporan")} /> : null}
-      {!loading && page === "laporan-penjualan" ? <ReportDetail type="penjualan" onBack={() => onNavigate("laporan")} /> : null}
-      {!loading && page === "laporan-masuk" ? <ReportDetail type="masuk" onBack={() => onNavigate("laporan")} /> : null}
-      {!loading && page === "laporan-keluar" ? <ReportDetail type="keluar" onBack={() => onNavigate("laporan")} /> : null}
-    </Layout>
-  );
-}
-
-function InventoryLoading() {
-  return (
-    <View style={styles.stack}>
-      <View style={styles.skeletonGrid}>
-        <View style={styles.skeletonCard} />
-        <View style={styles.skeletonCard} />
-        <View style={styles.skeletonCard} />
-        <View style={styles.skeletonCard} />
-      </View>
-      <View style={styles.loadingPanel}>
-        <ActivityIndicator color="#ed6c05" size="large" />
-        <Text style={styles.loadingTitle}>Memuat Data</Text>
-        <Text style={styles.loadingHint}>Dashboard sedang mengambil data terbaru dari API. Tampilan akan muncul setelah sinkronisasi selesai.</Text>
-      </View>
-    </View>
-  );
-}
-
-function loadStoredAuth(): AuthPayload | null {
+async function loadStoredAuth(): Promise<StoredAuth | null> {
   try {
-    if (Platform.OS !== "web" || typeof localStorage === "undefined") return null;
-    const value = localStorage.getItem(authStorageKey);
+    const value = await getStoredValue(storageKeys.auth);
     return value ? JSON.parse(value) : null;
   } catch {
     return null;
   }
 }
 
-async function loadStoredAuthAsync(): Promise<AuthPayload | null> {
-  try {
-    const value = await SecureStore.getItemAsync(authStorageKey);
-    return value ? JSON.parse(value) : null;
-  } catch {
-    return null;
-  }
-}
-
-async function storeAuth(payload: AuthPayload) {
-  try {
-    if (Platform.OS === "web" && typeof localStorage !== "undefined") localStorage.setItem(authStorageKey, JSON.stringify(payload));
-    if (Platform.OS !== "web") await SecureStore.setItemAsync(authStorageKey, JSON.stringify(payload));
-  } catch {
-    // Keep the token in memory if persistent storage is temporarily unavailable.
-  }
+async function storeAuth(payload: StoredAuth) {
+  await setStoredValue(storageKeys.auth, JSON.stringify(payload));
 }
 
 async function clearStoredAuth() {
+  await deleteStoredValue(storageKeys.auth);
+}
+
+async function loadStoredPage(): Promise<PageKey | null> {
   try {
-    if (Platform.OS === "web" && typeof localStorage !== "undefined") localStorage.removeItem(authStorageKey);
-    if (Platform.OS !== "web") await SecureStore.deleteItemAsync(authStorageKey);
+    const value = await getStoredValue(storageKeys.page);
+    return value as PageKey | null;
   } catch {
-    // Ignore storage cleanup failures.
+    return null;
   }
+}
+
+async function storePage(page: PageKey) {
+  await setStoredValue(storageKeys.page, page);
+}
+
+async function clearStoredPage() {
+  await deleteStoredValue(storageKeys.page);
 }

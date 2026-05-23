@@ -8,9 +8,15 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "desktop:export": "expo export --platform web --output-dir dist",
+    "desktop:dev": "npm run desktop:export && electron desktop/main.cjs",
+    "desktop:build": "npm run desktop:export && electron-builder --win portable",
+    "desktop:build:win": "npm run desktop:export && electron-builder --win nsis portable",
+    "desktop:build:linux": "npm run desktop:export && electron-builder --linux AppImage",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@react-native-community/datetimepicker": "8.6.0",
     "expo": "latest",
     "expo-camera": "^55.0.18",
     "expo-file-system": "^55.0.21",
@@ -24,12 +30,50 @@
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native": "0.83.6",
+    "react-native-barcode-svg": "^0.0.15",
     "react-native-gifted-charts": "^1.4.76",
     "react-native-svg": "15.15.3",
-    "react-native-web": "latest"
+    "react-native-web": "latest",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "latest",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12",
     "typescript": "latest"
+  },
+  "build": {
+    "appId": "id.tuneboss.inventory.desktop",
+    "productName": "TuneBoss Inventory",
+    "directories": {
+      "output": "desktop-build-logo-ico"
+    },
+    "icon": "assets/logo.ico",
+    "files": [
+      "desktop/**/*",
+      "dist/**/*",
+      "assets/logo.ico",
+      "assets/logo.png",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "desktop/main.cjs"
+    },
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    }
   }
 }

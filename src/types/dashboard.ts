@@ -1,6 +1,7 @@
 export type DashboardSummary = {
   totalSku: number;
   totalUnits: number;
+  lowStockUnits?: number;
   lowStockCount: number;
   outOfStockCount: number;
   stockHealth: {
@@ -35,7 +36,6 @@ export type StockItem = PriorityProduct & {
   category: string;
   location: string;
   lastUpdated: string;
-  salePrice?: number;
   categoryId?: string;
   isActive?: boolean;
   imageUrl?: string | null;
@@ -43,12 +43,17 @@ export type StockItem = PriorityProduct & {
 
 export type StockMovement = {
   id: string;
+  productId: string;
   type: "inbound" | "outbound" | "adjustment" | "sale";
   productName: string;
   sku: string;
   quantity: number;
+  beforeQuantity?: number;
+  afterQuantity?: number;
   operator: string;
   party: string;
+  saleAddress?: string | null;
+  saleInvoice?: string | null;
   timestamp: string;
   note: string;
 };

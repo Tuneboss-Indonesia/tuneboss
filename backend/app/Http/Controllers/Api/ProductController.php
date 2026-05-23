@@ -17,6 +17,7 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $products = Product::query()
+            ->where('is_active', true)
             ->with(['category', 'stock'])
             ->when($request->query('search'), function ($query, string $search) {
                 $query->where(function ($query) use ($search) {
@@ -26,7 +27,15 @@ class ProductController extends Controller
                 });
             })
             ->when($request->query('category_id'), fn ($query, string $categoryId) => $query->where('category_id', $categoryId))
-            ->when($request->query('active') !== null, fn ($query) => $query->where('is_active', filter_var($request->query('active'), FILTER_VALIDATE_BOOLEAN)))
+            ->when($request->query('status'), function ($query, string $status) {
+                if ($status === 'Habis') {
+                    $query->whereHas('stock', fn ($q) => $q->where('quantity', 0));
+                } elseif ($status === 'Menipis') {
+                    $query->whereHas('stock', fn ($q) => $q->where('quantity', '>', 0)->where('quantity', '<', 5));
+                } elseif ($status === 'Tersedia') {
+                    $query->whereHas('stock', fn ($q) => $q->where('quantity', '>', 0));
+                }
+            })
             ->orderBy('name')
             ->paginate((int) $request->query('per_page', 15));
 
@@ -36,10 +45,23 @@ class ProductController extends Controller
     public function store(Request $request)
     {
         $data = $this->validated($request);
+        $initialStock = $request->integer('initial_stock', 0);
 
-        $product = DB::transaction(function () use ($request, $data) {
+        $product = DB::transaction(function () use ($request, $data, $initialStock) {
             $product = Product::create($data);
-            $product->stock()->create(['quantity' => 0]);
+            $product->stock()->create(['quantity' => $initialStock]);
+
+            if ($initialStock > 0) {
+                $product->movements()->create([
+                    'type' => 'adjustment',
+                    'quantity' => $initialStock,
+                    'before_quantity' => 0,
+                    'after_quantity' => $initialStock,
+                    'note' => 'Stok awal saat produk dibuat',
+                    'operator_id' => $request->user()->id,
+                ]);
+            }
+
             $this->audit($request, 'product.created', $product, after: $this->auditPayload($product));
 
             return $product;
@@ -56,12 +78,34 @@ class ProductController extends Controller
     public function update(Request $request, Product $product)
     {
         $data = $this->validated($request, $product);
+        $currentStock = $request->input('current_stock');
 
-        $product = DB::transaction(function () use ($request, $product, $data) {
+        $product = DB::transaction(function () use ($request, $product, $data, $currentStock) {
             $before = $this->auditPayload($product);
             $product->update($data);
-            $this->audit($request, 'product.updated', $product, $before, $this->auditPayload($product));
 
+            if ($currentStock !== null) {
+                $stockRecord = $product->stock;
+                if (!$stockRecord) {
+                    $stockRecord = $product->stock()->create(['quantity' => 0]);
+                }
+                $oldQty = $stockRecord->quantity;
+                $newQty = (int) $currentStock;
+
+                if ($oldQty !== $newQty) {
+                    $stockRecord->update(['quantity' => $newQty]);
+                    $product->movements()->create([
+                        'type' => 'adjustment',
+                        'quantity' => $newQty - $oldQty,
+                        'before_quantity' => $oldQty,
+                        'after_quantity' => $newQty,
+                        'note' => 'Koreksi stok via edit produk',
+                        'operator_id' => $request->user()->id,
+                    ]);
+                }
+            }
+
+            $this->audit($request, 'product.updated', $product, $before, $this->auditPayload($product));
             return $product;
         });
 
@@ -71,10 +115,11 @@ class ProductController extends Controller
     public function destroy(Request $request, Product $product)
     {
         $before = $this->auditPayload($product);
-        $product->update(['is_active' => false]);
-        $this->audit($request, 'product.disabled', $product, $before, $this->auditPayload($product));
 
-        return response()->json(['message' => 'Produk dinonaktifkan.']);
+        $product->update(['is_active' => false]);
+        $this->audit($request, 'product.deleted', $product, $before, $this->auditPayload($product));
+
+        return response()->json(['message' => 'Produk berhasil dinonaktifkan.']);
     }
 
     public function uploadImage(Request $request, Product $product)
@@ -132,7 +177,6 @@ class ProductController extends Controller
             'categoryId' => $product->category_id,
             'stock' => $stock,
             'minStock' => $product->min_stock,
-            'salePrice' => (float) $product->sale_price,
             'status' => $this->status($stock, $product->min_stock),
         ]);
     }
@@ -144,7 +188,6 @@ class ProductController extends Controller
             'name' => ['required', 'string', 'max:180'],
             'sku' => ['required', 'string', 'max:80', Rule::unique('products', 'sku')->ignore($product?->id)],
             'barcode' => ['nullable', 'string', 'max:120', Rule::unique('products', 'barcode')->ignore($product?->id)],
-            'sale_price' => ['required', 'numeric', 'min:0'],
             'min_stock' => ['required', 'integer', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
@@ -152,7 +195,7 @@ class ProductController extends Controller
 
     private function status(int $stock, int $minStock): string
     {
-        return $stock === 0 ? 'empty' : ($stock < $minStock ? 'low' : 'safe');
+        return $stock === 0 ? 'empty' : ($stock < 5 ? 'low' : 'safe');
     }
 
     private function audit(Request $request, string $action, Product $product, ?array $before = null, ?array $after = null): void
@@ -168,6 +211,6 @@ class ProductController extends Controller
 
     private function auditPayload(Product $product): array
     {
-        return $product->only(['category_id', 'name', 'sku', 'barcode', 'image_path', 'sale_price', 'min_stock', 'is_active']);
+        return $product->only(['category_id', 'name', 'sku', 'barcode', 'image_path', 'min_stock', 'is_active']);
     }
 }

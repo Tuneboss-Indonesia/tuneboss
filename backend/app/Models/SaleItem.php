@@ -11,14 +11,12 @@ class SaleItem extends Model
 {
     use HasFactory, HasUuids;
 
-    protected $fillable = ['sale_id', 'product_id', 'quantity', 'price', 'subtotal'];
+    protected $fillable = ['sale_id', 'product_id', 'quantity'];
 
     protected function casts(): array
     {
         return [
             'quantity' => 'integer',
-            'price' => 'decimal:2',
-            'subtotal' => 'decimal:2',
         ];
     }
 
