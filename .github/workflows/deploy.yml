@@ -121,7 +121,20 @@ jobs:
   deploy:
     needs: [build-frontend, build-backend]
     runs-on: ubuntu-latest
-    if: false
     steps:
-      - name: Deploy to VPS
-        run: echo "Add deploy step here (SSH + docker-compose pull && up)"
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/tuneboss
+            git pull
+            cp .env.docker.example .env
+            sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=${{ secrets.DB_PASSWORD }}/" .env
+            sed -i "s/DB_ROOT_PASSWORD=.*/DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}/" .env
+            sed -i "s/APP_KEY=.*/APP_KEY=${{ secrets.APP_KEY }}/" .env
+            docker compose pull
+            docker compose up -d --force-recreate
+            docker image prune -f

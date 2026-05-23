@@ -32,7 +32,10 @@ ENV APP_DEBUG=false
 
 COPY nginx.conf /etc/nginx/http.d/default.conf
 COPY supervisord.conf /etc/supervisord.conf
+COPY docker-start.sh /docker-start.sh
+
+RUN chmod +x /docker-start.sh
 
 EXPOSE 8000
 
-CMD ["supervisord", "-c", "/etc/supervisord.conf"]
+CMD ["/docker-start.sh"]
