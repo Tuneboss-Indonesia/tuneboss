@@ -101,8 +101,8 @@ DB_PASSWORD=
 ```
 
 Seeder membuat akun awal:
-- Admin: `admin@tuneboss.id` / `password`
-- Staff: `staff@tuneboss.id` / `password`
+- Admin: `admin@tuneboss.co.id` / `password`
+- Staff: `staff@tuneboss.co.id` / `password`
 
 Ganti password untuk environment production.
 
@@ -114,10 +114,10 @@ npm run web        # Web dashboard di http://localhost:8081
 npm run start      # Expo mobile development
 ```
 
-Frontend default membaca API dari `http://localhost:8000`. Untuk override:
+Frontend default membaca API dari `http://localhost:8000/api`. Untuk override:
 
 ```env
-EXPO_PUBLIC_API_URL=http://localhost:8000
+EXPO_PUBLIC_API_URL=http://localhost:8000/api
 ```
 
 ## PWA — Build & Deploy Web
@@ -152,18 +152,18 @@ php artisan inventory:backup
 
 ## API Ringkas
 
-API tanpa prefix `/api`. Contoh endpoint:
+API memakai prefix `/api`. Contoh endpoint:
 
-- `POST /auth/login`
-- `POST /auth/refresh`
-- `GET /health`
-- `GET /app/bootstrap`
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `GET /api/health`
+- `GET /api/app/bootstrap`
 - `GET /dashboard/summary`
 - `GET /products`
 - `GET /products/lookup?code=SKU_OR_BARCODE`
 - `POST /products/{id}/image`
 - `GET /restock-alerts`
 - `POST /stock/inbound`
-- `POST /stock/outbound`
-- `POST /sales`
-- `GET /reports/stock/export`
+- `POST /api/stock/outbound`
+- `POST /api/sales`
+- `GET /api/reports/stock/export`

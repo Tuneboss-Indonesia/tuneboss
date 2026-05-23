@@ -201,7 +201,7 @@ DB_USERNAME=tuneboss_user
 DB_PASSWORD=change_me
 
 SANCTUM_STATEFUL_DOMAINS=
-CORS_ALLOWED_ORIGINS=https://inventory.tuneboss.id,http://localhost:8081,http://localhost:19006
+CORS_ALLOWED_ORIGINS=https://tuneboss.co.id,http://localhost:8081,http://localhost:19006
 ```
 
 ## Development
@@ -214,9 +214,8 @@ php artisan serve
 ```
 
 Akun seed:
-- Admin: `admin@tuneboss.id` / `password`
-- Staff: `staff@tuneboss.id` / `password`
-
+- Admin: `admin@tuneboss.co.id` / `password`
+- Staff: `staff@tuneboss.co.id` / `password`
 Test:
 ```bash
 php artisan test

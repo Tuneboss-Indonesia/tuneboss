@@ -7,7 +7,7 @@ export type ApiError = Error & { code?: string; status?: number; errors?: Record
 const defaultBaseUrl = Platform.select({
   android: "http://10.0.2.2:8000",
   default: "http://localhost:8000",
-});
+}) + "/api";
 
 export const apiBaseUrl = process.env?.EXPO_PUBLIC_API_URL ?? defaultBaseUrl;
 
