@@ -1,64 +1,33 @@
 # TuneBoss Inventory Backend
 
-Backend API untuk aplikasi inventory internal TuneBoss.ID. Backend ini dirancang menggunakan Laravel dan MariaDB/MySQL agar mudah dijalankan di hosting dan mudah diintegrasikan dengan aplikasi React Native/Expo.
+Backend API untuk aplikasi inventory internal TuneBoss ID. Backend menggunakan Laravel dan MariaDB/MySQL dan diintegrasikan dengan aplikasi React Native/Expo.
 
 ## Tujuan
 
-- Menyediakan REST API untuk aplikasi inventory TuneBoss.
-- Mengelola autentikasi admin dan pegawai gudang.
-- Mengelola data kategori, produk, stok, transaksi stok, penjualan, dan laporan.
-- Mengelola supplier dan customer sederhana untuk laporan operasional.
-- Menyimpan audit trail semua perubahan stok.
-- Menjadi backend yang siap dideploy ke shared hosting dengan HTTPS.
+- REST API untuk aplikasi inventory TuneBoss.
+- Autentikasi admin dan pegawai gudang via Laravel Sanctum.
+- Kelola kategori, produk, stok (ledger), penjualan, dan laporan.
+- Audit trail semua perubahan stok dan data penting.
 
 ## Stack
 
-- Laravel sebagai backend framework.
-- MariaDB/MySQL sebagai database utama.
-- Eloquent ORM dan migration bawaan Laravel.
-- Laravel Sanctum atau JWT untuk autentikasi API.
-- Argon2 atau bcrypt untuk hashing password.
-- Form Request Laravel untuk validasi request.
-- Shared hosting/cPanel untuk deployment awal.
-- Cron job hosting untuk scheduled task ringan jika tersedia.
+- Laravel 12.
+- MariaDB/MySQL.
+- Laravel Sanctum (token-based auth).
+- Form Request Laravel untuk validasi.
+- PHPUnit + MySQL untuk testing parity.
 
 ## Arsitektur
 
 ```text
-React Native / Expo App
+React Native / Expo App (Web / Android / iOS)
         |
         | HTTPS REST API
         v
-Laravel API
-        |
-        v
-MariaDB/MySQL Database
+Laravel API  →  MariaDB/MySQL
 ```
 
-Dokumen pendukung:
-
-- `ERD.md` untuk rancangan database dan relasi tabel.
-- `ERD.png` untuk gambar ERD siap pakai.
-- `ERD.mmd` untuk source Mermaid ERD jika perlu generate ulang gambar.
-- `TABLES.md` untuk spesifikasi kolom, key, nullable, default, foreign key, dan rule tabel.
-- `FLOWCHART.md` untuk alur login, dashboard, stok, penjualan, laporan, dan role access.
-- `FLOWCHART.mmd` untuk source Mermaid flowchart utama jika perlu generate ulang gambar.
-- `FLOWCHART.png` untuk gambar flowchart utama siap pakai.
-- `DEPLOYMENT.md` untuk panduan deploy ke shared hosting/cPanel.
-- `API.md` untuk kontrak endpoint, auth header, request/response, dan filter API.
-- `FRONTEND_INTEGRATION.md` untuk mapping data API ke frontend Expo/React Native.
-
-Preview ERD:
-
-![ERD TuneBoss Inventory](./ERD.png)
-
-Preview Flowchart:
-
-![Flowchart TuneBoss Inventory](./FLOWCHART.png)
-
-## Struktur Project
-
-Gunakan struktur bawaan Laravel semaksimal mungkin. Jangan mengubah struktur default Laravel atau membuat arsitektur custom besar sebelum ada kebutuhan nyata.
+## Struktur
 
 ```text
 backend/
@@ -68,6 +37,7 @@ backend/
       Requests/
       Middleware/
     Models/
+    Services/
   database/
     migrations/
     seeders/
@@ -76,128 +46,86 @@ backend/
   config/
   public/
   .env.example
+  .env.production.example
 ```
 
-Jika logic mulai membesar, service class boleh ditambahkan secara minimal di `app/Services`, tetapi bukan kebutuhan awal.
-
-## Modul Utama
+## Modul
 
 ### Auth
-
-- Login admin/pegawai.
-- Refresh token opsional.
-- Proteksi endpoint dengan Sanctum token atau JWT.
-- Role sederhana: `admin` dan `staff`.
+- Login/refresh/logout.
+- Role: `admin` dan `staff`.
+- Proteksi endpoint dengan token Sanctum.
 
 ### Users
-
 - CRUD user internal.
 - Aktivasi/nonaktif user.
-- Assign role.
 
 ### Categories
-
 - CRUD kategori barang.
-- Contoh kategori awal: ECU, Kabel, Aksesoris, Lainnya.
+- Contoh: ECU, Lainnya.
 
 ### Products
-
-- CRUD produk.
-- Menyimpan SKU, barcode, nama, kategori, harga, stok minimum, dan status aktif.
-- Lookup produk berdasarkan SKU atau barcode untuk fitur scan.
+- CRUD produk dengan SKU, barcode, nama, kategori, harga, stok minimum, status aktif.
+- Upload/hapus foto produk.
+- Lookup via SKU atau barcode (scan).
 
 ### Stock
-
-- Barang masuk.
-- Barang keluar.
-- Koreksi stok.
-- Riwayat pergerakan stok.
-- Perhitungan stok saat ini.
+- Barang masuk (`inbound`), barang keluar (`outbound`).
+- Riwayat pergerakan stok (ledger).
+- Sale movement otomatis saat transaksi penjualan.
 
 ### Sales
-
-- Transaksi penjualan sederhana.
-- Item penjualan.
-- Penjualan otomatis membuat stock movement keluar.
-- Customer opsional untuk transaksi penjualan.
-
-### Suppliers & Customers
-
-- Master data supplier untuk barang masuk.
-- Master data customer/dealer untuk barang keluar dan penjualan.
-- Delete menonaktifkan data agar Riwayat Penjualan tetap aman.
+- Item stok penjualan.
+- Validasi stok sebelum konfirmasi.
 
 ### Reports
-
-- Ringkasan dashboard.
-- Laporan stok.
-- Laporan barang masuk.
-- Laporan barang keluar.
-- Laporan penjualan.
+- Ringkasan dashboard: total stok, stok rendah, stok habis.
+- Grafik penjualan (harian/mingguan/bulanan/tahunan).
+- Produk terlaris.
+- Laporan stok, barang masuk, barang keluar, penjualan.
 - Filter tanggal dan kategori.
+- Export Excel.
+
+### Restock Alerts
+- Alert otomatis saat stok habis atau di bawah minimum.
+- Filter produk aktif.
 
 ### Audit Logs
-
-- Mencatat aksi penting user.
-- Contoh: tambah produk, edit stok, hapus kategori, login gagal.
+- Mencatat aksi penting user: tambah produk, edit stok, hapus kategori, login gagal, dsb.
 
 ## Prinsip Data Stok
 
-Stok tidak hanya disimpan sebagai angka di tabel produk. Semua perubahan stok harus dicatat sebagai ledger di tabel `stock_movements`.
-
-Contoh tipe movement:
+Stok tidak hanya disimpan sebagai angka di tabel produk. Semua perubahan stok dicatat sebagai **ledger** di tabel `stock_movements`:
 
 - `inbound`: barang masuk.
 - `outbound`: barang keluar.
-- `adjustment`: koreksi stok.
-- `sale`: stok keluar karena transaksi penjualan.
 
-Current stock dapat disimpan sebagai snapshot di `product_stocks`, tetapi sumber kebenaran perubahan tetap `stock_movements`.
+## Entity
 
-## Entity Awal
+### Utama
+- `users`, `categories`, `products`, `product_stocks`, `stock_movements`
+- `sales`, `sale_items`, `audit_logs`, `restock_alerts`
+- `suppliers`, `customers`
 
-Entity minimal:
-
-- `users`
-- `roles`
-- `categories`
-- `products`
-- `product_stocks`
-- `stock_movements`
-- `sales`
-- `sale_items`
-- `audit_logs`
-
-Entity opsional fase lanjut:
-
-- `warehouses`
-- `stock_batches`
-- `suppliers`
-- `customers`
-- `notifications`
-
-## Endpoint Awal
+## Endpoint
 
 ### Auth
-
 ```text
-POST /auth/login
-POST /auth/logout
-GET  /auth/me
+POST   /auth/login
+POST   /auth/logout
+GET    /auth/me
 ```
 
 ### Dashboard
-
 ```text
-GET /dashboard/summary
-GET /dashboard/priority-products
-GET /dashboard/recent-activities
-GET /dashboard/sales-chart?period=day|week|month|year
-GET /dashboard/top-products?period=day|week|month|year
+GET    /dashboard/summary
+GET    /dashboard/priority-products
+GET    /dashboard/recent-activities
+GET    /dashboard/sales-chart?period=day|week|month|year
+GET    /dashboard/top-products?period=day|week|month|year
 ```
 
 ### Categories
-
 ```text
 GET    /categories
 POST   /categories
@@ -207,7 +135,6 @@ DELETE /categories/:id
 ```
 
 ### Products
-
 ```text
 GET    /products
 POST   /products
@@ -215,44 +142,56 @@ GET    /products/:id
 PATCH  /products/:id
 DELETE /products/:id
 GET    /products/lookup?code=SKU_OR_BARCODE
+POST   /products/:id/image
+DELETE /products/:id/image
 ```
 
 ### Stock Movements
-
 ```text
-GET  /stock/movements
-POST /stock/inbound
-POST /stock/outbound
-POST /stock/adjustment
+GET    /stock/movements
+POST   /stock/inbound
+POST   /stock/outbound
 ```
 
 ### Sales
-
 ```text
-GET  /sales
-POST /sales
-GET  /sales/:id
+POST   /sales
+GET    /sales
+GET    /sales/:id
 ```
 
 ### Reports
-
 ```text
-GET /reports/stock
-GET /reports/sales
-GET /reports/inbound
-GET /reports/outbound
+GET    /reports/stock
+GET    /reports/sales
+GET    /reports/inbound
+GET    /reports/outbound
+```
+
+### Restock Alerts
+```text
+GET    /restock-alerts
+```
+
+### Audit Logs
+```text
+GET    /audit-logs
+```
+
+### System
+```text
+GET    /health
+GET    /app/bootstrap
 ```
 
 ## Environment Variables
-
-Contoh `.env`:
 
 ```env
 APP_NAME="TuneBoss Inventory API"
 APP_ENV=production
 APP_KEY=base64:change_me
 APP_DEBUG=false
-APP_URL=https://api.tuneboss.id
+APP_URL=URL
 
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
@@ -265,9 +204,7 @@ SANCTUM_STATEFUL_DOMAINS=
 CORS_ALLOWED_ORIGINS=https://inventory.tuneboss.id,http://localhost:8081,http://localhost:19006
 ```
 
-## Development Flow
-
-Setelah project Laravel dibuat:
+## Development
 
 ```bash
 composer install
@@ -276,68 +213,12 @@ php artisan migrate --seed
 php artisan serve
 ```
 
-Akun seed development:
-
+Akun seed:
 - Admin: `admin@tuneboss.id` / `password`
 - Staff: `staff@tuneboss.id` / `password`
 
-Untuk test:
-
+Test:
 ```bash
 php artisan test
-```
-
-Untuk test parity dengan MariaDB/MySQL lokal, buat database kosong `tuneboss_inventory_test`, lalu jalankan:
-
-```bash
 composer test:mysql
 ```
-
-Konfigurasi default MariaDB test ada di `phpunit.mysql.xml`. Jika credential lokal berbeda, override lewat environment shell atau sesuaikan file itu di mesin lokal.
-
-## Integrasi Dengan React Native
-
-React Native/Expo akan memanggil API melalui base URL.
-
-Contoh environment frontend:
-
-```env
-EXPO_PUBLIC_API_URL=https://api.tuneboss.internal
-```
-
-Contoh request:
-
-```ts
-const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/dashboard/summary`, {
-  headers: {
-    Authorization: `Bearer ${token}`,
-  },
-});
-```
-
-## Deployment Shared Hosting
-
-Rekomendasi deployment awal:
-
-- Shared hosting dengan PHP 8.2+ dan MariaDB/MySQL.
-- Document root diarahkan ke folder `backend/public`.
-- Jalankan migration dari SSH jika tersedia, atau import SQL migration hasil build awal.
-- Pastikan `.env` production tidak berada di public web root.
-- HTTPS aktif dari hosting/cPanel.
-- Backup database harian dari fitur hosting atau cron job.
-
-Contoh domain:
-
-```text
-api.tuneboss.id
-```
-
-## Catatan Keamanan
-
-- Jangan commit `.env`.
-- Gunakan HTTPS di production.
-- Password wajib di-hash.
-- Semua endpoint selain login harus pakai token/JWT.
-- Validasi semua request body/query.
-- Gunakan role guard untuk endpoint admin.
-- Catat perubahan stok ke audit log.
