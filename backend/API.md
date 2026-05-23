@@ -207,7 +207,6 @@ Request create/update:
   "name": "USB Tuning Cable",
   "sku": "TB-USB-CABLE",
   "barcode": "899-TB-004-USB",
-  "sale_price": 250000,
   "min_stock": 15,
   "is_active": true
 }
@@ -262,7 +261,7 @@ Response:
 
 ## Stock
 
-- `GET /stock/movements?product_id=&operator_id=&supplier_id=&customer_id=&type=&from=&to=&per_page=15`
+- `GET /stock/movements?product_id=&operator_id=&type=&from=&to=&per_page=15`
 - `POST /stock/inbound`
 - `POST /stock/outbound`
 - `POST /stock/adjustment` admin-only
@@ -273,8 +272,6 @@ Request inbound/outbound:
 {
   "productId": "uuid",
   "quantity": 5,
-  "supplier_id": "uuid-optional",
-  "customer_id": "uuid-optional",
   "party": "Supplier",
   "note": "Restock"
 }
@@ -292,7 +289,7 @@ Request adjustment:
 
 ## Sales
 
-- `GET /sales?search=&status=&cashier_id=&customer_id=&from=&to=&per_page=15`
+- `GET /sales?search=&status=&cashier_id=&from=&to=&per_page=15`
 - `POST /sales/preview`
 - `POST /sales`
 - `GET /sales/{id}`
@@ -302,7 +299,7 @@ Request create sale:
 
 ```json
 {
-  "customer_id": "uuid-optional",
+  "address": "Alamat atau customer opsional",
   "items": [
     {
       "product_id": "uuid",
@@ -318,7 +315,6 @@ Response preview:
 
 ```json
 {
-  "customerId": "uuid-optional",
   "items": [
     {
       "productId": "uuid",
@@ -326,54 +322,11 @@ Response preview:
       "sku": "TB-USB-CABLE",
       "quantity": 2,
       "availableStock": 18,
-      "afterStock": 16,
-      "price": 250000,
-      "subtotal": 500000
+      "afterStock": 16
     }
   ],
   "totalItems": 2,
-  "totalAmount": 500000,
   "canSubmit": true
-}
-```
-
-## Suppliers
-
-- `GET /suppliers?search=&active=&per_page=15`
-- `POST /suppliers` admin-only
-- `GET /suppliers/{id}`
-- `PATCH /suppliers/{id}` admin-only
-- `DELETE /suppliers/{id}` admin-only, menonaktifkan supplier
-
-Request create/update:
-
-```json
-{
-  "name": "Supplier Malaysia",
-  "phone": "08123456789",
-  "email": "supplier@example.com",
-  "address": "Malaysia",
-  "is_active": true
-}
-```
-
-## Customers
-
-- `GET /customers?search=&active=&per_page=15`
-- `POST /customers` admin-only
-- `GET /customers/{id}`
-- `PATCH /customers/{id}` admin-only
-- `DELETE /customers/{id}` admin-only, menonaktifkan customer
-
-Request create/update:
-
-```json
-{
-  "name": "Dealer Bandung",
-  "phone": "08123456789",
-  "email": "dealer@example.com",
-  "address": "Bandung",
-  "is_active": true
 }
 ```
 
@@ -391,15 +344,15 @@ Request void sale:
 - `GET /reports/stock?category_id=&product_id=&status=&per_page=15`
 - `GET /reports/stock/export?category_id=&product_id=&status=` CSV
 - `GET /reports/stock/export.pdf?category_id=&product_id=&status=` PDF
-- `GET /reports/sales?search=&status=&cashier_id=&customer_id=&from=&to=&per_page=15`
-- `GET /reports/sales/export?search=&status=&cashier_id=&customer_id=&from=&to=` CSV
-- `GET /reports/sales/export.pdf?search=&status=&cashier_id=&customer_id=&from=&to=` PDF
-- `GET /reports/inbound?product_id=&operator_id=&supplier_id=&from=&to=&per_page=15`
-- `GET /reports/inbound/export?product_id=&operator_id=&supplier_id=&from=&to=` CSV
-- `GET /reports/inbound/export.pdf?product_id=&operator_id=&supplier_id=&from=&to=` PDF
-- `GET /reports/outbound?product_id=&operator_id=&customer_id=&from=&to=&per_page=15`
-- `GET /reports/outbound/export?product_id=&operator_id=&customer_id=&from=&to=` CSV
-- `GET /reports/outbound/export.pdf?product_id=&operator_id=&customer_id=&from=&to=` PDF
+- `GET /reports/sales?search=&status=&cashier_id=&from=&to=&per_page=15`
+- `GET /reports/sales/export?search=&status=&cashier_id=&from=&to=` CSV
+- `GET /reports/sales/export.pdf?search=&status=&cashier_id=&from=&to=` PDF
+- `GET /reports/inbound?product_id=&operator_id=&from=&to=&per_page=15`
+- `GET /reports/inbound/export?product_id=&operator_id=&from=&to=` CSV
+- `GET /reports/inbound/export.pdf?product_id=&operator_id=&from=&to=` PDF
+- `GET /reports/outbound?product_id=&operator_id=&from=&to=&per_page=15`
+- `GET /reports/outbound/export?product_id=&operator_id=&from=&to=` CSV
+- `GET /reports/outbound/export.pdf?product_id=&operator_id=&from=&to=` PDF
 
 Endpoint export memakai filter yang sama dengan endpoint list. CSV mengembalikan `text/csv`; PDF mengembalikan `application/pdf` dan dibatasi ringkas untuk preview/cetak. Gunakan CSV untuk data penuh.
 
@@ -411,6 +364,7 @@ Endpoint export memakai filter yang sama dengan endpoint list. CSV mengembalikan
 - `PATCH /users/{id}`
 - `PATCH /users/{id}/password`
 - `PATCH /users/{id}/deactivate`
+- `DELETE /users/{id}` hapus permanen jika user belum terkunci riwayat transaksi
 
 ## Audit Logs Admin-Only
 

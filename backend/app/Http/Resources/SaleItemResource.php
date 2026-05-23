@@ -16,8 +16,6 @@ class SaleItemResource extends JsonResource
             'productName' => $this->product?->name,
             'sku' => $this->product?->sku,
             'quantity' => $this->quantity,
-            'price' => (float) $this->price,
-            'subtotal' => (float) $this->subtotal,
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

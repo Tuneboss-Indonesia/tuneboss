@@ -6,11 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\StockMovementCollection;
 use App\Http\Resources\StockMovementResource;
 use App\Models\AuditLog;
-use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductStock;
 use App\Models\StockMovement;
-use App\Models\Supplier;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,12 +17,23 @@ class StockController extends Controller
 {
     public function movements(Request $request)
     {
-        $movements = StockMovement::with(['product', 'operator', 'supplier', 'customer'])
-            ->when($request->query('type'), fn ($query, string $type) => $query->where('type', $type))
+        $movements = StockMovement::with(['product', 'operator', 'sale'])
+            ->when($request->query('type'), function ($query, string $type) {
+                $types = collect(explode(',', $type))
+                    ->map(fn (string $item) => trim($item))
+                    ->filter()
+                    ->values();
+
+                if ($types->isEmpty()) {
+                    return $query;
+                }
+
+                return $types->count() > 1
+                    ? $query->whereIn('type', $types->all())
+                    : $query->where('type', $types->first());
+            })
             ->when($request->query('product_id'), fn ($query, string $productId) => $query->where('product_id', $productId))
             ->when($request->query('operator_id'), fn ($query, string $operatorId) => $query->where('operator_id', $operatorId))
-            ->when($request->query('supplier_id'), fn ($query, string $supplierId) => $query->where('supplier_id', $supplierId))
-            ->when($request->query('customer_id'), fn ($query, string $customerId) => $query->where('customer_id', $customerId))
             ->when($request->query('from'), fn ($query, string $from) => $query->whereDate('created_at', '>=', $from))
             ->when($request->query('to'), fn ($query, string $to) => $query->whereDate('created_at', '<=', $to))
             ->latest()
@@ -37,14 +46,92 @@ class StockController extends Controller
     {
         $data = $this->validateMovement($request);
 
-        return (new StockMovementResource($this->move($request, $data, 'inbound')->load(['product', 'operator', 'supplier', 'customer'])))->response()->setStatusCode(201);
+        return (new StockMovementResource($this->move($request, $data, 'inbound')->load(['product', 'operator'])))->response()->setStatusCode(201);
     }
 
     public function outbound(Request $request)
     {
         $data = $this->validateMovement($request);
 
-        return (new StockMovementResource($this->move($request, $data, 'outbound')->load(['product', 'operator', 'supplier', 'customer'])))->response()->setStatusCode(201);
+        return (new StockMovementResource($this->move($request, $data, 'outbound')->load(['product', 'operator'])))->response()->setStatusCode(201);
+    }
+
+    public function updateMovement(Request $request, StockMovement $stockMovement)
+    {
+        $this->ensureEditableMovement($stockMovement);
+        $data = $this->validateMovement($request);
+
+        $movement = DB::transaction(function () use ($request, $data, $stockMovement) {
+            $movement = StockMovement::whereKey($stockMovement->id)->lockForUpdate()->firstOrFail();
+            $this->ensureEditableMovement($movement);
+
+            $oldStock = ProductStock::where('product_id', $movement->product_id)->lockForUpdate()->firstOrFail();
+            $oldAfter = $oldStock->quantity - $this->stockDelta($movement->type, $movement->quantity);
+
+            if ($oldAfter < 0) {
+                throw new HttpResponseException(response()->json([
+                    'message' => 'Stok tidak cukup untuk membatalkan perubahan lama.',
+                    'code' => 'insufficient_stock',
+                ], 422));
+            }
+
+            $oldStock->update(['quantity' => $oldAfter]);
+
+            $productId = $data['product_id'] ?? $data['productId'];
+            Product::where('id', $productId)->where('is_active', true)->firstOrFail();
+            $newStock = ProductStock::where('product_id', $productId)->lockForUpdate()->firstOrFail();
+            $before = $newStock->quantity;
+            $after = $before + $this->stockDelta($movement->type, $data['quantity']);
+
+            if ($after < 0) {
+                throw new HttpResponseException(response()->json([
+                    'message' => 'Stok tidak cukup.',
+                    'code' => 'insufficient_stock',
+                ], 422));
+            }
+
+            $newStock->update(['quantity' => $after]);
+            $movement->update([
+                'product_id' => $productId,
+                'quantity' => $data['quantity'],
+                'before_quantity' => $before,
+                'after_quantity' => $after,
+                'party' => $this->party($data),
+                'note' => $data['note'] ?? null,
+            ]);
+
+            $this->audit($request, 'stock.movement_updated', $movement);
+
+            return $movement;
+        });
+
+        return new StockMovementResource($movement->load(['product', 'operator']));
+    }
+
+    public function destroyMovement(Request $request, StockMovement $stockMovement)
+    {
+        $this->ensureEditableMovement($stockMovement);
+
+        DB::transaction(function () use ($request, $stockMovement) {
+            $movement = StockMovement::whereKey($stockMovement->id)->lockForUpdate()->firstOrFail();
+            $this->ensureEditableMovement($movement);
+
+            $stock = ProductStock::where('product_id', $movement->product_id)->lockForUpdate()->firstOrFail();
+            $after = $stock->quantity - $this->stockDelta($movement->type, $movement->quantity);
+
+            if ($after < 0) {
+                throw new HttpResponseException(response()->json([
+                    'message' => 'Stok tidak cukup untuk menghapus pergerakan ini.',
+                    'code' => 'insufficient_stock',
+                ], 422));
+            }
+
+            $stock->update(['quantity' => $after]);
+            $this->audit($request, 'stock.movement_deleted', $movement);
+            $movement->delete();
+        });
+
+        return response()->json(['message' => 'Riwayat stok berhasil dihapus.']);
     }
 
     public function adjustment(Request $request)
@@ -54,8 +141,6 @@ class StockController extends Controller
             'product_id' => ['required_without:productId', 'uuid', 'exists:products,id'],
             'quantity' => ['required', 'integer', 'min:0'],
             'party' => ['nullable', 'string', 'max:180'],
-            'supplier_id' => ['nullable', 'uuid', 'exists:suppliers,id'],
-            'customer_id' => ['nullable', 'uuid', 'exists:customers,id'],
             'note' => ['nullable', 'string'],
         ]);
 
@@ -75,8 +160,6 @@ class StockController extends Controller
                 'before_quantity' => $before,
                 'after_quantity' => $after,
                 'party' => $this->party($data),
-                'supplier_id' => $data['supplier_id'] ?? null,
-                'customer_id' => $data['customer_id'] ?? null,
                 'note' => $data['note'] ?? null,
             ]);
 
@@ -85,7 +168,7 @@ class StockController extends Controller
             return $movement;
         });
 
-        return (new StockMovementResource($movement->load(['product', 'operator', 'supplier', 'customer'])))->response()->setStatusCode(201);
+        return (new StockMovementResource($movement->load(['product', 'operator'])))->response()->setStatusCode(201);
     }
 
     private function validateMovement(Request $request): array
@@ -95,8 +178,6 @@ class StockController extends Controller
             'product_id' => ['required_without:productId', 'uuid', 'exists:products,id'],
             'quantity' => ['required', 'integer', 'min:1'],
             'party' => ['nullable', 'string', 'max:180'],
-            'supplier_id' => ['nullable', 'uuid', 'exists:suppliers,id'],
-            'customer_id' => ['nullable', 'uuid', 'exists:customers,id'],
             'note' => ['nullable', 'string'],
         ]);
     }
@@ -128,8 +209,6 @@ class StockController extends Controller
                 'before_quantity' => $before,
                 'after_quantity' => $after,
                 'party' => $this->party($data),
-                'supplier_id' => $data['supplier_id'] ?? null,
-                'customer_id' => $data['customer_id'] ?? null,
                 'note' => $data['note'] ?? null,
             ]);
 
@@ -137,6 +216,21 @@ class StockController extends Controller
 
             return $movement;
         });
+    }
+
+    private function ensureEditableMovement(StockMovement $movement): void
+    {
+        if (! in_array($movement->type, ['inbound', 'outbound'], true) || $movement->sale_id) {
+            throw new HttpResponseException(response()->json([
+                'message' => 'Riwayat stok ini tidak bisa diedit atau dihapus.',
+                'code' => 'movement_locked',
+            ], 422));
+        }
+    }
+
+    private function stockDelta(string $type, int $quantity): int
+    {
+        return $type === 'inbound' ? $quantity : -$quantity;
     }
 
     private function audit(Request $request, string $action, StockMovement $movement): void
@@ -150,8 +244,6 @@ class StockController extends Controller
                 'productId' => $movement->product_id,
                 'type' => $movement->type,
                 'quantity' => $movement->quantity,
-                'supplierId' => $movement->supplier_id,
-                'customerId' => $movement->customer_id,
                 'before' => ['quantity' => $movement->before_quantity],
                 'after' => ['quantity' => $movement->after_quantity],
             ],
@@ -162,14 +254,6 @@ class StockController extends Controller
     {
         if (! empty($data['party'])) {
             return $data['party'];
-        }
-
-        if (! empty($data['supplier_id'])) {
-            return Supplier::whereKey($data['supplier_id'])->value('name');
-        }
-
-        if (! empty($data['customer_id'])) {
-            return Customer::whereKey($data['customer_id'])->value('name');
         }
 
         return null;

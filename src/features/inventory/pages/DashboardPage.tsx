@@ -7,6 +7,31 @@ import type { ChartPoint, PeriodKey, PressState } from "../types";
 import { CrudShell, DataTable, EmptyRow, Metric, TableRow, WhiteCard } from "../components/common";
 import { loadChart, useInventoryData } from "../InventoryDataContext";
 
+// Module-level cache prevents duplicate chart requests in React StrictMode while
+// still letting the visible remount receive the in-flight result.
+const chartCache = new Map<string, ChartPoint[]>();
+const chartRequests = new Map<string, Promise<ChartPoint[]>>();
+
+function getChartKey(token: string, type: "sales" | "top", period: PeriodKey) {
+  return `${token}:${type}:${period}`;
+}
+
+function loadChartOnce(token: string, type: "sales" | "top", period: PeriodKey) {
+  const key = getChartKey(token, type, period);
+  const cached = chartCache.get(key);
+  if (cached) return Promise.resolve(cached);
+
+  const existingRequest = chartRequests.get(key);
+  if (existingRequest) return existingRequest;
+
+  const request = loadChart(token, type, periodMap[period]).then((data) => {
+    chartCache.set(key, data);
+    return data;
+  }).finally(() => chartRequests.delete(key));
+  chartRequests.set(key, request);
+  return request;
+}
+
 function PeriodTabs({ value, onChange, disabled }: { value: PeriodKey; onChange: (value: PeriodKey) => void; disabled?: boolean }) {
   const { width } = useWindowDimensions();
   const compact = width < 760;
@@ -14,10 +39,20 @@ function PeriodTabs({ value, onChange, disabled }: { value: PeriodKey; onChange:
   return <View style={[styles.periodTabs, compact && styles.periodTabsMobile]}>{options.map(([key, label]) => <Pressable key={key} disabled={disabled} onPress={() => onChange(key)} style={({ hovered, pressed }: PressState) => [styles.periodTab, compact && styles.periodTabMobile, value === key && styles.periodTabActive, !disabled && hovered && value !== key && styles.periodTabHover, pressed && styles.pressed, disabled && styles.tablePagerButtonDisabled]}><Text style={[styles.periodTabText, compact && styles.periodTabTextMobile, value === key && styles.periodTabTextActive, disabled && { color: colors.muted }]}>{label}</Text></Pressable>)}</View>;
 }
 
+function periodLabel(period: PeriodKey) {
+  return { hari: "hari ini", minggu: "minggu ini", bulan: "bulan ini", tahun: "tahun ini" }[period];
+}
+
+function ChartEmptyState({ message }: { message: string }) {
+  return <View style={[styles.chart, { alignItems: "center", justifyContent: "center" }]}><Text style={[styles.emptyText, { textAlign: "center" }]}>{message}</Text></View>;
+}
+
 function SalesBarChart({ data, period }: { data: ChartPoint[]; period: PeriodKey }) {
   const { width } = useWindowDimensions();
   const compact = width < 760;
-  const chartData = data.length ? data : [{ label: "-", value: 0 }];
+  if (!data.length) return <ChartEmptyState message={`Belum ada penjualan ${periodLabel(period)}`} />;
+
+  const chartData = data;
   const maxValue = Math.max(...chartData.map((item) => item.value), 1);
   const chartHeight = compact ? 170 : 220;
   const yTicks = [maxValue, Math.ceil(maxValue * 0.75), Math.ceil(maxValue * 0.5), Math.ceil(maxValue * 0.25), 0];
@@ -29,12 +64,14 @@ function SalesBarChart({ data, period }: { data: ChartPoint[]; period: PeriodKey
 function TopProductsChart({ data, period }: { data: ChartPoint[]; period: PeriodKey }) {
   const { width } = useWindowDimensions();
   const compact = width < 760;
+  if (!data.length) return <ChartEmptyState message={`Belum ada produk terjual ${periodLabel(period)}`} />;
+
   const chartData = data.slice(0, 5);
   const maxValue = Math.max(...chartData.map((item) => item.value), 1);
-  const labelWidth = compact ? 120 : 180;
+  const labelWidth = compact ? 100 : 140;
   const axis = [0, Math.ceil(maxValue / 2), maxValue];
 
-  return <View style={[styles.chart, { minHeight: compact ? 190 : 240, paddingTop: compact ? 14 : 28 }]}>{chartData.map((item) => <View key={item.label} style={{ alignItems: "center", flexDirection: "row", gap: compact ? 8 : 12, minHeight: compact ? 32 : 40 }}><Text style={[styles.axisText, compact && styles.axisTextMobile, { flexShrink: 0, lineHeight: compact ? 13 : 16, width: labelWidth }]}>{item.label}</Text><View style={{ flex: 1, height: compact ? 18 : 24, justifyContent: "center" }}><View style={{ backgroundColor: colors.primary, borderRadius: 2, height: compact ? 18 : 24, minWidth: item.value > 0 ? 3 : 0, width: `${(item.value / maxValue) * 100}%` }} /></View><Text style={[styles.axisText, compact && styles.axisTextMobile, { flexShrink: 0, textAlign: "left", width: compact ? 24 : 32 }]}>{item.value}</Text></View>)}<View style={{ flexDirection: "row", justifyContent: "space-between", marginLeft: labelWidth + (compact ? 8 : 12), marginRight: compact ? 32 : 44, marginTop: compact ? 12 : 18 }}>{axis.map((tick) => <Text key={tick} style={[styles.axisText, compact && styles.axisTextMobile]}>{tick}</Text>)}</View></View>;
+  return <View style={[styles.chart, { minHeight: compact ? 190 : 240, paddingTop: compact ? 14 : 28 }]}>{chartData.map((item) => <View key={item.label} style={{ alignItems: "center", flexDirection: "row", gap: compact ? 8 : 12, minHeight: compact ? 32 : 40 }}><Text style={[styles.axisText, compact && styles.axisTextMobile, { flexShrink: 0, lineHeight: compact ? 13 : 16, width: labelWidth }]}>{item.label}</Text><View style={{ flex: 1, height: compact ? 18 : 24, justifyContent: "center" }}><View style={{ backgroundColor: colors.primary, borderRadius: 2, height: compact ? 18 : 24, minWidth: item.value > 0 ? 3 : 0, width: `${(item.value / maxValue) * 100}%` }} /></View><Text style={[styles.axisText, compact && styles.axisTextMobile, { flexShrink: 0, textAlign: "left", width: compact ? 24 : 32 }]}>{item.value}</Text></View>)}<View style={{ flexDirection: "row", justifyContent: "space-between", marginLeft: labelWidth + (compact ? 8 : 12), marginRight: compact ? 24 : 32, marginTop: compact ? 12 : 18 }}>{axis.map((tick, i) => <Text key={`axis-${i}`} style={[styles.axisText, compact && styles.axisTextMobile]}>{tick}</Text>)}</View></View>;
 }
 
 function SkeletonBlock({ style }: { style?: object }) {
@@ -47,7 +84,7 @@ function DashboardSkeleton({ compact }: { compact: boolean }) {
 
   return (
     <View style={styles.stack}>
-      <View style={styles.metricGrid}>{[0, 1, 2, 3].map((item) => <View key={item} style={styles.skeletonMetric}><SkeletonBlock style={styles.skeletonMetricLabel} /><SkeletonBlock style={styles.skeletonMetricValue} /></View>)}</View>
+      <View style={styles.metricGrid}>{[0, 1, 2].map((item) => <View key={item} style={styles.skeletonMetric}><SkeletonBlock style={styles.skeletonMetricLabel} /><SkeletonBlock style={styles.skeletonMetricValue} /></View>)}</View>
       <View style={styles.skeletonCard}>
         <SkeletonBlock style={styles.skeletonTitle} />
         <View style={styles.skeletonTableHeader} />
@@ -87,6 +124,8 @@ export function DashboardPage() {
   // Auto-search saat ketik (debounce 500ms)
   // Skip initial render because data is already loaded by InventoryDataContext
   const isFirstRender = useRef(true);
+  const salesFetchingRef = useRef(false);
+  const topFetchingRef = useRef(false);
 
   useEffect(() => {
     if (isFirstRender.current) {
@@ -101,24 +140,58 @@ export function DashboardPage() {
   }, [restockSearch]);
 
   useEffect(() => {
-    if (loading || loadedSalesPeriods.includes(salesPeriod)) return;
+    const key = getChartKey(token, "sales", salesPeriod);
+    const cached = chartCache.get(key);
+    if (cached) {
+      setSalesData(cached);
+      setLoadedSalesPeriods((periods) => periods.includes(salesPeriod) ? periods : [...periods, salesPeriod]);
+      setSalesChartLoading(false);
+      return;
+    }
 
+    let cancelled = false;
+    salesFetchingRef.current = true;
     setSalesChartLoading(true);
-    void loadChart(token, "sales", periodMap[salesPeriod]).then((data) => {
+    void loadChartOnce(token, "sales", salesPeriod).then((data) => {
+      if (cancelled) return;
       setSalesData(data);
       setLoadedSalesPeriods((periods) => periods.includes(salesPeriod) ? periods : [...periods, salesPeriod]);
-    }).catch(() => setSalesData([])).finally(() => setSalesChartLoading(false));
-  }, [loading, loadedSalesPeriods, salesPeriod, token]);
+    }).catch(() => {
+      if (!cancelled) setSalesData([]);
+    }).finally(() => {
+      if (!cancelled) setSalesChartLoading(false);
+      salesFetchingRef.current = false;
+    });
+
+    return () => { cancelled = true; };
+  }, [salesPeriod, token]);
 
   useEffect(() => {
-    if (loading || loadedTopPeriods.includes(topPeriod)) return;
+    const key = getChartKey(token, "top", topPeriod);
+    const cached = chartCache.get(key);
+    if (cached) {
+      setTopData(cached);
+      setLoadedTopPeriods((periods) => periods.includes(topPeriod) ? periods : [...periods, topPeriod]);
+      setTopChartLoading(false);
+      return;
+    }
 
+    let cancelled = false;
+    topFetchingRef.current = true;
     setTopChartLoading(true);
-    void loadChart(token, "top", periodMap[topPeriod]).then((data) => {
+    void loadChartOnce(token, "top", topPeriod).then((data) => {
+      if (cancelled) return;
       setTopData(data);
       setLoadedTopPeriods((periods) => periods.includes(topPeriod) ? periods : [...periods, topPeriod]);
-    }).catch(() => setTopData([])).finally(() => setTopChartLoading(false));
-  }, [loading, loadedTopPeriods, topPeriod, token]);
+    }).catch(() => {
+      if (!cancelled) setTopData([]);
+    }).finally(() => {
+      if (!cancelled) setTopChartLoading(false);
+      topFetchingRef.current = false;
+    });
+
+    return () => { cancelled = true; };
+  }, [topPeriod, token]);
 
   const handleRestockPage = (page: number) => {
     setRestockLoading(true);
@@ -136,7 +209,7 @@ export function DashboardPage() {
     if (period === salesPeriod && loadedSalesPeriods.includes(period)) return;
     setSalesPeriod(period);
     setSalesChartLoading(true);
-    void loadChart(token, "sales", periodMap[period]).then((data) => {
+    void loadChartOnce(token, "sales", period).then((data) => {
       setSalesData(data);
       setLoadedSalesPeriods((periods) => periods.includes(period) ? periods : [...periods, period]);
     }).catch(() => setSalesData([])).finally(() => setSalesChartLoading(false));
@@ -147,7 +220,7 @@ export function DashboardPage() {
     if (period === topPeriod && loadedTopPeriods.includes(period)) return;
     setTopPeriod(period);
     setTopChartLoading(true);
-    void loadChart(token, "top", periodMap[period]).then((data) => {
+    void loadChartOnce(token, "top", period).then((data) => {
       setTopData(data);
       setLoadedTopPeriods((periods) => periods.includes(period) ? periods : [...periods, period]);
     }).catch(() => setTopData([])).finally(() => setTopChartLoading(false));
@@ -159,9 +232,9 @@ export function DashboardPage() {
     <View style={styles.stack}>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
       <View style={styles.metricGrid}>
-        <Metric title="Stok Tersedia" value={String(summary.totalUnits)} />
-        <Metric title="Stok Menipis" value={String(summary.lowStockCount)} />
-        <Metric title="Stok Habis" value={String(summary.outOfStockCount)} />
+        <Metric title="Total Stok Tersedia" value={String(summary.totalUnits)} />
+        <Metric title="Total Stok Menipis" value={`${summary.lowStockCount} produk`} />
+        <Metric title="Total Stok Habis" value={`${summary.outOfStockCount} produk`} />
       </View>
       <CrudShell
         search="Cari produk..."
@@ -170,7 +243,7 @@ export function DashboardPage() {
         onSearchReset={handleRestockReset}
         searchDisabled={restockLoading}
       >
-        <WhiteCard title="Barang Habis">
+        <WhiteCard title="Produk Habis">
           <DataTable
             columns={["Kode Produk", "Produk", "Status", "Stok", "Update"]}
             pagination={restockMeta}
@@ -189,19 +262,19 @@ export function DashboardPage() {
                 ]}
               />
             ))}
-            {!restockAlerts.length && !restockLoading ? <EmptyRow text="Tidak ada barang habis aktif" /> : null}
+            {!restockAlerts.length && !restockLoading ? <EmptyRow text="Tidak ada produk habis aktif" /> : null}
           </DataTable>
         </WhiteCard>
       </CrudShell>
       <View style={[styles.chartGrid, compact && styles.chartGridMobile]}>
-        <WhiteCard title="Grafik Penjualan" action={<PeriodTabs value={salesPeriod} onChange={selectSalesPeriod} disabled={salesChartLoading} />}>
+        <WhiteCard fill title="Grafik Penjualan" action={<PeriodTabs value={salesPeriod} onChange={selectSalesPeriod} disabled={salesChartLoading} />}>
           {salesChartLoading ? (
             <View style={styles.chart}>
               <View style={styles.skeletonChartPlot}><View style={styles.skeletonYAxis}>{[0, 1, 2, 3, 4].map((tick) => <SkeletonBlock key={tick} style={styles.skeletonAxisTick} />)}</View><View style={styles.skeletonPlotArea}>{[0, 1, 2, 3, 4, 5].map((bar) => <View key={bar} style={styles.skeletonBarSlot}><SkeletonBlock style={[styles.skeletonVerticalBar, { height: 54 + bar * 18 }]} /><SkeletonBlock style={styles.skeletonXAxisLabel} /></View>)}</View></View>
             </View>
           ) : <SalesBarChart data={salesData} period={salesPeriod} />}
         </WhiteCard>
-        <WhiteCard title="Barang Terlaris" action={<PeriodTabs value={topPeriod} onChange={selectTopPeriod} disabled={topChartLoading} />}>
+        <WhiteCard fill title="Produk Terlaris" action={<PeriodTabs value={topPeriod} onChange={selectTopPeriod} disabled={topChartLoading} />}>
           {topChartLoading ? (
             <View style={styles.chart}>
               <View style={styles.skeletonTopChart}>{[0, 1, 2, 3, 4].map((bar) => <View key={bar} style={styles.skeletonTopRow}><SkeletonBlock style={styles.skeletonTopLabel} /><SkeletonBlock style={[styles.skeletonTopBar, { flex: 1 + bar * 0.35 }]} /><SkeletonBlock style={styles.skeletonTopValue} /></View>)}</View>

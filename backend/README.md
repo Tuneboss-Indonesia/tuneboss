@@ -125,7 +125,7 @@ Jika logic mulai membesar, service class boleh ditambahkan secara minimal di `ap
 
 - Master data supplier untuk barang masuk.
 - Master data customer/dealer untuk barang keluar dan penjualan.
-- Delete menonaktifkan data agar riwayat transaksi tetap aman.
+- Delete menonaktifkan data agar Riwayat Penjualan tetap aman.
 
 ### Reports
 

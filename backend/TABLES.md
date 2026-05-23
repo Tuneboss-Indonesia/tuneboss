@@ -1,145 +1,130 @@
-# Tabel Database TuneBoss Inventory
+# Database Tables
 
-Spesifikasi tabel ini mengikuti PRD backend TuneBoss Inventory untuk implementasi Laravel + MariaDB/MySQL. Nama kolom memakai gaya Laravel snake_case dan timestamp bawaan `created_at`/`updated_at`.
+Dokumen ini mengikuti data yang dipakai frontend aktif. Tabel/kolom legacy yang sudah tidak dipakai FE dikeluarkan dari skema aktif.
 
 ## users
 
-Menyimpan akun admin dan staff.
+| Kolom | Tipe | Catatan |
+| --- | --- | --- |
+| id | uuid | Primary key |
+| name | string | Ditampilkan di Admin |
+| email | string | Login dan Admin |
+| password | string | Auth |
+| role | string | `admin` atau `staff` |
+| is_active | boolean | Status akun |
+| created_at / updated_at | timestamp | Timestamp |
 
-| Kolom | Tipe | Key | Nullable | Default | Keterangan |
-| --- | --- | --- | --- | --- | --- |
-| id | uuid | PK | no | generated | ID user |
-| name | varchar(150) |  | no |  | Nama user |
-| email | varchar(150) | unique | no |  | Email login |
-| password | varchar(255) |  | no |  | Hash password Laravel |
-| role | enum(admin, staff) | index | no | staff | Role akses |
-| is_active | boolean | index | no | true | Status user aktif |
-| email_verified_at | timestamp |  | yes | null | Bawaan Laravel jika diperlukan |
-| remember_token | varchar(100) |  | yes | null | Bawaan Laravel jika diperlukan |
-| created_at | timestamp |  | yes | null | Timestamp Laravel |
-| updated_at | timestamp |  | yes | null | Timestamp Laravel |
+## personal_access_tokens
+
+Tabel token Sanctum untuk login API.
 
 ## categories
 
-Menyimpan kategori produk seperti ECU, Kabel, Aksesoris, dan Lainnya.
-
-| Kolom | Tipe | Key | Nullable | Default | Keterangan |
-| --- | --- | --- | --- | --- | --- |
-| id | uuid | PK | no | generated | ID kategori |
-| name | varchar(120) | unique | no |  | Nama kategori |
-| description | text |  | yes | null | Deskripsi kategori |
-| created_at | timestamp |  | yes | null | Timestamp Laravel |
-| updated_at | timestamp |  | yes | null | Timestamp Laravel |
+| Kolom | Tipe | Catatan |
+| --- | --- | --- |
+| id | uuid | Primary key |
+| name | string | Nama kategori |
+| description | text nullable | Deskripsi kategori |
+| created_at / updated_at | timestamp | Timestamp |
 
 ## products
 
-Menyimpan master data produk/barang.
-
-| Kolom | Tipe | Key | Nullable | Default | Keterangan |
-| --- | --- | --- | --- | --- | --- |
-| id | uuid | PK | no | generated | ID produk |
-| category_id | uuid | FK,index | no |  | Relasi ke `categories.id` |
-| name | varchar(180) | index | no |  | Nama produk |
-| sku | varchar(80) | unique | no |  | SKU unik |
-| barcode | varchar(120) | unique | yes | null | Barcode unik jika diisi |
-| sale_price | decimal(14,2) |  | no | 0 | Harga jual |
-| min_stock | int unsigned | index | no | 0 | Minimum stok untuk alert |
-| is_active | boolean | index | no | true | Status aktif produk |
-| created_at | timestamp |  | yes | null | Timestamp Laravel |
-| updated_at | timestamp |  | yes | null | Timestamp Laravel |
+| Kolom | Tipe | Catatan |
+| --- | --- | --- |
+| id | uuid | Primary key |
+| category_id | uuid FK | Relasi kategori |
+| name | string | Nama produk |
+| sku | string unique | Kode produk |
+| barcode | string nullable | Barcode/SKU scan |
+| image_path | string nullable | Gambar produk |
+| min_stock | integer | Batas stok menipis |
+| is_active | boolean | Status produk |
+| created_at / updated_at | timestamp | Timestamp |
 
 ## product_stocks
 
-Snapshot stok saat ini per produk. Tabel ini dipakai agar dashboard dan lookup cepat.
-
-| Kolom | Tipe | Key | Nullable | Default | Keterangan |
-| --- | --- | --- | --- | --- | --- |
-| id | uuid | PK | no | generated | ID stok |
-| product_id | uuid | FK,unique | no |  | Relasi ke `products.id` |
-| quantity | int | index | no | 0 | Stok saat ini |
-| created_at | timestamp |  | yes | null | Timestamp Laravel |
-| updated_at | timestamp |  | yes | null | Timestamp Laravel |
-
-## stock_movements
-
-Ledger semua perubahan stok.
-
-| Kolom | Tipe | Key | Nullable | Default | Keterangan |
-| --- | --- | --- | --- | --- | --- |
-| id | uuid | PK | no | generated | ID movement |
-| product_id | uuid | FK,index | no |  | Produk yang berubah stoknya |
-| operator_id | uuid | FK,index | no |  | User yang melakukan aksi |
-| sale_id | uuid | FK,index | yes | null | Terisi jika movement berasal dari penjualan |
-| type | enum(inbound, outbound, adjustment, sale) | index | no |  | Jenis movement |
-| quantity | int |  | no |  | Jumlah movement |
-| before_quantity | int |  | no |  | Stok sebelum transaksi |
-| after_quantity | int |  | no |  | Stok sesudah transaksi |
-| party | varchar(180) |  | yes | null | Supplier, dealer, customer, atau pihak terkait |
-| note | text |  | yes | null | Catatan transaksi |
-| created_at | timestamp | index | yes | null | Timestamp Laravel |
-| updated_at | timestamp |  | yes | null | Timestamp Laravel |
+| Kolom | Tipe | Catatan |
+| --- | --- | --- |
+| id | uuid | Primary key |
+| product_id | uuid FK unique | Produk |
+| quantity | integer | Stok tersisa |
+| created_at / updated_at | timestamp | Timestamp |
 
 ## sales
 
-Header transaksi penjualan.
-
-| Kolom | Tipe | Key | Nullable | Default | Keterangan |
-| --- | --- | --- | --- | --- | --- |
-| id | uuid | PK | no | generated | ID penjualan |
-| invoice_number | varchar(80) | unique | no |  | Nomor invoice |
-| cashier_id | uuid | FK,index | no |  | User kasir/operator |
-| total_amount | decimal(14,2) |  | no | 0 | Total transaksi |
-| created_at | timestamp | index | yes | null | Timestamp Laravel |
-| updated_at | timestamp |  | yes | null | Timestamp Laravel |
+| Kolom | Tipe | Catatan |
+| --- | --- | --- |
+| id | uuid | Primary key |
+| invoice_number | string unique | Dipakai laporan penjualan |
+| cashier_id | uuid FK nullable | User pembuat transaksi |
+| address | text nullable | Alamat/customer teks bebas |
+| status | string | `completed` / `void` |
+| voided_by | uuid FK nullable | User pembatal |
+| voided_at | timestamp nullable | Waktu void |
+| void_reason | text nullable | Alasan void |
+| created_at / updated_at | timestamp | Timestamp |
 
 ## sale_items
 
-Detail item pada transaksi penjualan.
+| Kolom | Tipe | Catatan |
+| --- | --- | --- |
+| id | uuid | Primary key |
+| sale_id | uuid FK | Transaksi |
+| product_id | uuid FK | Produk |
+| quantity | integer | Jumlah produk terjual |
+| created_at / updated_at | timestamp | Timestamp |
 
-| Kolom | Tipe | Key | Nullable | Default | Keterangan |
-| --- | --- | --- | --- | --- | --- |
-| id | uuid | PK | no | generated | ID item penjualan |
-| sale_id | uuid | FK,index | no |  | Relasi ke `sales.id` |
-| product_id | uuid | FK,index | no |  | Produk yang terjual |
-| quantity | int unsigned |  | no |  | Jumlah terjual |
-| price | decimal(14,2) |  | no |  | Harga saat transaksi |
-| subtotal | decimal(14,2) |  | no |  | `quantity * price` |
-| created_at | timestamp |  | yes | null | Timestamp Laravel |
-| updated_at | timestamp |  | yes | null | Timestamp Laravel |
+## stock_movements
+
+| Kolom | Tipe | Catatan |
+| --- | --- | --- |
+| id | uuid | Primary key |
+| product_id | uuid FK | Produk |
+| operator_id | uuid FK nullable | User yang input |
+| sale_id | uuid FK nullable | Relasi ke penjualan jika stok keluar dari transaksi |
+| type | string | `inbound`, `outbound`, `sale`, `adjustment` |
+| quantity | integer | Jumlah pergerakan |
+| before_quantity | integer | Stok sebelum |
+| after_quantity | integer | Stok sesudah |
+| party | string nullable | Supplier/alamat/tujuan teks bebas |
+| note | text nullable | Catatan |
+| created_at / updated_at | timestamp | Timestamp |
+
+## restock_alerts
+
+Dipakai Dashboard untuk menampilkan produk habis/menipis.
+
+| Kolom | Tipe | Catatan |
+| --- | --- | --- |
+| id | uuid | Primary key |
+| product_id | uuid FK | Produk |
+| status | string | `open`, `acknowledged`, `resolved` |
+| severity | string | `low`, `empty` |
+| current_stock | integer | Stok saat alert |
+| threshold | integer | Batas alert |
+| acknowledged_by / resolved_by | uuid FK nullable | User admin |
+| acknowledged_at / resolved_at | timestamp nullable | Timestamp |
+| note | text nullable | Catatan |
+| created_at / updated_at | timestamp | Timestamp |
 
 ## audit_logs
 
-Mencatat aktivitas penting user.
+| Kolom | Tipe | Catatan |
+| --- | --- | --- |
+| id | uuid | Primary key |
+| user_id | uuid FK nullable | User pelaku |
+| action | string | Nama aksi |
+| entity | string | Nama tabel/entity |
+| entity_id | string nullable | ID entity |
+| metadata | json nullable | Detail perubahan |
+| ip_address | string nullable | IP |
+| user_agent | string nullable | User agent |
+| created_at | timestamp | Timestamp |
 
-| Kolom | Tipe | Key | Nullable | Default | Keterangan |
-| --- | --- | --- | --- | --- | --- |
-| id | uuid | PK | no | generated | ID audit log |
-| user_id | uuid | FK,index | yes | null | User pelaku aksi, nullable untuk event sistem |
-| action | varchar(120) | index | no |  | Nama aksi, contoh `product.created` |
-| entity | varchar(120) | index | no |  | Nama entity, contoh `products` |
-| entity_id | uuid | index | yes | null | ID record terkait |
-| metadata | json |  | yes | null | Detail tambahan |
-| created_at | timestamp | index | yes | null | Timestamp Laravel |
-| updated_at | timestamp |  | yes | null | Timestamp Laravel |
+## Dihapus dari Skema Aktif
 
-## Foreign Key
-
-| Dari | Ke | On Delete | Keterangan |
-| --- | --- | --- | --- |
-| products.category_id | categories.id | restrict | Kategori tidak boleh dihapus jika dipakai produk |
-| product_stocks.product_id | products.id | cascade | Snapshot stok ikut hilang jika produk dihapus permanen |
-| stock_movements.product_id | products.id | restrict | Riwayat stok tidak boleh kehilangan produk |
-| stock_movements.operator_id | users.id | restrict | Movement harus punya operator |
-| stock_movements.sale_id | sales.id | set null | Movement tetap ada jika sale dihapus administratif |
-| sales.cashier_id | users.id | restrict | Sale harus punya kasir/operator |
-| sale_items.sale_id | sales.id | cascade | Item ikut sale |
-| sale_items.product_id | products.id | restrict | Item penjualan tidak boleh kehilangan produk |
-| audit_logs.user_id | users.id | set null | Audit tetap tersimpan walau user dihapus administratif |
-
-## Rule Penting
-
-- Semua proses stok masuk, stok keluar, koreksi stok, dan penjualan wajib memakai database transaction.
-- `product_stocks.quantity` tidak boleh negatif.
-- `stock_movements.before_quantity` dan `stock_movements.after_quantity` wajib diisi dari nilai stok aktual saat transaksi.
-- Produk yang sudah punya movement atau sale sebaiknya dinonaktifkan dengan `is_active = false`, bukan dihapus permanen.
-- List endpoint wajib memakai pagination agar tetap aman di shared hosting.
+- `suppliers` dan `customers`: FE memakai input teks bebas, bukan master data.
+- `restock_orders`: tidak ada menu/fitur FE aktif.
+- `sales.customer_id`, `sales.total_amount`: FE memakai alamat dan kuantitas.
+- `sale_items.price`, `sale_items.subtotal`: FE tidak memakai harga/subtotal.
+- `stock_movements.supplier_id`, `stock_movements.customer_id`: diganti `party` teks bebas.

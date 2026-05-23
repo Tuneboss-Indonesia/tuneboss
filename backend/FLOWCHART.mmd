@@ -1,96 +1,61 @@
 flowchart TD
-  Start([User membuka aplikasi]) --> Login{Sudah login?}
-  Login -- Tidak --> LoginForm[Input email dan password]
-  LoginForm --> LoginApi[POST /auth/login]
-  LoginApi --> AuthValid{Credential valid dan user aktif?}
-  AuthValid -- Tidak --> LoginError[Return 401/422]
-  LoginError --> LoginForm
-  AuthValid -- Ya --> Token[Return token dan data user]
-  Token --> Dashboard
-  Login -- Ya --> Dashboard[Dashboard]
+  Start["User membuka aplikasi"] --> Login["Login"]
+  Login --> Me["GET /auth/me"]
+  Me --> Role{"Role admin?"}
+  Role -->|"Ya"| AdminMenu["Menu Admin aktif"]
+  Role -->|"Tidak"| StaffMenu["Menu Admin disembunyikan"]
 
-  Dashboard --> Summary[GET /dashboard/summary]
-  Dashboard --> Priority[GET /dashboard/priority-products]
-  Dashboard --> Activity[GET /dashboard/recent-activities]
-  Summary --> DashboardView[Tampilkan dashboard stok]
-  Priority --> DashboardView
-  Activity --> DashboardView
+  AdminMenu --> Pages["Halaman inventory"]
+  StaffMenu --> Pages
 
-  DashboardView --> Menu{Pilih menu}
+  Pages --> Dashboard["Dashboard"]
+  Dashboard --> DashSummary["GET /dashboard/summary"]
+  Dashboard --> Alerts["GET /restock-alerts?severity=empty"]
+  Dashboard --> Charts["GET /dashboard/sales-chart dan /top-products"]
 
-  Menu -- Kategori --> CategoryList[GET /categories]
-  CategoryList --> CategoryAction{Aksi kategori}
-  CategoryAction -- Tambah/Edit --> SaveCategory[POST/PATCH /categories]
-  CategoryAction -- Hapus --> DeleteCategory[DELETE /categories/:id]
-  DeleteCategory --> CategoryUsed{Dipakai produk?}
-  CategoryUsed -- Ya --> CategoryReject[Return error]
-  CategoryUsed -- Tidak --> CategorySaved[Simpan perubahan]
-  SaveCategory --> CategorySaved
-  CategorySaved --> AuditCategory[Insert audit_logs]
+  Pages --> Categories["Kategori"]
+  Categories --> CatApi["GET/POST/PATCH/DELETE /categories"]
 
-  Menu -- Produk --> ProductList[GET /products]
-  ProductList --> ProductAction{Aksi produk}
-  ProductAction -- Tambah/Edit --> SaveProduct[POST/PATCH /products]
-  SaveProduct --> ProductValidate[Validasi SKU dan barcode unik]
-  ProductValidate --> ProductTransaction[Database transaction]
-  ProductTransaction --> ProductSaved[Simpan products]
-  ProductSaved --> InitStock{Produk baru?}
-  InitStock -- Ya --> CreateStock[Buat product_stocks quantity 0]
-  InitStock -- Tidak --> AuditProduct[Insert audit_logs]
-  CreateStock --> AuditProduct
-  ProductAction -- Nonaktif --> DisableProduct[Set is_active false]
-  DisableProduct --> AuditProduct
+  Pages --> Products["Data Produk"]
+  Products --> ProductApi["GET/POST/PATCH/DELETE /products"]
+  Products --> ImageApi["POST/DELETE /products/{id}/image"]
 
-  Menu -- Scan --> ScanInput[Scan barcode atau input SKU]
-  ScanInput --> Lookup[GET /products/lookup?code=...]
-  Lookup --> ProductFound{Produk ditemukan?}
-  ProductFound -- Tidak --> LookupError[Return 404]
-  ProductFound -- Ya --> LookupResult[Tampilkan detail produk dan stok]
+  Pages --> Sales["Penjualan"]
+  Sales --> SalesList["GET /sales"]
+  Sales --> SalesWrite["POST/PATCH/DELETE /sales"]
+  SalesWrite --> SaleItems["sale_items hanya product_id + quantity"]
+  SalesWrite --> StockMinus["stok produk berkurang"]
 
-  Menu -- Barang Masuk --> InboundForm[Input barang masuk]
-  InboundForm --> InboundApi[POST /stock/inbound]
-  InboundApi --> InboundTx[Database transaction dan lock stok]
-  InboundTx --> InboundUpdate[Tambah product_stocks]
-  InboundUpdate --> InboundMovement[Insert stock_movements inbound]
-  InboundMovement --> InboundAudit[Insert audit_logs]
-  InboundAudit --> InboundSuccess[Return success]
+  Pages --> Scan["Scan Barcode"]
+  Scan --> Lookup["GET /products/lookup?barcode="]
+  Lookup --> Found{"Produk ditemukan?"}
+  Found -->|"Tidak"| NotFound["Tampilkan error"]
+  Found -->|"Ya"| ChooseMove["Pilih Produk Masuk / Produk Keluar"]
+  ChooseMove -->|"Masuk"| Inbound["POST /stock/inbound"]
+  ChooseMove -->|"Keluar"| Outbound["POST /stock/outbound"]
+  ChooseMove -->|"Keluar + checklist penjualan"| OutboundSale["POST /stock/outbound lalu POST /sales stock_already_moved=true"]
+  Inbound --> Movement["stock_movements"]
+  Outbound --> Movement
+  OutboundSale --> Movement
+  OutboundSale --> SalesList
 
-  Menu -- Barang Keluar --> OutboundForm[Input barang keluar]
-  OutboundForm --> OutboundApi[POST /stock/outbound]
-  OutboundApi --> OutboundTx[Database transaction dan lock stok]
-  OutboundTx --> StockEnough{Stok cukup?}
-  StockEnough -- Tidak --> StockReject[Rollback dan return stok tidak cukup]
-  StockEnough -- Ya --> OutboundUpdate[Kurangi product_stocks]
-  OutboundUpdate --> OutboundMovement[Insert stock_movements outbound]
-  OutboundMovement --> OutboundAudit[Insert audit_logs]
-  OutboundAudit --> OutboundSuccess[Return success]
+  Pages --> InboundPage["Produk Masuk"]
+  InboundPage --> InboundList["GET /stock/movements?type=inbound"]
+  Pages --> OutboundPage["Produk Keluar"]
+  OutboundPage --> OutboundList["GET /stock/movements?type=outbound"]
 
-  Menu -- Penjualan --> SaleForm[Input transaksi penjualan]
-  SaleForm --> SaleApi[POST /sales]
-  SaleApi --> SaleTx[Database transaction dan lock semua stok item]
-  SaleTx --> SaleStockEnough{Semua stok cukup?}
-  SaleStockEnough -- Tidak --> SaleReject[Rollback dan return stok tidak cukup]
-  SaleStockEnough -- Ya --> CreateSale[Insert sales]
-  CreateSale --> CreateSaleItems[Insert sale_items]
-  CreateSaleItems --> SaleStockUpdate[Kurangi product_stocks]
-  SaleStockUpdate --> SaleMovement[Insert stock_movements sale]
-  SaleMovement --> SaleAudit[Insert audit_logs]
-  SaleAudit --> SaleSuccess[Return invoice detail]
+  Pages --> Reports["Data Laporan"]
+  Reports --> ReportStock["GET /products"]
+  Reports --> ReportSales["GET /sales"]
+  Reports --> ReportInbound["GET /stock/movements?type=inbound"]
+  Reports --> ReportOutbound["GET /stock/movements?type=outbound"]
 
-  Menu -- Laporan --> ReportType{Jenis laporan}
-  ReportType -- Stok --> StockReport[GET /reports/stock]
-  ReportType -- Penjualan --> SalesReport[GET /reports/sales]
-  ReportType -- Masuk --> InboundReport[GET /reports/inbound]
-  ReportType -- Keluar --> OutboundReport[GET /reports/outbound]
-  StockReport --> ReportResult[Return paginated JSON]
-  SalesReport --> ReportResult
-  InboundReport --> ReportResult
-  OutboundReport --> ReportResult
+  Pages --> Admin["Admin"]
+  Admin --> Users["GET/POST/PATCH/DELETE /users"]
+  Admin --> Logs["GET /audit-logs"]
 
-  AuditCategory --> End([Selesai])
-  AuditProduct --> End
-  LookupResult --> End
-  InboundSuccess --> End
-  OutboundSuccess --> End
-  SaleSuccess --> End
-  ReportResult --> End
+  ProductApi --> Audit["audit_logs"]
+  SalesWrite --> Audit
+  Inbound --> Audit
+  Outbound --> Audit
+  Users --> Audit

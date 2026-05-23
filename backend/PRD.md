@@ -122,7 +122,7 @@ Backend harus bisa berjalan di shared hosting yang mendukung PHP, MariaDB/MySQL,
 - Membuat transaksi penjualan sederhana.
 - Menyimpan item penjualan.
 - Mengurangi stok otomatis.
-- Melihat riwayat transaksi.
+- Melihat Riwayat Penjualan.
 
 ### Laporan
 

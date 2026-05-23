@@ -4,15 +4,12 @@ use App\Http\Controllers\Api\AppController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
-use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\RestockAlertController;
-use App\Http\Controllers\Api\RestockOrderController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\StockController;
-use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -36,21 +33,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/users/{user}', [UserController::class, 'update']);
         Route::patch('/users/{user}/password', [UserController::class, 'updatePassword']);
         Route::patch('/users/{user}/deactivate', [UserController::class, 'deactivate']);
-
-        Route::post('/suppliers', [SupplierController::class, 'store']);
-        Route::patch('/suppliers/{supplier}', [SupplierController::class, 'update']);
-        Route::delete('/suppliers/{supplier}', [SupplierController::class, 'destroy']);
-
-        Route::post('/customers', [CustomerController::class, 'store']);
-        Route::patch('/customers/{customer}', [CustomerController::class, 'update']);
-        Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
+        Route::delete('/users/{user}', [UserController::class, 'destroy']);
 
         Route::post('/restock-alerts/{restockAlert}/resolve', [RestockAlertController::class, 'resolve']);
-
-        Route::post('/restock-orders', [RestockOrderController::class, 'store']);
-        Route::patch('/restock-orders/{restockOrder}', [RestockOrderController::class, 'update']);
-        Route::post('/restock-orders/{restockOrder}/receive', [RestockOrderController::class, 'receive']);
-        Route::post('/restock-orders/{restockOrder}/cancel', [RestockOrderController::class, 'cancel']);
 
         Route::get('/audit-logs/export', [AuditLogController::class, 'export']);
         Route::get('/audit-logs', [AuditLogController::class, 'index']);
@@ -65,7 +50,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/restock-alerts', [RestockAlertController::class, 'index']);
     Route::post('/restock-alerts/{restockAlert}/acknowledge', [RestockAlertController::class, 'acknowledge']);
-    Route::get('/restock-orders', [RestockOrderController::class, 'index']);
 
     Route::get('/products/lookup', [ProductController::class, 'lookup']);
     Route::get('/products', [ProductController::class, 'index']);
@@ -82,13 +66,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/categories/{category}', [CategoryController::class, 'update'])->middleware('role:admin');
     Route::delete('/categories/{category}', [CategoryController::class, 'destroy'])->middleware('role:admin');
 
-    Route::get('/suppliers', [SupplierController::class, 'index']);
-    Route::get('/suppliers/{supplier}', [SupplierController::class, 'show']);
-
-    Route::get('/customers', [CustomerController::class, 'index']);
-    Route::get('/customers/{customer}', [CustomerController::class, 'show']);
-
     Route::get('/stock/movements', [StockController::class, 'movements']);
+    Route::patch('/stock/movements/{stockMovement}', [StockController::class, 'updateMovement'])->middleware('role:admin');
+    Route::delete('/stock/movements/{stockMovement}', [StockController::class, 'destroyMovement'])->middleware('role:admin');
     Route::post('/stock/inbound', [StockController::class, 'inbound']);
     Route::post('/stock/outbound', [StockController::class, 'outbound']);
     Route::post('/stock/adjustment', [StockController::class, 'adjustment'])->middleware('role:admin');

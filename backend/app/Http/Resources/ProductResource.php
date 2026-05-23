@@ -22,7 +22,7 @@ class ProductResource extends JsonResource
             'imageUrl' => $this->image_path ? asset('storage/'.$this->image_path) : null,
             'minStock' => $this->min_stock,
             'stock' => $stock,
-            'status' => $stock === 0 ? 'empty' : ($stock < $this->min_stock ? 'low' : 'safe'),
+            'status' => $stock === 0 ? 'empty' : ($stock < 5 ? 'low' : 'safe'),
             'isActive' => $this->is_active,
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),

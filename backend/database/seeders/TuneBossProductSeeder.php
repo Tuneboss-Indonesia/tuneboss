@@ -80,7 +80,6 @@ class TuneBossProductSeeder extends Seeder
                     'category_id' => $categories[$item['brand']]->id,
                     'name' => $item['name'],
                     'barcode' => null,
-                    'sale_price' => 0,
                     'min_stock' => 1,
                     'is_active' => true,
                 ]

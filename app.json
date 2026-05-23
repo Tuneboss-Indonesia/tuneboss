@@ -1,9 +1,10 @@
 {
   "expo": {
-    "name": "TuneBoss Inventory",
+    "name": "TuneBoss ID | Inventory",
     "slug": "tuneboss-inventory",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/logo.png",
     "userInterfaceStyle": "dark",
     "platforms": [
       "ios",
@@ -15,21 +16,61 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "id.tuneboss.inventory"
+      "bundleIdentifier": "id.tuneboss.inventory",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "id.tuneboss.inventory",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#070707"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "bundler": "metro",
       "output": "single",
-      "backgroundColor": "#070707"
+      "favicon": "./assets/logo.png",
+      "backgroundColor": "#070707",
+      "shortName": "TuneBoss",
+      "lang": "id-ID",
+      "scope": "/",
+      "themeColor": "#ed6c05",
+      "description": "Aplikasi Inventaris TuneBoss",
+      "display": "standalone",
+      "orientation": "portrait",
+      "startUrl": "/",
+      "barStyle": "black-translucent",
+      "preferRelatedApplications": false
     },
     "plugins": [
-      "@react-native-community/datetimepicker"
-    ]
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Aplikasi membutuhkan akses galeri untuk memilih gambar produk.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Aplikasi membutuhkan akses kamera untuk scan barcode produk.",
+          "recordAudioAndroid": false
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "324d091c-d808-4b05-8ccd-6b587218bfa0"
+      }
+    },
+    "owner": "peenjeee"
   }
 }
