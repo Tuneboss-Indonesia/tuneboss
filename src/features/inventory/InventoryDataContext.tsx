@@ -62,6 +62,17 @@ type MovementDto = StockMovement & { createdAt?: string; type: StockMovement["ty
 type MovementFilterType = StockMovement["type"];
 type BootstrapDto = { categories: CategoryDto[] };
 type RealtimeDto = { pollAfterSeconds: number; summary: DashboardSummary; priorityProducts: PriorityProduct[]; recentActivities: RecentActivity[] };
+type ReportSummary = {
+  sales: { completedCount: number; completedQuantity: number; voidCount: number };
+  stockMovements: { adjustmentCount: number; inboundQuantity: number; outboundQuantity: number; saleQuantity: number };
+  stock: { lowStockCount: number; lowStockUnits: number; outOfStockCount: number; totalSku: number; totalUnits: number };
+};
+
+const emptyReportSummary: ReportSummary = {
+  sales: { completedCount: 0, completedQuantity: 0, voidCount: 0 },
+  stockMovements: { adjustmentCount: 0, inboundQuantity: 0, outboundQuantity: 0, saleQuantity: 0 },
+  stock: { lowStockCount: 0, lowStockUnits: 0, outOfStockCount: 0, totalSku: 0, totalUnits: 0 },
+};
 
 type InventoryData = {
   categories: CategoryItem[];
@@ -70,6 +81,7 @@ type InventoryData = {
   movements: StockMovement[];
   priorityProducts: PriorityProduct[];
   recentActivities: RecentActivity[];
+  reportSummary: ReportSummary;
   refresh: (page?: PageKey) => Promise<void>;
   refreshRestockAlerts: () => Promise<void>;
   refreshStockActivity: () => Promise<void>;
@@ -99,6 +111,7 @@ export function InventoryDataProvider({ activePage, children, token }: { activeP
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [restockAlerts, setRestockAlerts] = useState<RestockAlertRow[]>([]);
   const [sales, setSales] = useState<SaleRow[]>([]);
+  const [reportSummary, setReportSummary] = useState<ReportSummary>(emptyReportSummary);
   const [productMeta, setProductMeta] = useState<PaginationMeta>(emptyMeta);
   const [movementMeta, setMovementMeta] = useState<PaginationMeta>(emptyMeta);
   const [saleMeta, setSaleMeta] = useState<PaginationMeta>(emptyMeta);
@@ -126,6 +139,7 @@ export function InventoryDataProvider({ activePage, children, token }: { activeP
   };
 
   const loadSummary = () => apiRequest<DashboardSummary>("/dashboard/summary", { token }).then(setSummary);
+  const loadReportSummary = () => apiRequest<ReportSummary>("/reports/summary", { token }).then(setReportSummary);
   const loadPriorityProducts = () => apiRequest<PriorityProduct[]>("/dashboard/priority-products", { token }).then(setPriorityProducts);
   const loadRecentActivities = () => apiRequest<RecentActivity[]>("/dashboard/recent-activities", { token }).then((data) => setRecentActivities(data.map((item) => ({ ...item, timestamp: item.timestamp }))));
   const loadProductsPage = (page = productMeta.currentPage, categoryId = "", status = "", search = "", perPage = 15) => {
@@ -172,11 +186,11 @@ export function InventoryDataProvider({ activePage, children, token }: { activeP
       if (page === "scan") setError(null);
       if (page === "masuk") await loadMovementsPage(1, "inbound");
       if (page === "keluar") await loadMovementsPage(1, "outbound");
-      if (page === "laporan") await Promise.all([loadSummary(), loadMovementsPage(1), loadSalesPage(1)]);
+      if (page === "laporan") await loadReportSummary();
       if (page === "laporan-stok") await Promise.all([loadSummary(), loadProductsPage(1)]);
-      if (page === "laporan-penjualan") await Promise.all([loadSummary(), loadSalesPage(1)]);
-      if (page === "laporan-masuk") await Promise.all([loadSummary(), loadMovementsPage(1, "inbound")]);
-      if (page === "laporan-keluar") await Promise.all([loadSummary(), loadMovementsPage(1, "outbound")]);
+      if (page === "laporan-penjualan") await loadSalesPage(1);
+      if (page === "laporan-masuk") await loadMovementsPage(1, "inbound");
+      if (page === "laporan-keluar") await loadMovementsPage(1, "outbound");
       if (page === "admin") setError(null);
     } catch (requestError) {
       const msg = requestError instanceof Error ? requestError.message : "";
@@ -191,7 +205,7 @@ export function InventoryDataProvider({ activePage, children, token }: { activeP
     void refresh(activePage);
   }, [activePage, refresh, token]);
 
-  const value = useMemo(() => ({ categories, error, loadMovementsPage, loadProductsPage, loadRestockAlertsPage, loadSalesPage, loading, movementMeta, movements, priorityProducts, productMeta, recentActivities, refresh, refreshRestockAlerts, refreshStockActivity, restockAlerts, restockMeta, saleMeta, sales, summary, stockItems, token }), [categories, error, loading, movementMeta, movements, priorityProducts, productMeta, recentActivities, refresh, refreshRestockAlerts, refreshStockActivity, restockAlerts, restockMeta, saleMeta, sales, summary, stockItems, token]);
+  const value = useMemo(() => ({ categories, error, loadMovementsPage, loadProductsPage, loadRestockAlertsPage, loadSalesPage, loading, movementMeta, movements, priorityProducts, productMeta, recentActivities, refresh, refreshRestockAlerts, refreshStockActivity, reportSummary, restockAlerts, restockMeta, saleMeta, sales, summary, stockItems, token }), [categories, error, loading, movementMeta, movements, priorityProducts, productMeta, recentActivities, refresh, refreshRestockAlerts, refreshStockActivity, reportSummary, restockAlerts, restockMeta, saleMeta, sales, summary, stockItems, token]);
 
   return <InventoryDataContext.Provider value={value}>{children}</InventoryDataContext.Provider>;
 }

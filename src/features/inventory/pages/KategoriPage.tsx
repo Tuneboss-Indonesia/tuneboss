@@ -50,6 +50,7 @@ function ConfirmModal({ title, message, confirmText, onCancel, onConfirm, hideCa
 export function KategoriPage({ onOpenModal }: { onOpenModal: (mode: ModalMode, item?: CategoryItem) => void }) {
   const [query, setQuery] = useState("");
   const [blockedMsg, setBlockedMsg] = useState("");
+  const [operationError, setOperationError] = useState("");
   const [pendingDelete, setPendingDelete] = useState<CategoryItem | null>(null);
   const { categories, loading, refresh, token } = useInventoryData();
   const [deleting, setDeleting] = useState("");
@@ -70,6 +71,8 @@ export function KategoriPage({ onOpenModal }: { onOpenModal: (mode: ModalMode, i
     try {
       await apiRequest(`/categories/${pendingDelete.id}`, { method: "DELETE", token });
       await refresh();
+    } catch (error) {
+      setOperationError(error instanceof Error ? error.message : "Kategori gagal dihapus.");
     } finally {
       setDeleting("");
       setPendingDelete(null);
@@ -84,6 +87,7 @@ export function KategoriPage({ onOpenModal }: { onOpenModal: (mode: ModalMode, i
       </CrudShell>
       {blockedMsg ? <ConfirmModal title="Tidak Bisa Dihapus" message={blockedMsg} confirmText="OK" hideCancel onCancel={() => setBlockedMsg("")} onConfirm={() => setBlockedMsg("")} /> : null}
       {pendingDelete ? <ConfirmModal title="Hapus Kategori" message={`Yakin ingin menghapus kategori "${pendingDelete.name}"?`} confirmText="Hapus" onCancel={() => setPendingDelete(null)} onConfirm={executeDelete} loading={!!deleting} /> : null}
+      {operationError ? <ConfirmModal title="Gagal" message={operationError} confirmText="OK" hideCancel onCancel={() => setOperationError("")} onConfirm={() => setOperationError("")} /> : null}
     </>
   );
 }

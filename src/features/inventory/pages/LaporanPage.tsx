@@ -113,15 +113,12 @@ function DateField({ label, onChange, value }: { label: string; onChange: (value
 export function LaporanPage({ onNavigate }: { onNavigate: (page: PageKey) => void }) {
   const { width } = useWindowDimensions();
   const compact = width < 760;
-  const { loading, movements, sales, summary, token, error, refresh } = useInventoryData();
+  const { loading, movements, reportSummary, sales, token, error, refresh } = useInventoryData();
   const [exportLoading, setExportLoading] = useState(false);
-  const month = new Date().getMonth();
-  const monthlySalesQuantity = sales
-    .filter((sale) => new Date(sale.createdAt).getMonth() === month && sale.status === "completed")
-    .reduce((total, sale) => total + (sale.items?.reduce((itemTotal, item) => itemTotal + item.quantity, 0) ?? 0), 0);
-  const inboundQuantity = movements.filter((item) => item.type === "inbound").reduce((total, item) => total + item.quantity, 0);
-  const outboundQuantity = movements.filter((item) => item.type === "outbound").reduce((total, item) => total + item.quantity, 0);
-  const availableStock = summary.totalUnits;
+  const salesQuantity = reportSummary.sales.completedQuantity;
+  const inboundQuantity = reportSummary.stockMovements.inboundQuantity;
+  const outboundQuantity = reportSummary.stockMovements.outboundQuantity;
+  const availableStock = reportSummary.stock.totalUnits;
 
   const handleExportAll = async () => {
     setExportLoading(true);
@@ -195,7 +192,7 @@ export function LaporanPage({ onNavigate }: { onNavigate: (page: PageKey) => voi
 
   if (loading) return <LaporanSkeleton />;
   if (error && !movements.length && !sales.length) return <ErrorScreen message={error} onRetry={() => refresh("laporan")} />;
-  return <View style={styles.stack}><View style={{ flexDirection: "column", gap: 10 }}><Text style={[styles.noticeTitle, compact && styles.noticeTitleMobile]}>Data Laporan</Text><Pressable disabled={exportLoading} onPress={handleExportAll} style={({ hovered, pressed }: PressState) => [styles.primaryButton, compact && { width: "100%" }, hovered && !exportLoading && styles.primaryButtonHover, pressed && styles.pressed, exportLoading && styles.tablePagerButtonDisabled]}><Text style={[styles.primaryButtonText, compact && styles.primaryButtonTextMobile]}>{exportLoading ? "Exporting..." : "Export Excel"}</Text></Pressable></View><View style={styles.reportMetricGrid}><Metric title="Jumlah Penjualan" value={String(monthlySalesQuantity)} /><Metric title="Produk Masuk" value={String(inboundQuantity)} /><Metric title="Produk Keluar" value={String(outboundQuantity)} /><Metric title="Stok Tersisa" value={String(availableStock)} /></View><View style={styles.reportGrid}>{reportCards.map(([id, Icon, title, desc]) => <Pressable key={id} onPress={() => onNavigate(id)} style={({ hovered, pressed }: PressState) => [styles.reportCard, hovered && styles.reportCardHover, pressed && styles.pressed]}><View style={styles.reportIcon}><Icon color={colors.white} size={30} /></View><Text style={styles.reportTitle}>{title}</Text><Text style={styles.reportDesc}>{desc}</Text></Pressable>)}</View></View>;
+  return <View style={styles.stack}><View style={{ flexDirection: "column", gap: 10 }}><Text style={[styles.noticeTitle, compact && styles.noticeTitleMobile]}>Data Laporan</Text><Pressable disabled={exportLoading} onPress={handleExportAll} style={({ hovered, pressed }: PressState) => [styles.primaryButton, compact && { width: "100%" }, hovered && !exportLoading && styles.primaryButtonHover, pressed && styles.pressed, exportLoading && styles.tablePagerButtonDisabled]}><Text style={[styles.primaryButtonText, compact && styles.primaryButtonTextMobile]}>{exportLoading ? "Exporting..." : "Export Excel"}</Text></Pressable></View><View style={styles.reportMetricGrid}><Metric title="Jumlah Penjualan" value={String(salesQuantity)} /><Metric title="Produk Masuk" value={String(inboundQuantity)} /><Metric title="Produk Keluar" value={String(outboundQuantity)} /><Metric title="Stok Tersisa" value={String(availableStock)} /></View><View style={styles.reportGrid}>{reportCards.map(([id, Icon, title, desc]) => <Pressable key={id} onPress={() => onNavigate(id)} style={({ hovered, pressed }: PressState) => [styles.reportCard, hovered && styles.reportCardHover, pressed && styles.pressed]}><View style={styles.reportIcon}><Icon color={colors.white} size={30} /></View><Text style={styles.reportTitle}>{title}</Text><Text style={styles.reportDesc}>{desc}</Text></Pressable>)}</View></View>;
 }
 
 function LaporanSkeleton() {

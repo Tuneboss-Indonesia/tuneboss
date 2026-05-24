@@ -7,27 +7,20 @@ import type { ChartPoint, PeriodKey, PressState } from "../types";
 import { CrudShell, DataTable, EmptyRow, Metric, TableRow, WhiteCard } from "../components/common";
 import { loadChart, useInventoryData } from "../InventoryDataContext";
 
-// Module-level cache prevents duplicate chart requests in React StrictMode while
-// still letting the visible remount receive the in-flight result.
-const chartCache = new Map<string, ChartPoint[]>();
+// Dedupe only in-flight chart requests. Results are intentionally not cached so
+// dashboard period tabs always reflect the latest sales after stock changes.
 const chartRequests = new Map<string, Promise<ChartPoint[]>>();
 
 function getChartKey(token: string, type: "sales" | "top", period: PeriodKey) {
   return `${token}:${type}:${period}`;
 }
 
-function loadChartOnce(token: string, type: "sales" | "top", period: PeriodKey) {
+function loadChartFresh(token: string, type: "sales" | "top", period: PeriodKey) {
   const key = getChartKey(token, type, period);
-  const cached = chartCache.get(key);
-  if (cached) return Promise.resolve(cached);
-
   const existingRequest = chartRequests.get(key);
   if (existingRequest) return existingRequest;
 
-  const request = loadChart(token, type, periodMap[period]).then((data) => {
-    chartCache.set(key, data);
-    return data;
-  }).finally(() => chartRequests.delete(key));
+  const request = loadChart(token, type, periodMap[period]).finally(() => chartRequests.delete(key));
   chartRequests.set(key, request);
   return request;
 }
@@ -111,8 +104,6 @@ export function DashboardPage() {
   const [topPeriod, setTopPeriod] = useState<PeriodKey>("bulan");
   const [salesData, setSalesData] = useState<ChartPoint[]>([]);
   const [topData, setTopData] = useState<ChartPoint[]>([]);
-  const [loadedSalesPeriods, setLoadedSalesPeriods] = useState<PeriodKey[]>([]);
-  const [loadedTopPeriods, setLoadedTopPeriods] = useState<PeriodKey[]>([]);
   const [restockSearch, setRestockSearch] = useState("");
   const [restockLoading, setRestockLoading] = useState(false);
   const [salesChartLoading, setSalesChartLoading] = useState(false);
@@ -124,8 +115,6 @@ export function DashboardPage() {
   // Auto-search saat ketik (debounce 500ms)
   // Skip initial render because data is already loaded by InventoryDataContext
   const isFirstRender = useRef(true);
-  const salesFetchingRef = useRef(false);
-  const topFetchingRef = useRef(false);
 
   useEffect(() => {
     if (isFirstRender.current) {
@@ -140,54 +129,30 @@ export function DashboardPage() {
   }, [restockSearch]);
 
   useEffect(() => {
-    const key = getChartKey(token, "sales", salesPeriod);
-    const cached = chartCache.get(key);
-    if (cached) {
-      setSalesData(cached);
-      setLoadedSalesPeriods((periods) => periods.includes(salesPeriod) ? periods : [...periods, salesPeriod]);
-      setSalesChartLoading(false);
-      return;
-    }
-
     let cancelled = false;
-    salesFetchingRef.current = true;
     setSalesChartLoading(true);
-    void loadChartOnce(token, "sales", salesPeriod).then((data) => {
+    void loadChartFresh(token, "sales", salesPeriod).then((data) => {
       if (cancelled) return;
       setSalesData(data);
-      setLoadedSalesPeriods((periods) => periods.includes(salesPeriod) ? periods : [...periods, salesPeriod]);
     }).catch(() => {
       if (!cancelled) setSalesData([]);
     }).finally(() => {
       if (!cancelled) setSalesChartLoading(false);
-      salesFetchingRef.current = false;
     });
 
     return () => { cancelled = true; };
   }, [salesPeriod, token]);
 
   useEffect(() => {
-    const key = getChartKey(token, "top", topPeriod);
-    const cached = chartCache.get(key);
-    if (cached) {
-      setTopData(cached);
-      setLoadedTopPeriods((periods) => periods.includes(topPeriod) ? periods : [...periods, topPeriod]);
-      setTopChartLoading(false);
-      return;
-    }
-
     let cancelled = false;
-    topFetchingRef.current = true;
     setTopChartLoading(true);
-    void loadChartOnce(token, "top", topPeriod).then((data) => {
+    void loadChartFresh(token, "top", topPeriod).then((data) => {
       if (cancelled) return;
       setTopData(data);
-      setLoadedTopPeriods((periods) => periods.includes(topPeriod) ? periods : [...periods, topPeriod]);
     }).catch(() => {
       if (!cancelled) setTopData([]);
     }).finally(() => {
       if (!cancelled) setTopChartLoading(false);
-      topFetchingRef.current = false;
     });
 
     return () => { cancelled = true; };
@@ -206,24 +171,14 @@ export function DashboardPage() {
 
   const selectSalesPeriod = (period: PeriodKey) => {
     if (salesChartLoading) return;
-    if (period === salesPeriod && loadedSalesPeriods.includes(period)) return;
+    if (period === salesPeriod) return;
     setSalesPeriod(period);
-    setSalesChartLoading(true);
-    void loadChartOnce(token, "sales", period).then((data) => {
-      setSalesData(data);
-      setLoadedSalesPeriods((periods) => periods.includes(period) ? periods : [...periods, period]);
-    }).catch(() => setSalesData([])).finally(() => setSalesChartLoading(false));
   };
 
   const selectTopPeriod = (period: PeriodKey) => {
     if (topChartLoading) return;
-    if (period === topPeriod && loadedTopPeriods.includes(period)) return;
+    if (period === topPeriod) return;
     setTopPeriod(period);
-    setTopChartLoading(true);
-    void loadChartOnce(token, "top", period).then((data) => {
-      setTopData(data);
-      setLoadedTopPeriods((periods) => periods.includes(period) ? periods : [...periods, period]);
-    }).catch(() => setTopData([])).finally(() => setTopChartLoading(false));
   };
 
   if (loading) return <DashboardSkeleton compact={compact} />;

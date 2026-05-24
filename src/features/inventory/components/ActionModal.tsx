@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { ChevronDown, ImageUp } from "lucide-react-native";
 import { apiRequest } from "../api";
 import { useInventoryData } from "../InventoryDataContext";
@@ -22,6 +22,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
   const [party, setParty] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [operationError, setOperationError] = useState("");
   const [imageFile, setImageFile] = useState<PickedImage | null>(null);
   const loadedOutboundProductsRef = useRef(false);
   const actionLabel = mode === "edit" ? "Edit" : "Tambah";
@@ -89,7 +90,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
       appendPickedImage(form, "image", imageFile);
       await apiRequest(`/products/${productId}/image`, { body: form, method: "POST", token });
     } catch (error) {
-      Alert.alert("Gagal", error instanceof Error ? error.message : "Gambar gagal diupload.");
+      setOperationError(error instanceof Error ? error.message : "Gambar gagal diupload.");
     }
   };
 
@@ -131,7 +132,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
       await refresh();
       close();
     } catch (error) {
-      Alert.alert("Gagal", error instanceof Error ? error.message : "Data gagal disimpan.");
+      setOperationError(error instanceof Error ? error.message : "Data gagal disimpan.");
     } finally {
       setSaving(false);
     }
@@ -143,9 +144,10 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
   };
 
   return (
-    <Modal visible={kind !== null} transparent animationType="fade" onRequestClose={close}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
+    <>
+      <Modal visible={kind !== null} transparent animationType="fade" onRequestClose={close}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
           <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalBodyContent}>
             <Text style={styles.modalTitle}>{title}</Text>
             {kind === "kategori" ? (
@@ -185,6 +187,24 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
           <View style={styles.modalActions}>
             <Pressable onPress={close} style={({ hovered, pressed }: PressState) => [styles.cancelButton, hovered && styles.cancelButtonHover, pressed && styles.pressed]}><Text style={styles.cancelText}>Batal</Text></Pressable>
             <Pressable disabled={saving || (kind === "kategori" && !name.trim()) || (kind === "stok" && (!sku.trim() || !name.trim() || !selectedCategoryId)) || movementDisabled || (mode === "edit" && kind === "kategori" && name === originalName && description === originalDesc)} onPress={save} style={({ hovered, pressed }: PressState) => [styles.saveButton, hovered && !saving && styles.saveButtonHover, pressed && styles.pressed, (saving || (kind === "kategori" && !name.trim()) || (kind === "stok" && (!sku.trim() || !name.trim() || !selectedCategoryId)) || movementDisabled || (mode === "edit" && kind === "kategori" && name === originalName && description === originalDesc)) && styles.tablePagerButtonDisabled]}><Text style={styles.saveText}>{saving ? "Menyimpan..." : "Simpan"}</Text></Pressable>
+          </View>
+          </View>
+        </View>
+      </Modal>
+      {operationError ? <ErrorModal message={operationError} onClose={() => setOperationError("")} /> : null}
+    </>
+  );
+}
+
+function ErrorModal({ message, onClose }: { message: string; onClose: () => void }) {
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>Gagal</Text>
+          <Text style={{ color: colors.muted, fontFamily: "Inter", fontSize: 15, lineHeight: 22 }}>{message}</Text>
+          <View style={styles.modalActions}>
+            <Pressable onPress={onClose} style={({ hovered, pressed }: PressState) => [styles.saveButton, hovered && styles.saveButtonHover, pressed && styles.pressed]}><Text style={styles.saveText}>OK</Text></Pressable>
           </View>
         </View>
       </View>

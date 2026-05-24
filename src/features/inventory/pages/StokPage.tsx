@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Image, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import Barcode from "react-native-barcode-svg";
 import { ChevronDown, ImageUp, Eye, X } from "lucide-react-native";
 import { colors, fonts } from "../../../theme/tokens";
@@ -43,6 +43,7 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
   const [saving, setSaving] = useState(false);
   const [tableLoading, setTableLoading] = useState<ProductTableLoading>(null);
   const [pendingDelete, setPendingDelete] = useState<StockItem | null>(null);
+  const [operationError, setOperationError] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [viewingImage, setViewingImage] = useState<StockItem | null>(null);
   const [imageFile, setImageFile] = useState<PickedImage | null>(null);
@@ -108,7 +109,7 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
       await apiRequest(`/products/${productId}/image`, { body: form, method: "POST", token });
       await refresh();
     } catch (error) {
-      Alert.alert("Gagal", error instanceof Error ? error.message : "Gambar gagal diupload.");
+      setOperationError(error instanceof Error ? error.message : "Gambar gagal diupload.");
     }
   };
 
@@ -146,7 +147,7 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
     try {
       await deleteProduct(pendingDelete.id);
     } catch (error) {
-      Alert.alert("Gagal", error instanceof Error ? error.message : "Gagal menghapus produk.");
+      setOperationError(error instanceof Error ? error.message : "Gagal menghapus produk.");
     } finally {
       setDeleteLoading(false);
       setPendingDelete(null);
@@ -177,7 +178,7 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
       await refresh();
       setEditing(null);
     } catch (error) {
-      Alert.alert("Gagal", error instanceof Error ? error.message : "Produk gagal diedit.");
+      setOperationError(error instanceof Error ? error.message : "Produk gagal diedit.");
     } finally {
       setSaving(false);
     }
@@ -227,6 +228,7 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
       {editing ? <ProductEditModal categories={categoryOptions} item={editing} saving={saving} onClose={() => setEditing(null)} onSave={saveEdit} /> : null}
       {pendingDelete ? <ConfirmModal title="Hapus Produk" message={`Yakin ingin menghapus "${pendingDelete.name}"?`} confirmText="Hapus" onCancel={() => setPendingDelete(null)} onConfirm={executeDelete} loading={deleteLoading} /> : null}
       {viewingImage ? <ImageViewerModal item={viewingImage} imageFile={imageFile} uploading={uploadingImage} onClose={() => { setViewingImage(null); setImageFile(null); }} onReplace={() => void handleReplaceImage()} onSave={saveImageChange} /> : null}
+      {operationError ? <ConfirmModal title="Gagal" message={operationError} confirmText="OK" hideCancel onCancel={() => setOperationError("")} onConfirm={() => setOperationError("")} /> : null}
     </>
   );
 }
@@ -340,7 +342,7 @@ function ConfirmModal({ title, message, confirmText, onCancel, onConfirm, hideCa
           <Text style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 18, marginTop: 12, textAlign: "center" }}>{message}</Text>
           <View style={styles.modalActions}>
             {!hideCancel ? <Pressable onPress={onCancel} style={({ hovered, pressed }: PressState) => [styles.cancelButton, hovered && styles.cancelButtonHover, pressed && styles.pressed]}><Text style={styles.cancelText}>Batal</Text></Pressable> : null}
-            <Pressable onPress={onConfirm} disabled={loading} style={({ hovered, pressed }: PressState) => [styles.saveButton, hovered && !loading && styles.saveButtonHover, pressed && styles.pressed, loading && styles.tablePagerButtonDisabled, { backgroundColor: "#b91c1c" }]}><Text style={styles.saveText}>{loading ? "Menghapus..." : confirmText}</Text></Pressable>
+            <Pressable onPress={onConfirm} disabled={loading} style={({ hovered, pressed }: PressState) => [styles.saveButton, hovered && !loading && styles.saveButtonHover, pressed && styles.pressed, loading && styles.tablePagerButtonDisabled, !hideCancel && { backgroundColor: "#b91c1c" }]}><Text style={styles.saveText}>{loading ? "Menghapus..." : confirmText}</Text></Pressable>
           </View>
         </View>
       </View>

@@ -8,6 +8,7 @@ use App\Http\Resources\SaleCollection;
 use App\Http\Resources\StockMovementCollection;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\SaleItem;
 use App\Models\StockMovement;
 use App\Support\SimplePdf;
 use Illuminate\Http\Request;
@@ -27,6 +28,12 @@ class ReportController extends Controller
         return response()->json([
             'sales' => [
                 'completedCount' => (clone $sales)->where('status', 'completed')->count(),
+                'completedQuantity' => (int) SaleItem::query()
+                    ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+                    ->where('sales.status', 'completed')
+                    ->when($request->query('from'), fn ($query, string $from) => $query->whereDate('sales.created_at', '>=', $from))
+                    ->when($request->query('to'), fn ($query, string $to) => $query->whereDate('sales.created_at', '<=', $to))
+                    ->sum('sale_items.quantity'),
                 'voidCount' => (clone $sales)->where('status', 'void')->count(),
             ],
             'stockMovements' => [

@@ -53,7 +53,8 @@ export async function apiRequest<T>(path: string, options: RequestInit & { token
   const payload = contentType.includes("application/json") ? await response.json() : await response.text();
 
   if (!response.ok) {
-    const error = new Error(errorMessageFromPayload(payload)) as ApiError;
+    const message = response.status === 403 ? "Aksi ini hanya dapat dilakukan oleh admin." : errorMessageFromPayload(payload);
+    const error = new Error(message) as ApiError;
     error.status = response.status;
     error.code = typeof payload === "object" ? payload?.code : undefined;
     error.errors = typeof payload === "object" ? payload?.errors : undefined;

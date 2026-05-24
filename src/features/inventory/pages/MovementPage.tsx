@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { ChevronDown } from "lucide-react-native";
 import { apiRequest, formatDate } from "../api";
 import { useInventoryData } from "../InventoryDataContext";
@@ -22,6 +22,7 @@ export function MovementPage({ kind, onOpenModal }: { kind: "inbound" | "outboun
   const [dateTo, setDateTo] = useState("");
   const [editing, setEditing] = useState<StockMovement | null>(null);
   const [pendingDelete, setPendingDelete] = useState<StockMovement | null>(null);
+  const [operationError, setOperationError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -94,7 +95,7 @@ export function MovementPage({ kind, onOpenModal }: { kind: "inbound" | "outboun
       skipAutoSearchRef.current = true;
       await reload();
     } catch (error) {
-      Alert.alert("Gagal", error instanceof Error ? error.message : "Riwayat stok gagal diedit.");
+      setOperationError(error instanceof Error ? error.message : "Riwayat stok gagal diedit.");
     } finally {
       setSaving(false);
     }
@@ -109,7 +110,8 @@ export function MovementPage({ kind, onOpenModal }: { kind: "inbound" | "outboun
       skipAutoSearchRef.current = true;
       await reload();
     } catch (error) {
-      Alert.alert("Gagal", error instanceof Error ? error.message : "Riwayat stok gagal dihapus.");
+      setPendingDelete(null);
+      setOperationError(error instanceof Error ? error.message : "Riwayat stok gagal dihapus.");
     } finally {
       setDeleting(false);
     }
@@ -125,6 +127,7 @@ export function MovementPage({ kind, onOpenModal }: { kind: "inbound" | "outboun
       </CrudShell>
       {editing ? <MovementEditModal item={editing} stockItems={stockItems} saving={saving} onClose={() => setEditing(null)} onSave={saveEdit} /> : null}
       {pendingDelete ? <ConfirmModal title="Hapus Riwayat" message={`Yakin ingin menghapus riwayat "${pendingDelete.productName}"? Stok akan dikoreksi otomatis.`} confirmText="Hapus" loading={deleting} onCancel={() => setPendingDelete(null)} onConfirm={deleteMovement} /> : null}
+      {operationError ? <ConfirmModal title="Gagal" message={operationError} confirmText="OK" hideCancel onCancel={() => setOperationError("")} onConfirm={() => setOperationError("")} /> : null}
     </>
   );
 }
@@ -197,6 +200,6 @@ function MovementEditModal({ item, onClose, onSave, saving, stockItems }: { item
   );
 }
 
-function ConfirmModal({ title, message, confirmText, onCancel, onConfirm, loading }: { title: string; message: string; confirmText: string; onCancel: () => void; onConfirm: () => void; loading?: boolean }) {
-  return <Modal visible transparent animationType="fade" onRequestClose={onCancel}><View style={styles.modalBackdrop}><View style={styles.modalCard}><Text style={styles.modalTitle}>{title}</Text><Text style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 15, lineHeight: 22 }}>{message}</Text><View style={styles.modalActions}><Pressable disabled={loading} onPress={onCancel} style={({ hovered, pressed }: PressState) => [styles.cancelButton, hovered && !loading && styles.cancelButtonHover, pressed && styles.pressed, loading && styles.tablePagerButtonDisabled]}><Text style={styles.cancelText}>Batal</Text></Pressable><Pressable disabled={loading} onPress={onConfirm} style={({ hovered, pressed }: PressState) => [styles.saveButton, hovered && !loading && styles.saveButtonHover, pressed && styles.pressed, loading && styles.tablePagerButtonDisabled, { backgroundColor: "#b91c1c" }]}><Text style={styles.saveText}>{loading ? "Menghapus..." : confirmText}</Text></Pressable></View></View></View></Modal>;
+function ConfirmModal({ title, message, confirmText, onCancel, onConfirm, hideCancel, loading }: { title: string; message: string; confirmText: string; onCancel: () => void; onConfirm: () => void; hideCancel?: boolean; loading?: boolean }) {
+  return <Modal visible transparent animationType="fade" onRequestClose={onCancel}><View style={styles.modalBackdrop}><View style={styles.modalCard}><Text style={styles.modalTitle}>{title}</Text><Text style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 15, lineHeight: 22 }}>{message}</Text><View style={styles.modalActions}>{!hideCancel ? <Pressable disabled={loading} onPress={onCancel} style={({ hovered, pressed }: PressState) => [styles.cancelButton, hovered && !loading && styles.cancelButtonHover, pressed && styles.pressed, loading && styles.tablePagerButtonDisabled]}><Text style={styles.cancelText}>Batal</Text></Pressable> : null}<Pressable disabled={loading} onPress={onConfirm} style={({ hovered, pressed }: PressState) => [styles.saveButton, hovered && !loading && styles.saveButtonHover, pressed && styles.pressed, loading && styles.tablePagerButtonDisabled, !hideCancel && { backgroundColor: "#b91c1c" }]}><Text style={styles.saveText}>{loading ? "Menghapus..." : confirmText}</Text></Pressable></View></View></View></Modal>;
 }
