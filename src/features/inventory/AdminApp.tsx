@@ -7,6 +7,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AuthScreen } from "./AuthScreen";
 import { AdminPage } from "./pages/AdminPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { DealerPage } from "./pages/DealerPage";
 import { InventoryDataProvider } from "./InventoryDataContext";
 import { KategoriPage } from "./pages/KategoriPage";
 import { LaporanPage, ReportDetail } from "./pages/LaporanPage";
@@ -102,6 +103,7 @@ export function AdminApp() {
           {page === "dashboard" ? <DashboardPage /> : null}
           {page === "kategori" ? <KategoriPage onSelectCategory={(category) => { setStokCategoryId(category.id); setPage("stok"); }} onOpenModal={(mode, item) => openModal("kategori", mode, item)} /> : null}
           {page === "stok" ? <StokPage initialCategoryId={stokCategoryId} onOpenModal={(mode) => openModal("stok", mode)} /> : null}
+          {page === "dealer" ? <DealerPage /> : null}
           {page === "scan" ? <ScanPage onGoInbound={() => setPage("masuk")} onGoOutbound={() => setPage("keluar")} /> : null}
           {page === "masuk" ? <MovementPage kind="inbound" onOpenModal={() => openModal("masuk")} /> : null}
           {page === "keluar" ? <MovementPage kind="outbound" onOpenModal={() => openModal("keluar")} /> : null}

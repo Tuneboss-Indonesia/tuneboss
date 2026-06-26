@@ -1,4 +1,4 @@
-import { BarChart3, ClipboardList, FileBarChart, LayoutDashboard, Package, PackageMinus, PackagePlus, ScanBarcode, Settings, Tag } from "lucide-react-native";
+import { BarChart3, ClipboardList, FileBarChart, LayoutDashboard, Package, PackageMinus, PackagePlus, ScanBarcode, Settings, Tag, Users } from "lucide-react-native";
 import type { MenuItem, PageKey } from "./types";
 
 export const logoUri = require("../../../assets/logo.png");
@@ -7,6 +7,7 @@ export const mainMenu: MenuItem[] = [
   ["dashboard", LayoutDashboard, "Dashboard"],
   ["kategori", Tag, "Kategori"],
   ["stok", Package, "Data Produk"],
+  ["dealer", Users, "Dealer"],
   ["scan", ScanBarcode, "Scan Barcode"],
 ];
 
