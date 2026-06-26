@@ -40,6 +40,7 @@ export type StockItem = PriorityProduct & {
   categoryId?: string;
   isActive?: boolean;
   imageUrl?: string | null;
+  serialNumbers?: string[];
 };
 
 export type StockMovement = {
@@ -47,6 +48,7 @@ export type StockMovement = {
   productId: string;
   type: "inbound" | "outbound" | "adjustment" | "sale";
   productName: string;
+  productCategory?: string | null;
   sku: string;
   serialNumbers?: string[];
   quantity: number;

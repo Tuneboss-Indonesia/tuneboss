@@ -13,6 +13,7 @@ class StockMovementResource extends JsonResource
             'id' => $this->id,
             'productId' => $this->product_id,
             'productName' => $this->product?->name,
+            'productCategory' => $this->product?->category?->name,
             'sku' => $this->product?->sku,
             'operatorId' => $this->operator_id,
             'operator' => $this->operator?->name,

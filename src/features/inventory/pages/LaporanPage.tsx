@@ -18,10 +18,10 @@ type FilterOption = { label: string; value: string };
 type Paginated<T> = { data: T[]; meta?: { currentPage?: number; lastPage?: number; total?: number } };
 type ReportProduct = { category?: { name?: string } | null; id: string; name: string; stock: number; status: string };
 type ReportSale = { cashier: string | null; createdAt: string; invoiceNumber: string; status: string };
-type ReportMovement = { createdAt?: string; customer?: string | null; note?: string | null; operator?: string | null; party?: string | null; productName: string; quantity: number; saleAddress?: string | null; supplier?: string | null };
+type ReportMovement = { createdAt?: string; customer?: string | null; note?: string | null; operator?: string | null; party?: string | null; productCategory?: string | null; productName: string; quantity: number; saleAddress?: string | null; supplier?: string | null };
 type ExportProductRow = { category?: string | { name?: string } | null; name: string; stock: number; status: string };
 type ExportSaleRow = { address?: string | null; cashier?: string | null; createdAt: string; invoiceNumber: string; status: string; items?: Array<{ productName?: string | null; quantity: number }> };
-type ExportMovementRow = { note?: string | null; operator?: string | null; party?: string | null; productName: string; quantity: number; saleAddress?: string | null; serialNumbers?: string[]; timestamp?: string | null; createdAt?: string | null; type?: string };
+type ExportMovementRow = { note?: string | null; operator?: string | null; party?: string | null; productCategory?: string | null; productName: string; quantity: number; saleAddress?: string | null; serialNumbers?: string[]; timestamp?: string | null; createdAt?: string | null; type?: string };
 
 type PageResponse<T> = { data: T[]; meta?: { lastPage?: number } };
 
@@ -143,8 +143,8 @@ export function LaporanPage({ onNavigate }: { onNavigate: (page: PageKey) => voi
         },
         {
           name: "Masuk",
-          columns: ["Tanggal", "Produk", "Jumlah", "No Seri", "Supplier", "Catatan"],
-          rows: inbound.map((item) => [formatDate(item.createdAt ?? item.timestamp), item.productName, String(item.quantity), item.serialNumbers?.join(", ") || "-", item.party ?? "-", item.note ?? "-"]),
+          columns: ["Tanggal", "Produk", "Jumlah", "No Seri", "Kategori", "Catatan"],
+          rows: inbound.map((item) => [formatDate(item.createdAt ?? item.timestamp), item.productName, String(item.quantity), item.serialNumbers?.join(", ") || "-", item.productCategory ?? "-", item.note ?? "-"]),
         },
         {
           name: "Keluar",
@@ -223,7 +223,7 @@ function LaporanSkeleton() {
 function reportColumns(type: ReportType) {
   if (type === "stok") return ["Produk", "Kategori", "Stok", "Status"];
   if (type === "penjualan") return ["Invoice", "Tanggal", "Produk", "Total", "Alamat"];
-  if (type === "masuk") return ["Tanggal", "Produk", "Jumlah", "No Seri", "Supplier", "Catatan"];
+  if (type === "masuk") return ["Tanggal", "Produk", "Jumlah", "No Seri", "Kategori", "Catatan"];
   return ["Tanggal", "Produk", "Jumlah", "No Seri", "Alamat", "Catatan"];
 }
 
@@ -290,7 +290,7 @@ export function ReportDetail({ type, onBack }: { type: "stok" | "penjualan" | "m
     ? stockItems.map((item) => [item.name, item.category, String(item.stock), stockStatusLabel(item.status)])
     : type === "penjualan"
       ? sales.map((sale) => [sale.invoiceNumber, formatDate(sale.createdAt), sale.items?.map((item) => item.productName ?? "-").join(", ") || "-", String(sale.items?.reduce((total, item) => total + item.quantity, 0) ?? 0), sale.address ?? "-"])
-      : movements.filter((item) => type === "masuk" ? item.type === "inbound" : item.type === "outbound").map((item) => [formatDate(item.timestamp), item.productName, String(item.quantity), item.serialNumbers?.join(", ") || "-", type === "masuk" ? item.party : (item.saleAddress ?? item.party ?? "-"), item.note ?? "-"]);
+      : movements.filter((item) => type === "masuk" ? item.type === "inbound" : item.type === "outbound").map((item) => [formatDate(item.timestamp), item.productName, String(item.quantity), item.serialNumbers?.join(", ") || "-", type === "masuk" ? item.productCategory ?? "-" : (item.saleAddress ?? item.party ?? "-"), item.note ?? "-"]);
   const totalSalesQuantity = sales.reduce((total, sale) => total + (sale.items?.reduce((itemTotal, saleItem) => itemTotal + saleItem.quantity, 0) ?? 0), 0);
   const availableStock = summary.totalUnits;
   const lowStock = summary.lowStockCount;
@@ -323,7 +323,7 @@ export function ReportDetail({ type, onBack }: { type: "stok" | "penjualan" | "m
       return data.map((sale) => [sale.invoiceNumber, formatDate(sale.createdAt), sale.items?.map((item) => item.productName ?? "-").join(", ") || "-", String(sale.items?.reduce((total, item) => total + item.quantity, 0) ?? 0), sale.address ?? "-"]);
     }
     const data = await fetchAllPages<ExportMovementRow>("/stock/movements", { type: type === "masuk" ? "inbound" : "outbound", ...(filterFrom ? { from: filterFrom } : {}), ...(filterTo ? { to: filterTo } : {}) });
-    return data.map((item) => [formatDate(item.createdAt ?? item.timestamp), item.productName, String(item.quantity), item.serialNumbers?.join(", ") || "-", type === "masuk" ? item.party : (item.saleAddress ?? item.party ?? "-"), item.note ?? "-"]);
+    return data.map((item) => [formatDate(item.createdAt ?? item.timestamp), item.productName, String(item.quantity), item.serialNumbers?.join(", ") || "-", type === "masuk" ? item.productCategory ?? "-" : (item.saleAddress ?? item.party ?? "-"), item.note ?? "-"]);
   };
   const updateSalesMetrics = async (from = filterFrom, to = filterTo) => {
     if (type !== "penjualan") return;

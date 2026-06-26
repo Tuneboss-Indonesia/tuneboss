@@ -21,6 +21,15 @@ function getStatus(stock: number, minStock: number) {
   return "Tersedia";
 }
 
+function ProductCodeCell({ item }: { item: StockItem }) {
+  return (
+    <View style={{ gap: 4 }}>
+      <Text style={styles.td}>{item.sku}</Text>
+      <Text style={styles.scanResultMeta}>{item.serialNumbers?.length ? item.serialNumbers.join(", ") : "Belum ada no seri"}</Text>
+    </View>
+  );
+}
+
 export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => void }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("Semua");
@@ -198,7 +207,7 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
         </View>
         <DataTable columns={["Produk", "Kode Produk + No Seri", "Kategori", "Stok", "Status", "Aksi"]} pagination={productMeta} onPageChange={handlePageChange} loading={showTableSkeleton}>
           {stockItems.map((item) => (
-            <TableRow key={item.id} cells={[item.name, item.serialNumbers?.length ? item.serialNumbers.join(", ") : item.sku, item.category, String(item.stock), getStatus(item.stock, item.minStock)]} actions={
+            <TableRow key={item.id} cells={[item.name, <ProductCodeCell item={item} />, item.category, String(item.stock), getStatus(item.stock, item.minStock)]} actions={
               <View style={styles.rowActions}>
                 <RowActions onEdit={() => setEditing(item)} onDelete={() => confirmDelete(item)} />
                 {item.imageUrl ? (
