@@ -1,0 +1,163 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Http\Resources\UserCollection;
+use App\Http\Resources\UserResource;
+use App\Models\AuditLog;
+use App\Models\User;
+use Illuminate\Database\QueryException;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+
+class UserController extends Controller
+{
+    public function index(Request $request)
+    {
+        $users = User::query()
+            ->when($request->query('search'), function ($query, string $search) {
+                $query->where(fn ($query) => $query
+                    ->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%"));
+            })
+            ->when($request->query('role'), fn ($query, string $role) => $query->where('role', $role))
+            ->when($request->query('active') !== null, fn ($query) => $query->where('is_active', filter_var($request->query('active'), FILTER_VALIDATE_BOOLEAN)))
+            ->orderBy('name')
+            ->paginate((int) $request->query('per_page', 15));
+
+        return new UserCollection($users);
+    }
+
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:150'],
+            'email' => ['required', 'email', 'max:150'],
+            'password' => ['required', 'string', 'min:8'],
+            'role' => ['required', Rule::in(['admin', 'staff'])],
+            'is_active' => ['sometimes', 'boolean'],
+        ]);
+
+        $existing = User::where('email', $data['email'])->first();
+
+        if ($existing?->is_active) {
+            throw ValidationException::withMessages([
+                'email' => ['Email sudah digunakan.'],
+            ]);
+        }
+
+        if ($existing) {
+            $before = $this->auditPayload($existing);
+            $existing->update([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => $data['password'],
+                'role' => $data['role'],
+                'is_active' => $data['is_active'] ?? true,
+            ]);
+            $existing->tokens()->delete();
+            $this->audit($request, 'user.reactivated', $existing, $before, $this->auditPayload($existing));
+
+            return new UserResource($existing);
+        }
+
+        $user = User::create($data);
+        $this->audit($request, 'user.created', $user, after: $this->auditPayload($user));
+
+        return (new UserResource($user))->response()->setStatusCode(201);
+    }
+
+    public function show(User $user)
+    {
+        return new UserResource($user);
+    }
+
+    public function update(Request $request, User $user)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:150'],
+            'email' => ['required', 'email', 'max:150', Rule::unique('users', 'email')->ignore($user->id)],
+            'role' => ['required', Rule::in(['admin', 'staff'])],
+            'is_active' => ['required', 'boolean'],
+        ]);
+
+        $before = $this->auditPayload($user);
+        $user->update($data);
+        $this->audit($request, 'user.updated', $user, $before, $this->auditPayload($user));
+
+        if (! $user->is_active) {
+            $user->tokens()->delete();
+        }
+
+        return new UserResource($user);
+    }
+
+    public function updatePassword(Request $request, User $user)
+    {
+        $data = $request->validate([
+            'password' => ['required', 'string', 'min:8'],
+        ]);
+
+        $user->update(['password' => $data['password']]);
+        $user->tokens()->delete();
+        $this->audit($request, 'user.password_updated', $user, metadata: ['passwordChanged' => true]);
+
+        return response()->json(['message' => 'Password user diperbarui.']);
+    }
+
+    public function deactivate(Request $request, User $user)
+    {
+        if ($request->user()->is($user)) {
+            return response()->json(['message' => 'Admin tidak bisa menonaktifkan akun sendiri.', 'code' => 'cannot_deactivate_self'], 422);
+        }
+
+        $before = $this->auditPayload($user);
+        $user->update(['is_active' => false]);
+        $user->tokens()->delete();
+        $this->audit($request, 'user.deactivated', $user, $before, $this->auditPayload($user));
+
+        return response()->json(['message' => 'User dinonaktifkan.']);
+    }
+
+    public function destroy(Request $request, User $user)
+    {
+        if ($request->user()->is($user)) {
+            return response()->json(['message' => 'Admin tidak bisa menghapus akun sendiri.', 'code' => 'cannot_delete_self'], 422);
+        }
+
+        $before = $this->auditPayload($user);
+        $userId = $user->id;
+        $user->tokens()->delete();
+
+        try {
+            $user->delete();
+        } catch (QueryException) {
+            return response()->json([
+                'message' => 'User sudah memiliki riwayat transaksi. Nonaktifkan akun jika riwayat masih perlu dipertahankan.',
+                'code' => 'user_has_history',
+            ], 422);
+        }
+
+        $this->audit($request, 'user.deleted', $userId, before: $before);
+
+        return response()->json(['message' => 'User dihapus.']);
+    }
+
+    private function audit(Request $request, string $action, User|string $user, ?array $before = null, ?array $after = null, ?array $metadata = null): void
+    {
+        AuditLog::create([
+            'user_id' => $request->user()?->id,
+            'action' => $action,
+            'entity' => 'users',
+            'entity_id' => $user instanceof User ? $user->id : $user,
+            'metadata' => $metadata ?? array_filter(['before' => $before, 'after' => $after]),
+        ]);
+    }
+
+    private function auditPayload(User $user): array
+    {
+        return $user->only(['name', 'email', 'role', 'is_active']);
+    }
+}

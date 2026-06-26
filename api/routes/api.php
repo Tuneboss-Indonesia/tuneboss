@@ -1,0 +1,97 @@
+<?php
+
+use App\Http\Controllers\Api\AppController;
+use App\Http\Controllers\Api\AuditLogController;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\RestockAlertController;
+use App\Http\Controllers\Api\SaleController;
+use App\Http\Controllers\Api\StockController;
+use App\Http\Controllers\Api\UserController;
+use Illuminate\Support\Facades\Route;
+
+Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
+Route::get('/health', [AppController::class, 'health']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/app/bootstrap', [AppController::class, 'bootstrap']);
+
+    Route::get('/auth/me', [AuthController::class, 'me']);
+    Route::post('/auth/refresh', [AuthController::class, 'refresh']);
+    Route::patch('/auth/profile', [AuthController::class, 'updateProfile']);
+    Route::patch('/auth/password', [AuthController::class, 'updatePassword']);
+    Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::post('/auth/logout-all', [AuthController::class, 'logoutAll']);
+
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/users', [UserController::class, 'index']);
+        Route::post('/users', [UserController::class, 'store']);
+        Route::get('/users/{user}', [UserController::class, 'show']);
+        Route::patch('/users/{user}', [UserController::class, 'update']);
+        Route::patch('/users/{user}/password', [UserController::class, 'updatePassword']);
+        Route::patch('/users/{user}/deactivate', [UserController::class, 'deactivate']);
+        Route::delete('/users/{user}', [UserController::class, 'destroy']);
+
+        Route::post('/restock-alerts/{restockAlert}/resolve', [RestockAlertController::class, 'resolve']);
+
+        Route::get('/audit-logs/export', [AuditLogController::class, 'export']);
+        Route::get('/audit-logs', [AuditLogController::class, 'index']);
+    });
+
+    Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
+    Route::get('/dashboard/priority-products', [DashboardController::class, 'priorityProducts']);
+    Route::get('/dashboard/recent-activities', [DashboardController::class, 'recentActivities']);
+    Route::get('/dashboard/sales-chart', [DashboardController::class, 'salesChart']);
+    Route::get('/dashboard/top-products', [DashboardController::class, 'topProducts']);
+    Route::get('/dashboard/realtime', [DashboardController::class, 'realtime']);
+
+    Route::get('/restock-alerts', [RestockAlertController::class, 'index']);
+    Route::post('/restock-alerts/{restockAlert}/acknowledge', [RestockAlertController::class, 'acknowledge']);
+
+    Route::get('/products/lookup', [ProductController::class, 'lookup']);
+    Route::get('/products', [ProductController::class, 'index']);
+    Route::get('/products/{product}', [ProductController::class, 'show']);
+    Route::post('/products', [ProductController::class, 'store'])->middleware('role:admin');
+    Route::patch('/products/{product}', [ProductController::class, 'update'])->middleware('role:admin');
+    Route::post('/products/{product}/image', [ProductController::class, 'uploadImage'])->middleware('role:admin');
+    Route::delete('/products/{product}/image', [ProductController::class, 'deleteImage'])->middleware('role:admin');
+    Route::delete('/products/{product}', [ProductController::class, 'destroy'])->middleware('role:admin');
+
+    Route::get('/categories', [CategoryController::class, 'index']);
+    Route::get('/categories/{category}', [CategoryController::class, 'show']);
+    Route::post('/categories', [CategoryController::class, 'store'])->middleware('role:admin');
+    Route::patch('/categories/{category}', [CategoryController::class, 'update'])->middleware('role:admin');
+    Route::delete('/categories/{category}', [CategoryController::class, 'destroy'])->middleware('role:admin');
+
+    Route::get('/stock/movements', [StockController::class, 'movements']);
+    Route::patch('/stock/movements/{stockMovement}', [StockController::class, 'updateMovement'])->middleware('role:admin');
+    Route::delete('/stock/movements/{stockMovement}', [StockController::class, 'destroyMovement'])->middleware('role:admin');
+    Route::post('/stock/inbound', [StockController::class, 'inbound']);
+    Route::post('/stock/outbound', [StockController::class, 'outbound']);
+    Route::post('/stock/adjustment', [StockController::class, 'adjustment'])->middleware('role:admin');
+
+    Route::get('/sales', [SaleController::class, 'index']);
+    Route::post('/sales/preview', [SaleController::class, 'preview']);
+    Route::post('/sales', [SaleController::class, 'store']);
+    Route::get('/sales/{sale}', [SaleController::class, 'show']);
+    Route::patch('/sales/{sale}', [SaleController::class, 'update'])->middleware('role:admin');
+    Route::delete('/sales/{sale}', [SaleController::class, 'destroy'])->middleware('role:admin');
+    Route::post('/sales/{sale}/void', [SaleController::class, 'void'])->middleware('role:admin');
+
+    Route::get('/reports/stock', [ReportController::class, 'stock']);
+    Route::get('/reports/stock/export', [ReportController::class, 'stockExport']);
+    Route::get('/reports/stock/export.pdf', [ReportController::class, 'stockPdf']);
+    Route::get('/reports/summary', [ReportController::class, 'summary']);
+    Route::get('/reports/sales', [ReportController::class, 'sales']);
+    Route::get('/reports/sales/export', [ReportController::class, 'salesExport']);
+    Route::get('/reports/sales/export.pdf', [ReportController::class, 'salesPdf']);
+    Route::get('/reports/inbound', [ReportController::class, 'inbound']);
+    Route::get('/reports/inbound/export', [ReportController::class, 'inboundExport']);
+    Route::get('/reports/inbound/export.pdf', [ReportController::class, 'inboundPdf']);
+    Route::get('/reports/outbound', [ReportController::class, 'outbound']);
+    Route::get('/reports/outbound/export', [ReportController::class, 'outboundExport']);
+    Route::get('/reports/outbound/export.pdf', [ReportController::class, 'outboundPdf']);
+});
