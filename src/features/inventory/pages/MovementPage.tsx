@@ -9,9 +9,11 @@ import { colors, fonts } from "../../../theme/tokens";
 import { styles } from "../styles";
 import type { PressState } from "../types";
 
+const paymentStatuses = ["Lunas", "DP", "Unpaid", "PayLater"] as const;
+
 function MovementTableRow({ columns, compact, item, onDelete, onEdit }: { columns?: string[]; compact?: boolean; item: StockMovement; onDelete: () => void; onEdit: () => void }) {
   const serials = item.serialNumbers?.join(", ") || "-";
-  const cells = item.type === "inbound" ? [formatDate(item.timestamp), item.productName, String(item.quantity), serials, item.productCategory ?? "-", item.note || "-"] : [formatDate(item.timestamp), item.productName, String(item.quantity), serials, item.saleAddress ?? item.party ?? "-", item.note || "-"];
+  const cells = item.type === "inbound" ? [formatDate(item.timestamp), item.productName, String(item.quantity), serials, item.productCategory ?? "-", item.note || "-"] : [formatDate(item.timestamp), item.productName, String(item.quantity), serials, item.customerName ?? "-", item.paymentStatus ?? "-", item.saleAddress ?? item.party ?? "-", item.note || "-"];
   const canModify = item.type === "inbound" || item.type === "outbound";
   return <TableRow columns={columns} compact={compact} cells={cells} actions={canModify ? <RowActions onEdit={onEdit} onDelete={onDelete} /> : null} />;
 }
@@ -32,7 +34,7 @@ export function MovementPage({ kind, onOpenModal }: { kind: "inbound" | "outboun
   const types = isIn ? ["inbound"] : ["outbound"];
   const movementTypeFilter = isIn ? "inbound" : "outbound";
   const filterLoading = loading || refreshing || tableLoading;
-  const rows = movements.filter((item) => types.includes(item.type) && `${item.productName} ${item.sku} ${item.serialNumbers?.join(" ") ?? ""} ${item.productCategory ?? ""} ${item.party} ${item.operator} ${item.note}`.toLowerCase().includes(query.toLowerCase()));
+  const rows = movements.filter((item) => types.includes(item.type) && `${item.productName} ${item.sku} ${item.serialNumbers?.join(" ") ?? ""} ${item.productCategory ?? ""} ${item.customerName ?? ""} ${item.paymentStatus ?? ""} ${item.party} ${item.operator} ${item.note}`.toLowerCase().includes(query.toLowerCase()));
 
   const effectiveDateRange = () => {
     if (dateFrom && !dateTo) return { from: dateFrom, to: dateFrom };
@@ -77,14 +79,16 @@ export function MovementPage({ kind, onOpenModal }: { kind: "inbound" | "outboun
     }
   };
 
-  const saveEdit = async (form: { note: string; party: string; productId: string; quantity: string }) => {
+  const saveEdit = async (form: { customerName: string; note: string; party: string; paymentStatus: string; productId: string; quantity: string }) => {
     if (!editing) return;
     setSaving(true);
     try {
       await apiRequest(`/stock/movements/${editing.id}`, {
         body: JSON.stringify({
+          customerName: editing.type === "outbound" ? form.customerName.trim() || null : null,
           note: form.note.trim() || null,
-          party: form.party.trim() || null,
+          party: editing.type === "outbound" ? form.party.trim() || null : null,
+          paymentStatus: editing.type === "outbound" ? form.paymentStatus || null : null,
           productId: form.productId,
           quantity: Number(form.quantity || 0),
         }),
@@ -119,7 +123,7 @@ export function MovementPage({ kind, onOpenModal }: { kind: "inbound" | "outboun
   return (
     <>
       <CrudShell title={isIn ? "Riwayat Produk Masuk" : "Riwayat Produk Keluar"} button={isIn ? "Tambah Stok" : "Kurangi Stok"} onButton={onOpenModal} search={isIn ? "Cari produk, no seri..." : "Cari produk keluar..."} searchValue={query} onSearchChange={setQuery} searchDisabled={filterLoading} buttonDisabled={filterLoading} dateFrom={dateFrom} onDateFromChange={setDateFrom} dateTo={dateTo} onDateToChange={setDateTo} loading={loading}>
-        <DataTable columns={isIn ? ["Tanggal", "Produk", "Jumlah", "No Seri", "Kategori", "Catatan", "Aksi"] : ["Tanggal", "Produk", "Jumlah", "No Seri", "Alamat", "Catatan", "Aksi"]} pagination={movementMeta} onPageChange={handlePageChange} loading={filterLoading}>
+        <DataTable columns={isIn ? ["Tanggal", "Produk", "Jumlah", "No Seri", "Kategori", "Catatan", "Aksi"] : ["Tanggal", "Produk", "Jumlah", "No Seri", "Pembeli/Dealer", "Status Bayar", "Alamat", "Catatan", "Aksi"]} pagination={movementMeta} onPageChange={handlePageChange} loading={filterLoading}>
           {rows.length ? rows.map((item) => <MovementTableRow key={item.id} item={item} onEdit={() => setEditing(item)} onDelete={() => setPendingDelete(item)} />) : null}
           {!rows.length && !filterLoading ? <EmptyRow text="Tidak ada data ditemukan" /> : null}
         </DataTable>
@@ -130,11 +134,14 @@ export function MovementPage({ kind, onOpenModal }: { kind: "inbound" | "outboun
   );
 }
 
-function MovementEditModal({ item, onClose, onSave, saving, stockItems }: { item: StockMovement; onClose: () => void; onSave: (form: { note: string; party: string; productId: string; quantity: string }) => Promise<void>; saving: boolean; stockItems: StockItem[] }) {
+function MovementEditModal({ item, onClose, onSave, saving, stockItems }: { item: StockMovement; onClose: () => void; onSave: (form: { customerName: string; note: string; party: string; paymentStatus: string; productId: string; quantity: string }) => Promise<void>; saving: boolean; stockItems: StockItem[] }) {
   const [productId, setProductId] = useState(item.productId);
   const [productOpen, setProductOpen] = useState(false);
   const [quantity, setQuantity] = useState(String(item.quantity));
   const [party, setParty] = useState(item.party ?? "");
+  const [customerName, setCustomerName] = useState(item.customerName ?? "");
+  const [paymentStatus, setPaymentStatus] = useState(item.paymentStatus ?? "Unpaid");
+  const [paymentStatusOpen, setPaymentStatusOpen] = useState(false);
   const [note, setNote] = useState(item.note ?? "");
   const selectedProduct = stockItems.find((product) => product.id === productId);
   const fallbackCurrentStock = productId === item.productId ? item.afterQuantity ?? 0 : 0;
@@ -144,7 +151,7 @@ function MovementEditModal({ item, onClose, onSave, saving, stockItems }: { item
   const availableStock = currentStock + (item.type === "outbound" && productId === item.productId ? item.quantity : 0);
   const stockExceeded = item.type === "outbound" && quantityNumber > availableStock;
   const quantityError = stockExceeded ? `Stok tersisa ${availableStock}, jumlah tidak boleh melebihi stok.` : "";
-  const hasChanges = productId !== item.productId || quantity !== String(item.quantity) || party !== (item.party ?? "") || note !== (item.note ?? "");
+  const hasChanges = productId !== item.productId || quantity !== String(item.quantity) || party !== (item.party ?? "") || customerName !== (item.customerName ?? "") || paymentStatus !== (item.paymentStatus ?? "Unpaid") || note !== (item.note ?? "");
   const disabled = saving || !hasChanges || !productId || !quantity.trim() || quantityNumber < 1 || stockExceeded;
   const productOptions = item.type === "outbound" ? stockItems.filter((product) => product.stock > 0 || product.id === item.productId) : stockItems;
   const hasCurrentProductOption = productOptions.some((product) => product.id === item.productId);
@@ -185,12 +192,20 @@ function MovementEditModal({ item, onClose, onSave, saving, stockItems }: { item
             </View>
             <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor={colors.muted} value={quantity} onChangeText={(value) => setQuantity(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
             {quantityError ? <Text style={styles.errorText}>{quantityError}</Text> : null}
+            {item.type === "outbound" ? <TextInput onChangeText={setCustomerName} style={styles.modalInput} placeholder="Nama pembeli/dealer" placeholderTextColor={colors.muted} value={customerName} /> : null}
+            {item.type === "outbound" ? (
+              <View style={styles.modalFieldGroup}>
+                <Text style={styles.modalLabel}>Status pembayaran</Text>
+                <Pressable onPress={() => setPaymentStatusOpen((open) => !open)} style={({ hovered, pressed }: PressState) => [styles.modalSelect, hovered && styles.modalSelectHover, pressed && styles.pressed]}><Text style={styles.modalSelectText}>{paymentStatus}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
+                {paymentStatusOpen ? <View style={styles.modalSelectOptions}>{paymentStatuses.map((status) => <Pressable key={status} onPress={() => { setPaymentStatus(status); setPaymentStatusOpen(false); }} style={({ hovered, pressed }: PressState) => [styles.modalSelectOption, paymentStatus === status && styles.modalSelectOptionActive, hovered && paymentStatus !== status && styles.modalSelectOptionHover, pressed && styles.pressed]}><Text style={[styles.modalSelectOptionText, paymentStatus === status && styles.modalSelectOptionTextActive]}>{status}</Text></Pressable>)}</View> : null}
+              </View>
+            ) : null}
             <TextInput onChangeText={setParty} style={styles.modalInput} placeholder={partyLabel} placeholderTextColor={colors.muted} value={party} />
             <TextInput onChangeText={setNote} style={styles.modalInput} placeholder="Catatan (Opsional)" placeholderTextColor={colors.muted} value={note} />
           </ScrollView>
           <View style={styles.modalActions}>
             <Pressable onPress={onClose} style={({ hovered, pressed }: PressState) => [styles.cancelButton, hovered && styles.cancelButtonHover, pressed && styles.pressed]}><Text style={styles.cancelText}>Batal</Text></Pressable>
-            <Pressable disabled={disabled} onPress={() => onSave({ note, party, productId, quantity })} style={({ hovered, pressed }: PressState) => [styles.saveButton, hovered && !disabled && styles.saveButtonHover, pressed && styles.pressed, disabled && styles.tablePagerButtonDisabled]}><Text style={styles.saveText}>{saving ? "Menyimpan..." : "Simpan"}</Text></Pressable>
+            <Pressable disabled={disabled} onPress={() => onSave({ customerName, note, party, paymentStatus, productId, quantity })} style={({ hovered, pressed }: PressState) => [styles.saveButton, hovered && !disabled && styles.saveButtonHover, pressed && styles.pressed, disabled && styles.tablePagerButtonDisabled]}><Text style={styles.saveText}>{saving ? "Menyimpan..." : "Simpan"}</Text></Pressable>
           </View>
         </View>
       </View>

@@ -21,6 +21,8 @@ class StockMovement extends Model
         'before_quantity',
         'after_quantity',
         'party',
+        'customer_name',
+        'payment_status',
         'note',
     ];
 

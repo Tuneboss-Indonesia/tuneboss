@@ -98,6 +98,8 @@ class StockController extends Controller
                 'before_quantity' => $before,
                 'after_quantity' => $after,
                 'party' => $this->party($data),
+                'customer_name' => $this->customerName($data),
+                'payment_status' => $this->paymentStatus($data),
                 'note' => $data['note'] ?? null,
             ]);
 
@@ -143,6 +145,10 @@ class StockController extends Controller
             'product_id' => ['required_without:productId', 'uuid', 'exists:products,id'],
             'quantity' => ['required', 'integer', 'min:0'],
             'party' => ['nullable', 'string', 'max:180'],
+            'customerName' => ['nullable', 'string', 'max:180'],
+            'customer_name' => ['nullable', 'string', 'max:180'],
+            'paymentStatus' => ['nullable', 'string', 'in:Lunas,DP,Unpaid,PayLater'],
+            'payment_status' => ['nullable', 'string', 'in:Lunas,DP,Unpaid,PayLater'],
             'note' => ['nullable', 'string'],
         ]);
 
@@ -162,6 +168,8 @@ class StockController extends Controller
                 'before_quantity' => $before,
                 'after_quantity' => $after,
                 'party' => $this->party($data),
+                'customer_name' => $this->customerName($data),
+                'payment_status' => $this->paymentStatus($data),
                 'note' => $data['note'] ?? null,
             ]);
 
@@ -374,5 +382,15 @@ class StockController extends Controller
         }
 
         return null;
+    }
+
+    private function customerName(array $data): ?string
+    {
+        return $data['customer_name'] ?? $data['customerName'] ?? null;
+    }
+
+    private function paymentStatus(array $data): ?string
+    {
+        return $data['payment_status'] ?? $data['paymentStatus'] ?? null;
     }
 }
