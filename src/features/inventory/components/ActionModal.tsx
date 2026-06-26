@@ -19,6 +19,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
   const [sku, setSku] = useState("");
   const [barcode, setBarcode] = useState("");
   const [stock, setStock] = useState("");
+  const [serialNumbers, setSerialNumbers] = useState("");
   const [party, setParty] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -30,9 +31,11 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
   const selectedProduct = stockItems.find((item) => item.id === selectedProductId);
   const productOptions = kind === "keluar" ? stockItems.filter((item) => item.stock > 0) : stockItems;
   const quantityNumber = Number(stock || 0);
-  const stockExceeded = kind === "keluar" && Boolean(selectedProduct && quantityNumber > selectedProduct.stock);
+  const serialList = serialNumbers.split(/[\n,]+/).map((value) => value.trim()).filter(Boolean);
+  const movementQuantity = serialList.length || quantityNumber;
+  const stockExceeded = kind === "keluar" && Boolean(selectedProduct && movementQuantity > selectedProduct.stock);
   const movementError = stockExceeded ? `Stok tersisa ${selectedProduct?.stock ?? 0}, jumlah tidak boleh melebihi stok.` : "";
-  const movementDisabled = (kind === "masuk" || kind === "keluar") && (!selectedProductId || !stock.trim() || quantityNumber < 1 || (kind === "keluar" && (!selectedProduct || stockExceeded)));
+  const movementDisabled = (kind === "masuk" || kind === "keluar") && (!selectedProductId || movementQuantity < 1 || (kind === "keluar" && (!selectedProduct || stockExceeded)));
 
   // Pre-fill form when editing category
   const [originalName, setOriginalName] = useState("");
@@ -70,6 +73,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
     setSku("");
     setBarcode("");
     setStock("");
+    setSerialNumbers("");
     setParty("");
     setSelectedCategoryId("");
     setSelectedProductId("");
@@ -122,7 +126,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
         if (kind === "keluar" && Number(stock || 0) > product.stock) throw new Error(`Jumlah keluar tidak boleh lebih dari stok tersedia (${product.stock}).`);
 
         await apiRequest(kind === "masuk" ? "/stock/inbound" : "/stock/outbound", {
-          body: JSON.stringify({ note: note.trim() || null, party: party.trim() || null, productId: product.id, quantity: Number(stock || 0) }),
+          body: JSON.stringify({ note: note.trim() || null, party: party.trim() || null, productId: product.id, quantity: movementQuantity, serialNumbers: serialList }),
           method: "POST",
           token,
         });
@@ -177,6 +181,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
                 </View>
                 <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
                 {movementError ? <Text style={styles.errorText}>{movementError}</Text> : null}
+                <TextInput multiline onChangeText={setSerialNumbers} style={[styles.modalInput, { minHeight: 88, textAlignVertical: "top" }]} placeholder="Kode Produk + No Seri, satu per baris" placeholderTextColor="#9aa4b5" value={serialNumbers} />
                 <TextInput onChangeText={setParty} style={styles.modalInput} placeholder={kind === "masuk" ? "Supplier" : "Alamat"} placeholderTextColor="#9aa4b5" value={party} />
                 <TextInput onChangeText={setNote} style={styles.modalInput} placeholder="Catatan (Opsional)" placeholderTextColor="#9aa4b5" value={note} />
               </>

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import Barcode from "react-native-barcode-svg";
 import { ChevronDown, ImageUp, Eye, X } from "lucide-react-native";
 import { colors, fonts } from "../../../theme/tokens";
 import { apiRequest } from "../api";
@@ -20,18 +19,6 @@ function getStatus(stock: number, minStock: number) {
   if (stock === 0) return "Habis";
   if (stock < 5) return "Menipis";
   return "Tersedia";
-}
-
-function BarcodeCell({ value }: { value: string }) {
-  if (!value) return <Text style={styles.td}>-</Text>;
-  return (
-    <View style={styles.barcodeCell}>
-      <View style={styles.barcodePreview}>
-        <Barcode backgroundColor={colors.white} value={value} format="CODE128" height={34} lineColor={colors.black} maxWidth={128} singleBarWidth={1.5} />
-      </View>
-      <Text numberOfLines={1} style={styles.barcodeText}>{value}</Text>
-    </View>
-  );
 }
 
 export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => void }) {
@@ -185,7 +172,7 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
 
   return (
     <>
-      <CrudShell title="Data Produk" button="Tambah Produk" onButton={() => onOpenModal("add")} search="Cari kode, nama, kategori...  " searchValue={query} onSearchChange={setQuery} chips={statusFilters} chipsDisabled={loading || isTableBusy} activeChip={statusFilter} onChipPress={handleStatusPress} loading={loading} searchDisabled={loading || isTableBusy} buttonDisabled={loading || isTableBusy}>
+      <CrudShell title="Data Produk" button="Tambah Produk" onButton={() => onOpenModal("add")} search="Cari kode, no seri, nama, kategori..." searchValue={query} onSearchChange={setQuery} chips={statusFilters} chipsDisabled={loading || isTableBusy} activeChip={statusFilter} onChipPress={handleStatusPress} loading={loading} searchDisabled={loading || isTableBusy} buttonDisabled={loading || isTableBusy}>
         {/* Category Filter Dropdown */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16, zIndex: 20 }}>
           <Text style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 14 }}>Filter Kategori:</Text>
@@ -208,9 +195,9 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
             ) : null}
           </View>
         </View>
-        <DataTable columns={["Kode Produk", "Produk", "Barcode", "Kategori", "Stok", "Status", "Gambar", "Aksi"]} pagination={productMeta} onPageChange={handlePageChange} loading={showTableSkeleton}>
+        <DataTable columns={["Produk", "Kode Produk + No Seri", "Kategori", "Stok", "Status", "Aksi"]} pagination={productMeta} onPageChange={handlePageChange} loading={showTableSkeleton}>
           {stockItems.map((item) => (
-            <TableRow key={item.id} cells={[item.sku, item.name, <BarcodeCell value={item.barcode} />, item.category, String(item.stock), getStatus(item.stock, item.minStock), item.imageUrl ? "Ada" : "Belum"]} actions={
+            <TableRow key={item.id} cells={[item.name, item.serialNumbers?.length ? item.serialNumbers.join(", ") : item.sku, item.category, String(item.stock), getStatus(item.stock, item.minStock)]} actions={
               <View style={styles.rowActions}>
                 <RowActions onEdit={() => setEditing(item)} onDelete={() => confirmDelete(item)} />
                 {item.imageUrl ? (

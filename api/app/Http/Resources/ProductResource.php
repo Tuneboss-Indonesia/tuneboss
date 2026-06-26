@@ -22,6 +22,7 @@ class ProductResource extends JsonResource
             'imageUrl' => $this->image_path ? asset('storage/'.$this->image_path) : null,
             'minStock' => $this->min_stock,
             'stock' => $stock,
+            'serialNumbers' => $this->whenLoaded('serials', fn () => $this->serials->pluck('serial_number')->values()),
             'status' => $stock === 0 ? 'empty' : ($stock < 5 ? 'low' : 'safe'),
             'isActive' => $this->is_active,
             'createdAt' => $this->created_at?->toISOString(),

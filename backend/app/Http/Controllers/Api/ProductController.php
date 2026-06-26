@@ -7,6 +7,7 @@ use App\Http\Resources\ProductCollection;
 use App\Http\Resources\ProductResource;
 use App\Models\AuditLog;
 use App\Models\Product;
+use App\Models\ProductSerial;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -19,11 +20,13 @@ class ProductController extends Controller
         $products = Product::query()
             ->where('is_active', true)
             ->with(['category', 'stock'])
+            ->when($request->boolean('include_serials'), fn ($query) => $query->with(['serials' => fn ($query) => $query->where('status', 'in_stock')->orderBy('serial_number')]))
             ->when($request->query('search'), function ($query, string $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('name', 'like', "%{$search}%")
                         ->orWhere('sku', 'like', "%{$search}%")
-                        ->orWhere('barcode', 'like', "%{$search}%");
+                        ->orWhere('barcode', 'like', "%{$search}%")
+                        ->orWhereHas('serials', fn ($query) => $query->where('serial_number', 'like', "%{$search}%"));
                 });
             })
             ->when($request->query('category_id'), fn ($query, string $categoryId) => $query->where('category_id', $categoryId))
@@ -72,7 +75,7 @@ class ProductController extends Controller
 
     public function show(Product $product)
     {
-        return new ProductResource($product->load(['category', 'stock']));
+        return new ProductResource($product->load(['category', 'stock', 'serials']));
     }
 
     public function update(Request $request, Product $product)
@@ -159,9 +162,11 @@ class ProductController extends Controller
     {
         $data = $request->validate(['code' => ['required', 'string', 'max:120']]);
 
+        $serial = ProductSerial::where('serial_number', $data['code'])->first();
+
         $product = Product::with(['category', 'stock'])
             ->where('is_active', true)
-            ->where(fn ($query) => $query->where('sku', $data['code'])->orWhere('barcode', $data['code']))
+            ->when($serial, fn ($query) => $query->whereKey($serial->product_id), fn ($query) => $query->where(fn ($query) => $query->where('sku', $data['code'])->orWhere('barcode', $data['code'])))
             ->firstOrFail();
 
         $stock = $product->stock?->quantity ?? 0;
@@ -177,6 +182,8 @@ class ProductController extends Controller
             'categoryId' => $product->category_id,
             'stock' => $stock,
             'minStock' => $product->min_stock,
+            'serialNumber' => $serial?->serial_number,
+            'serialStatus' => $serial?->status,
             'status' => $this->status($stock, $product->min_stock),
         ]);
     }

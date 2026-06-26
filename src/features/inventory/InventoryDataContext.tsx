@@ -52,6 +52,7 @@ type ProductDto = {
   imageUrl?: string | null;
   minStock: number;
   stock: number;
+  serialNumbers?: string[];
   status: "safe" | "low" | "empty";
   isActive: boolean;
   updatedAt?: string;
@@ -120,6 +121,7 @@ export function InventoryDataProvider({ activePage, children, token }: { activeP
       minStock: product.minStock,
       name: product.name,
       sku: product.sku,
+      serialNumbers: product.serialNumbers ?? [],
       status: product.status,
       stock: product.stock,
     })));
@@ -129,7 +131,7 @@ export function InventoryDataProvider({ activePage, children, token }: { activeP
   const loadPriorityProducts = () => apiRequest<PriorityProduct[]>("/dashboard/priority-products", { token }).then(setPriorityProducts);
   const loadRecentActivities = () => apiRequest<RecentActivity[]>("/dashboard/recent-activities", { token }).then((data) => setRecentActivities(data.map((item) => ({ ...item, timestamp: item.timestamp }))));
   const loadProductsPage = (page = productMeta.currentPage, categoryId = "", status = "", search = "", perPage = 15) => {
-    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+    const params = new URLSearchParams({ include_serials: "1", page: String(page), per_page: String(perPage) });
     if (categoryId) params.set("category_id", categoryId);
     if (status) params.set("status", status);
     if (search.trim()) params.set("search", search.trim());

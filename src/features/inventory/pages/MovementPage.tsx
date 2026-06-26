@@ -10,7 +10,8 @@ import { styles } from "../styles";
 import type { PressState } from "../types";
 
 function MovementTableRow({ columns, compact, item, onDelete, onEdit }: { columns?: string[]; compact?: boolean; item: StockMovement; onDelete: () => void; onEdit: () => void }) {
-  const cells = item.type === "inbound" ? [formatDate(item.timestamp), item.productName, String(item.quantity), item.party, item.note || "-"] : [formatDate(item.timestamp), item.productName, String(item.quantity), item.saleAddress ?? item.party ?? "-", item.note || "-"];
+  const serials = item.serialNumbers?.join(", ") || "-";
+  const cells = item.type === "inbound" ? [formatDate(item.timestamp), item.productName, String(item.quantity), serials, item.party, item.note || "-"] : [formatDate(item.timestamp), item.productName, String(item.quantity), serials, item.saleAddress ?? item.party ?? "-", item.note || "-"];
   const canModify = item.type === "inbound" || item.type === "outbound";
   return <TableRow columns={columns} compact={compact} cells={cells} actions={canModify ? <RowActions onEdit={onEdit} onDelete={onDelete} /> : null} />;
 }
@@ -118,7 +119,7 @@ export function MovementPage({ kind, onOpenModal }: { kind: "inbound" | "outboun
   return (
     <>
       <CrudShell title={isIn ? "Riwayat Produk Masuk" : "Riwayat Produk Keluar"} button={isIn ? "Tambah Stok" : "Kurangi Stok"} onButton={onOpenModal} search={isIn ? "Cari produk, supplier..." : "Cari produk keluar..."} searchValue={query} onSearchChange={setQuery} searchDisabled={filterLoading} buttonDisabled={filterLoading} dateFrom={dateFrom} onDateFromChange={setDateFrom} dateTo={dateTo} onDateToChange={setDateTo} loading={loading}>
-        <DataTable columns={isIn ? ["Tanggal", "Produk", "Jumlah", "Supplier", "Catatan", "Aksi"] : ["Tanggal", "Produk", "Jumlah", "Alamat", "Catatan", "Aksi"]} pagination={movementMeta} onPageChange={handlePageChange} loading={filterLoading}>
+        <DataTable columns={isIn ? ["Tanggal", "Produk", "Jumlah", "No Seri", "Supplier", "Catatan", "Aksi"] : ["Tanggal", "Produk", "Jumlah", "No Seri", "Alamat", "Catatan", "Aksi"]} pagination={movementMeta} onPageChange={handlePageChange} loading={filterLoading}>
           {rows.length ? rows.map((item) => <MovementTableRow key={item.id} item={item} onEdit={() => setEditing(item)} onDelete={() => setPendingDelete(item)} />) : null}
           {!rows.length && !filterLoading ? <EmptyRow text="Tidak ada data ditemukan" /> : null}
         </DataTable>
