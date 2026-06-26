@@ -149,7 +149,6 @@ function MovementEditModal({ item, onClose, onSave, saving, stockItems }: { item
   const selectedProduct = stockItems.find((product) => product.id === productId);
   const fallbackCurrentStock = productId === item.productId ? item.afterQuantity ?? 0 : 0;
   const currentStock = selectedProduct?.stock ?? fallbackCurrentStock;
-  const partyLabel = item.type === "inbound" ? "Supplier" : "Alamat";
   const quantityNumber = Number(quantity || 0);
   const availableStock = currentStock + (item.type === "outbound" && productId === item.productId ? item.quantity : 0);
   const stockExceeded = item.type === "outbound" && quantityNumber > availableStock;
@@ -193,6 +192,7 @@ function MovementEditModal({ item, onClose, onSave, saving, stockItems }: { item
                 </ScrollView>
               ) : null}
             </View>
+            {item.type === "inbound" ? <TextInput editable={false} style={styles.modalInput} placeholder="Kategori" placeholderTextColor={colors.muted} value={selectedProduct?.category ?? item.productCategory ?? ""} /> : null}
             <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor={colors.muted} value={quantity} onChangeText={(value) => setQuantity(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
             {quantityError ? <Text style={styles.errorText}>{quantityError}</Text> : null}
             {item.type === "outbound" ? <TextInput onChangeText={setCustomerName} style={styles.modalInput} placeholder="Nama pembeli/dealer" placeholderTextColor={colors.muted} value={customerName} /> : null}
@@ -203,7 +203,7 @@ function MovementEditModal({ item, onClose, onSave, saving, stockItems }: { item
                 {paymentStatusOpen ? <View style={styles.modalSelectOptions}>{paymentStatuses.map((status) => <Pressable key={status} onPress={() => { setPaymentStatus(status); setPaymentStatusOpen(false); }} style={({ hovered, pressed }: PressState) => [styles.modalSelectOption, paymentStatus === status && styles.modalSelectOptionActive, hovered && paymentStatus !== status && styles.modalSelectOptionHover, pressed && styles.pressed]}><Text style={[styles.modalSelectOptionText, paymentStatus === status && styles.modalSelectOptionTextActive]}>{status}</Text></Pressable>)}</View> : null}
               </View>
             ) : null}
-            <TextInput onChangeText={setParty} style={styles.modalInput} placeholder={partyLabel} placeholderTextColor={colors.muted} value={party} />
+            {item.type === "outbound" ? <TextInput onChangeText={setParty} style={styles.modalInput} placeholder="Alamat" placeholderTextColor={colors.muted} value={party} /> : null}
             <TextInput onChangeText={setNote} style={styles.modalInput} placeholder="Catatan (Opsional)" placeholderTextColor={colors.muted} value={note} />
           </ScrollView>
           <View style={styles.modalActions}>
