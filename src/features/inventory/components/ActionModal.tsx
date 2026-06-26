@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { ChevronDown, ImageUp } from "lucide-react-native";
+import { ChevronDown } from "lucide-react-native";
 import { apiRequest } from "../api";
 import { useInventoryData } from "../InventoryDataContext";
-import { appendPickedImage, pickedImageName, pickImage, type PickedImage } from "../imagePicker";
 import type { CategoryItem, ModalKind, ModalMode, PressState } from "../types";
 import { styles } from "../styles";
 import { colors } from "../../../theme/tokens";
@@ -19,7 +18,6 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [sku, setSku] = useState("");
-  const [barcode, setBarcode] = useState("");
   const [stock, setStock] = useState("");
   const [serialNumbers, setSerialNumbers] = useState("");
   const [party, setParty] = useState("");
@@ -28,7 +26,6 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
   const [paymentStatusOpen, setPaymentStatusOpen] = useState(false);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [imageFile, setImageFile] = useState<PickedImage | null>(null);
   const loadedOutboundProductsRef = useRef(false);
   const actionLabel = mode === "edit" ? "Edit" : "Tambah";
   const title = kind === "kategori" ? `${actionLabel} Kategori` : kind === "stok" ? `${actionLabel} Produk` : kind === "masuk" ? "Tambah Stok Masuk" : kind === "keluar" ? "Kurangi Stok" : "";
@@ -76,7 +73,6 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
     setName("");
     setDescription("");
     setSku("");
-    setBarcode("");
     setStock("");
     setSerialNumbers("");
     setParty("");
@@ -86,23 +82,11 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
     setSelectedCategoryId("");
     setSelectedProductId("");
     setNote("");
-    setImageFile(null);
   };
 
   const close = () => {
     reset();
     onClose();
-  };
-
-  const uploadImage = async (productId: string) => {
-    if (!imageFile) return;
-    try {
-      const form = new FormData();
-      appendPickedImage(form, "image", imageFile);
-      await apiRequest(`/products/${productId}/image`, { body: form, method: "POST", token });
-    } catch (error) {
-      Alert.alert("Gagal", error instanceof Error ? error.message : "Gambar gagal diupload.");
-    }
   };
 
   const save = async () => {
@@ -119,12 +103,11 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
       }
 
       if (kind === "stok") {
-        const result = await apiRequest<{ id: string }>("/products", {
-          body: JSON.stringify({ barcode: barcode.trim() || null, category_id: selectedCategoryId, min_stock: 1, name, sku, initial_stock: Number(stock || 0) }),
+        await apiRequest<{ id: string }>("/products", {
+          body: JSON.stringify({ barcode: null, category_id: selectedCategoryId, min_stock: 1, name, sku, initial_stock: Number(stock || 0) }),
           method: "POST",
           token,
         });
-        if (result.id) await uploadImage(result.id);
       }
 
       if (kind === "masuk" || kind === "keluar") {
@@ -149,11 +132,6 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
     }
   };
 
-  const handleImagePick = async () => {
-    const image = await pickImage();
-    if (image) setImageFile(image);
-  };
-
   return (
     <Modal visible={kind !== null} transparent animationType="fade" onRequestClose={close}>
       <View style={styles.modalBackdrop}>
@@ -169,7 +147,6 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
             {kind === "stok" ? (
               <>
                 <TextInput onChangeText={setSku} style={styles.modalInput} placeholder="Kode Produk" placeholderTextColor="#9aa4b5" value={sku} />
-                <TextInput onChangeText={setBarcode} style={styles.modalInput} placeholder="Kode Barcode" placeholderTextColor="#9aa4b5" value={barcode} />
                 <TextInput onChangeText={setName} style={styles.modalInput} placeholder="Produk" placeholderTextColor="#9aa4b5" value={name} />
                 <View style={styles.modalFieldGroup}>
                   <Text style={styles.modalLabel}>Kategori</Text>
@@ -177,7 +154,6 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
                   {categoryOpen ? <ScrollView nestedScrollEnabled style={[styles.modalSelectOptions, styles.modalSelectOptionsScroll]} showsVerticalScrollIndicator={false}>{categories.map((category) => <Pressable key={category.id} onPress={() => { setSelectedCategoryId(category.id); setCategoryOpen(false); }} style={({ hovered, pressed }: PressState) => [styles.modalSelectOption, selectedCategoryId === category.id && styles.modalSelectOptionActive, hovered && selectedCategoryId !== category.id && styles.modalSelectOptionHover, pressed && styles.pressed]}><Text style={[styles.modalSelectOptionText, selectedCategoryId === category.id && styles.modalSelectOptionTextActive]}>{category.name}</Text></Pressable>)}</ScrollView> : null}
                 </View>
                 <TextInput style={styles.modalInput} placeholder="Stok Awal" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
-                <Pressable onPress={() => void handleImagePick()} style={({ hovered, pressed }: PressState) => [styles.modalSelect, hovered && styles.modalSelectHover, pressed && styles.pressed, { justifyContent: "center" }]}><ImageUp color={colors.primary} size={18} /><Text style={[styles.modalSelectText, { textAlign: "center" }]}>{imageFile ? pickedImageName(imageFile) : "Upload Gambar (Opsional)"}</Text></Pressable>
               </>
             ) : null}
             {kind === "masuk" || kind === "keluar" ? (
