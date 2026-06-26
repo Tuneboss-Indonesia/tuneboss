@@ -15,7 +15,7 @@ type ScanMovementType = "masuk" | "keluar";
 
 export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => void; onGoOutbound: () => void }) {
   const { token } = useInventoryData();
-  const [mode, setMode] = useState<"camera" | "scanner">("scanner");
+  const [mode, setMode] = useState<"camera" | "scanner">("camera");
   const [barcode, setBarcode] = useState("");
   const [result, setResult] = useState<StockItem | null>(null);
   const [error, setError] = useState("");
@@ -142,38 +142,36 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => voi
         </View>
       </View>
       <View style={styles.scanModeRow}>
-        <Pressable onPress={() => setMode("scanner")} style={({ hovered, pressed }: PressState) => [styles.scanModeCard, mode === "scanner" && styles.scanModeActive, hovered && mode !== "scanner" && styles.scanModeCardHover, pressed && styles.pressed]}>
-          <ScanBarcode color={mode === "scanner" ? colors.white : colors.primary} size={28} />
-          <Text style={styles.scanModeTitle}>Alat Scanner</Text>
-          <Text style={styles.scanModeText}>Arahkan alat scanner ke barcode produk.</Text>
-        </Pressable>
         <Pressable onPress={() => setMode("camera")} style={({ hovered, pressed }: PressState) => [styles.scanModeCard, mode === "camera" && styles.scanModeActive, hovered && mode !== "camera" && styles.scanModeCardHover, pressed && styles.pressed]}>
           <ScanBarcode color={mode === "camera" ? colors.white : colors.primary} size={28} />
           <Text style={styles.scanModeTitle}>Kamera Perangkat</Text>
           <Text style={styles.scanModeText}>Gunakan kamera perangkat untuk scan barcode produk.</Text>
         </Pressable>
+        <Pressable onPress={() => setMode("scanner")} style={({ hovered, pressed }: PressState) => [styles.scanModeCard, mode === "scanner" && styles.scanModeActive, hovered && mode !== "scanner" && styles.scanModeCardHover, pressed && styles.pressed]}>
+          <ScanBarcode color={mode === "scanner" ? colors.white : colors.primary} size={28} />
+          <Text style={styles.scanModeTitle}>Alat Scanner</Text>
+          <Text style={styles.scanModeText}>Arahkan alat scanner ke barcode produk.</Text>
+        </Pressable>
       </View>
       <View style={styles.scanGrid}>
-        {mode === "camera" ? (
-          <View style={styles.cameraPanel}>
-            {permission?.granted ? (
-              <CameraView
-                barcodeScannerSettings={{ barcodeTypes: ["aztec", "codabar", "code128", "code39", "code93", "datamatrix", "ean13", "ean8", "itf14", "pdf417", "qr", "upc_a", "upc_e"] }}
-                facing="back"
-                onBarcodeScanned={handleCameraScan}
-                style={styles.cameraView}
-              />
-            ) : null}
-            <View style={styles.scanCornerTop} />
-            {!permission?.granted ? (
-              <Pressable onPress={() => void requestPermission()} style={({ hovered, pressed }: PressState) => [styles.primaryButton, { marginTop: 16 }, hovered && styles.primaryButtonHover, pressed && styles.pressed]}>
-                <Text style={styles.primaryButtonText}>Izinkan Kamera</Text>
-              </Pressable>
-            ) : null}
-            <View style={styles.scanCornerBottom} />
-          </View>
-        ) : null}
-        <View style={[styles.scanFormCard, mode === "scanner" && { maxWidth: "100%" }]}>
+        <View style={[styles.cameraPanel, { flex: 1.4 }]}>
+          {permission?.granted ? (
+            <CameraView
+              barcodeScannerSettings={{ barcodeTypes: ["aztec", "codabar", "code128", "code39", "code93", "datamatrix", "ean13", "ean8", "itf14", "pdf417", "qr", "upc_a", "upc_e"] }}
+              facing="back"
+              onBarcodeScanned={handleCameraScan}
+              style={styles.cameraView}
+            />
+          ) : null}
+          <View style={styles.scanCornerTop} />
+          {!permission?.granted ? (
+            <Pressable onPress={() => void requestPermission()} style={({ hovered, pressed }: PressState) => [styles.primaryButton, { marginTop: 16 }, hovered && styles.primaryButtonHover, pressed && styles.pressed]}>
+              <Text style={styles.primaryButtonText}>Izinkan Kamera</Text>
+            </Pressable>
+          ) : null}
+          <View style={styles.scanCornerBottom} />
+        </View>
+        <View style={[styles.scanFormCard, { flex: 0.8 }]}>
           <Text style={styles.formLabel}>Barcode / SKU</Text>
           <View style={styles.searchInputWrap}>
             <ScanBarcode color={colors.primary} size={22} />
