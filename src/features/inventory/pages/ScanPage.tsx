@@ -113,7 +113,7 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => voi
       await apiRequest(movementType === "masuk" ? "/stock/inbound" : "/stock/outbound", {
         body: JSON.stringify({
           note: note.trim() || null,
-          party: party.trim() || null,
+          party: movementType === "keluar" ? party.trim() || null : null,
           productId: result.id,
           quantity: quantityNumber,
         }),
@@ -226,7 +226,7 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => voi
                     </View>
                     <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor={colors.muted} value={quantity} onChangeText={(value) => setQuantity(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
                     {movementError ? <Text style={styles.errorText}>{movementError}</Text> : null}
-                    <TextInput onChangeText={setParty} style={styles.modalInput} placeholder={movementType === "masuk" ? "Supplier" : "Alamat / Tujuan"} placeholderTextColor={colors.muted} value={party} />
+                    {movementType === "keluar" ? <TextInput onChangeText={setParty} style={styles.modalInput} placeholder="Alamat / Tujuan" placeholderTextColor={colors.muted} value={party} /> : null}
                     <TextInput onChangeText={setNote} style={styles.modalInput} placeholder="Catatan (Opsional)" placeholderTextColor={colors.muted} value={note} />
                   </>
                 ) : null}
