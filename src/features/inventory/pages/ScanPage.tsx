@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
-import { Check, ChevronDown, PackageMinus, PackagePlus, ScanBarcode, X } from "lucide-react-native";
+import { ChevronDown, PackageMinus, PackagePlus, ScanBarcode, X } from "lucide-react-native";
 import { colors } from "../../../theme/tokens";
 import type { StockItem } from "../../../types/dashboard";
 import { apiRequest } from "../api";
@@ -27,7 +27,6 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => voi
   const [party, setParty] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [sendToSales, setSendToSales] = useState(false);
   const scannerInputRef = useRef<TextInput>(null);
   const lastProcessedRef = useRef("");
   const scannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -90,7 +89,6 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => voi
     setQuantity("");
     setParty("");
     setNote("");
-    setSendToSales(false);
     setBarcode("");
     setError("");
     lastProcessedRef.current = "";
@@ -112,31 +110,18 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => voi
 
     setSaving(true);
     try {
-      if (movementType === "keluar" && sendToSales) {
-        await apiRequest("/sales", {
-          body: JSON.stringify({
-            address: party.trim() || null,
-            items: [{ product_id: result.id, quantity: quantityNumber }],
-            note: note.trim() || null,
-            record_outbound_movement: true,
-          }),
-          method: "POST",
-          token,
-        });
-      } else {
-        await apiRequest(movementType === "masuk" ? "/stock/inbound" : "/stock/outbound", {
-          body: JSON.stringify({
-            note: note.trim() || null,
-            party: party.trim() || null,
-            productId: result.id,
-            quantity: quantityNumber,
-          }),
-          method: "POST",
-          token,
-        });
-      }
+      await apiRequest(movementType === "masuk" ? "/stock/inbound" : "/stock/outbound", {
+        body: JSON.stringify({
+          note: note.trim() || null,
+          party: party.trim() || null,
+          productId: result.id,
+          quantity: quantityNumber,
+        }),
+        method: "POST",
+        token,
+      });
 
-      Alert.alert("Berhasil", movementType === "masuk" ? "Stok produk berhasil ditambah." : sendToSales ? "Transaksi penjualan berhasil dibuat." : "Stok produk berhasil dikurangi.");
+      Alert.alert("Berhasil", movementType === "masuk" ? "Stok produk berhasil ditambah." : "Stok produk berhasil dikurangi.");
       closeResult();
     } catch (requestError) {
       Alert.alert("Gagal", requestError instanceof Error ? requestError.message : "Data stok gagal disimpan.");
@@ -229,7 +214,7 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => voi
                   </View>
                 </View>
                 <View style={styles.scanActionRow}>
-                  <Pressable onPress={() => { setMovementType("masuk"); setQuantity(""); setParty(""); setNote(""); setSendToSales(false); }} style={({ hovered, pressed }: PressState) => [styles.secondaryButton, movementType === "masuk" && styles.scanModeActive, hovered && styles.secondaryButtonHover, pressed && styles.pressed]}><PackagePlus color={movementType === "masuk" ? colors.white : colors.primary} size={18} /><Text style={[styles.secondaryButtonText, movementType === "masuk" && { color: colors.white }]}>Produk Masuk</Text></Pressable>
+                  <Pressable onPress={() => { setMovementType("masuk"); setQuantity(""); setParty(""); setNote(""); }} style={({ hovered, pressed }: PressState) => [styles.secondaryButton, movementType === "masuk" && styles.scanModeActive, hovered && styles.secondaryButtonHover, pressed && styles.pressed]}><PackagePlus color={movementType === "masuk" ? colors.white : colors.primary} size={18} /><Text style={[styles.secondaryButtonText, movementType === "masuk" && { color: colors.white }]}>Produk Masuk</Text></Pressable>
                   <Pressable disabled={result.stock <= 0} onPress={() => { setMovementType("keluar"); setQuantity(""); setParty(""); setNote(""); }} style={({ hovered, pressed }: PressState) => [styles.secondaryButton, movementType === "keluar" && styles.scanModeActive, hovered && result.stock > 0 && styles.secondaryButtonHover, pressed && styles.pressed, result.stock <= 0 && styles.tablePagerButtonDisabled]}><PackageMinus color={movementType === "keluar" ? colors.white : colors.primary} size={18} /><Text style={[styles.secondaryButtonText, movementType === "keluar" && { color: colors.white }, result.stock <= 0 && { color: colors.muted }]}>Produk Keluar</Text></Pressable>
                 </View>
                 {movementType ? (
@@ -244,14 +229,6 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => voi
                     <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor={colors.muted} value={quantity} onChangeText={(value) => setQuantity(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
                     {movementError ? <Text style={styles.errorText}>{movementError}</Text> : null}
                     <TextInput onChangeText={setParty} style={styles.modalInput} placeholder={movementType === "masuk" ? "Supplier" : "Alamat / Tujuan"} placeholderTextColor={colors.muted} value={party} />
-                    {movementType === "keluar" ? (
-                      <Pressable onPress={() => setSendToSales((value) => !value)} style={({ hovered, pressed }: PressState) => [styles.secondaryButton, { justifyContent: "flex-start" }, hovered && styles.secondaryButtonHover, pressed && styles.pressed]}>
-                        <View style={[styles.iconButton, sendToSales && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
-                          {sendToSales ? <Check color={colors.white} size={16} /> : null}
-                        </View>
-                        <Text style={styles.secondaryButtonText}>Masukkan ke Penjualan</Text>
-                      </Pressable>
-                    ) : null}
                     <TextInput onChangeText={setNote} style={styles.modalInput} placeholder="Catatan (Opsional)" placeholderTextColor={colors.muted} value={note} />
                   </>
                 ) : null}

@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react-native";
 import type { PressableStateCallbackType } from "react-native";
 
-export type PageKey = "dashboard" | "kategori" | "stok" | "penjualan" | "scan" | "masuk" | "keluar" | "laporan" | "admin" | "laporan-stok" | "laporan-penjualan" | "laporan-masuk" | "laporan-keluar";
+export type PageKey = "dashboard" | "kategori" | "stok" | "scan" | "masuk" | "keluar" | "laporan" | "admin" | "laporan-stok" | "laporan-penjualan" | "laporan-masuk" | "laporan-keluar";
 export type UserRole = "admin" | "staff";
 export type ModalKind = "kategori" | "stok" | "masuk" | "keluar" | null;
 export type ModalMode = "add" | "edit";

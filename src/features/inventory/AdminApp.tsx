@@ -11,7 +11,6 @@ import { InventoryDataProvider } from "./InventoryDataContext";
 import { KategoriPage } from "./pages/KategoriPage";
 import { LaporanPage, ReportDetail } from "./pages/LaporanPage";
 import { MovementPage } from "./pages/MovementPage";
-import { PenjualanPage } from "./pages/PenjualanPage";
 import { ScanPage } from "./pages/ScanPage";
 import { StokPage } from "./pages/StokPage";
 import { deleteStoredValue, getStoredValue, setStoredValue, storageKeys } from "./platformStorage";
@@ -103,7 +102,6 @@ export function AdminApp() {
           {page === "dashboard" ? <DashboardPage /> : null}
           {page === "kategori" ? <KategoriPage onSelectCategory={(category) => { setStokCategoryId(category.id); setPage("stok"); }} onOpenModal={(mode, item) => openModal("kategori", mode, item)} /> : null}
           {page === "stok" ? <StokPage initialCategoryId={stokCategoryId} onOpenModal={(mode) => openModal("stok", mode)} /> : null}
-          {page === "penjualan" ? <PenjualanPage /> : null}
           {page === "scan" ? <ScanPage onGoInbound={() => setPage("masuk")} onGoOutbound={() => setPage("keluar")} /> : null}
           {page === "masuk" ? <MovementPage kind="inbound" onOpenModal={() => openModal("masuk")} /> : null}
           {page === "keluar" ? <MovementPage kind="outbound" onOpenModal={() => openModal("keluar")} /> : null}
@@ -140,6 +138,7 @@ async function clearStoredAuth() {
 async function loadStoredPage(): Promise<PageKey | null> {
   try {
     const value = await getStoredValue(storageKeys.page);
+    if (value === "penjualan") return "dashboard";
     return value as PageKey | null;
   } catch {
     return null;
