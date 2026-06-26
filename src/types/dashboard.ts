@@ -19,6 +19,7 @@ export type PriorityProduct = {
   sku: string;
   barcode: string;
   stock: number;
+  serialNumbers?: string[];
   minStock: number;
   status: ProductStatus;
 };
@@ -47,6 +48,7 @@ export type StockMovement = {
   type: "inbound" | "outbound" | "adjustment" | "sale";
   productName: string;
   sku: string;
+  serialNumbers?: string[];
   quantity: number;
   beforeQuantity?: number;
   afterQuantity?: number;

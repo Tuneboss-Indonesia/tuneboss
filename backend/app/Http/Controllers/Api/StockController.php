@@ -7,6 +7,7 @@ use App\Http\Resources\StockMovementCollection;
 use App\Http\Resources\StockMovementResource;
 use App\Models\AuditLog;
 use App\Models\Product;
+use App\Models\ProductSerial;
 use App\Models\ProductStock;
 use App\Models\StockMovement;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -110,11 +111,11 @@ class StockController extends Controller
 
     public function destroyMovement(Request $request, StockMovement $stockMovement)
     {
-        $this->ensureEditableMovement($stockMovement);
+        $this->ensureEditableMovement($stockMovement, true);
 
         DB::transaction(function () use ($request, $stockMovement) {
             $movement = StockMovement::whereKey($stockMovement->id)->lockForUpdate()->firstOrFail();
-            $this->ensureEditableMovement($movement);
+            $this->ensureEditableMovement($movement, true);
 
             $stock = ProductStock::where('product_id', $movement->product_id)->lockForUpdate()->firstOrFail();
             $after = $stock->quantity - $this->stockDelta($movement->type, $movement->quantity);
@@ -126,6 +127,7 @@ class StockController extends Controller
                 ], 422));
             }
 
+            $this->reverseSerials($movement);
             $stock->update(['quantity' => $after]);
             $this->audit($request, 'stock.movement_deleted', $movement);
             $movement->delete();
@@ -176,7 +178,11 @@ class StockController extends Controller
         return $request->validate([
             'productId' => ['required_without:product_id', 'uuid', 'exists:products,id'],
             'product_id' => ['required_without:productId', 'uuid', 'exists:products,id'],
-            'quantity' => ['required', 'integer', 'min:1'],
+            'quantity' => ['required_without:serialNumbers,serial_numbers', 'integer', 'min:1'],
+            'serialNumbers' => ['nullable', 'array'],
+            'serialNumbers.*' => ['string', 'max:120'],
+            'serial_numbers' => ['nullable', 'array'],
+            'serial_numbers.*' => ['string', 'max:120'],
             'party' => ['nullable', 'string', 'max:180'],
             'note' => ['nullable', 'string'],
         ]);
@@ -189,8 +195,17 @@ class StockController extends Controller
         return DB::transaction(function () use ($request, $data, $productId, $type) {
             Product::where('id', $productId)->where('is_active', true)->firstOrFail();
             $stock = ProductStock::where('product_id', $productId)->lockForUpdate()->firstOrFail();
+            $serialNumbers = $this->serialNumbers($data);
+            $quantity = count($serialNumbers) ?: $data['quantity'];
             $before = $stock->quantity;
-            $after = $type === 'inbound' ? $before + $data['quantity'] : $before - $data['quantity'];
+            $after = $type === 'inbound' ? $before + $quantity : $before - $quantity;
+
+            if ($serialNumbers && isset($data['quantity']) && (int) $data['quantity'] !== $quantity) {
+                throw new HttpResponseException(response()->json([
+                    'message' => 'Jumlah harus sama dengan total nomor seri.',
+                    'code' => 'serial_quantity_mismatch',
+                ], 422));
+            }
 
             if ($after < 0) {
                 throw new HttpResponseException(response()->json([
@@ -199,13 +214,18 @@ class StockController extends Controller
                 ], 422));
             }
 
+            if ($serialNumbers) {
+                $this->applySerials($productId, $serialNumbers, $type);
+            }
+
             $stock->update(['quantity' => $after]);
 
             $movement = StockMovement::create([
                 'product_id' => $productId,
                 'operator_id' => $request->user()->id,
                 'type' => $type,
-                'quantity' => $data['quantity'],
+                'quantity' => $quantity,
+                'serial_numbers' => $serialNumbers ?: null,
                 'before_quantity' => $before,
                 'after_quantity' => $after,
                 'party' => $this->party($data),
@@ -218,7 +238,7 @@ class StockController extends Controller
         });
     }
 
-    private function ensureEditableMovement(StockMovement $movement): void
+    private function ensureEditableMovement(StockMovement $movement, bool $allowSerialized = false): void
     {
         if (! in_array($movement->type, ['inbound', 'outbound'], true) || $movement->sale_id) {
             throw new HttpResponseException(response()->json([
@@ -226,6 +246,103 @@ class StockController extends Controller
                 'code' => 'movement_locked',
             ], 422));
         }
+
+        if (! $allowSerialized && ! empty($movement->serial_numbers)) {
+            throw new HttpResponseException(response()->json([
+                'message' => 'Riwayat stok dengan nomor seri tidak bisa diedit. Hapus dan input ulang jika salah.',
+                'code' => 'serialized_movement_locked',
+            ], 422));
+        }
+    }
+
+    private function serialNumbers(array $data): array
+    {
+        $serials = $data['serialNumbers'] ?? $data['serial_numbers'] ?? [];
+
+        return collect($serials)
+            ->map(fn (string $serial) => trim($serial))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function applySerials(string $productId, array $serialNumbers, string $type): void
+    {
+        if ($type === 'inbound') {
+            $existing = ProductSerial::whereIn('serial_number', $serialNumbers)->lockForUpdate()->pluck('serial_number')->all();
+
+            if ($existing) {
+                throw new HttpResponseException(response()->json([
+                    'message' => 'Nomor seri sudah terdaftar: '.implode(', ', $existing),
+                    'code' => 'serial_already_exists',
+                    'serialNumbers' => $existing,
+                ], 422));
+            }
+
+            foreach ($serialNumbers as $serialNumber) {
+                ProductSerial::create([
+                    'product_id' => $productId,
+                    'serial_number' => $serialNumber,
+                    'status' => 'in_stock',
+                ]);
+            }
+
+            return;
+        }
+
+        $available = ProductSerial::where('product_id', $productId)
+            ->whereIn('serial_number', $serialNumbers)
+            ->where('status', 'in_stock')
+            ->lockForUpdate()
+            ->pluck('serial_number')
+            ->all();
+        $missing = array_values(array_diff($serialNumbers, $available));
+
+        if ($missing) {
+            throw new HttpResponseException(response()->json([
+                'message' => 'Nomor seri tidak tersedia: '.implode(', ', $missing),
+                'code' => 'serial_not_available',
+                'serialNumbers' => $missing,
+            ], 422));
+        }
+
+        ProductSerial::where('product_id', $productId)
+            ->whereIn('serial_number', $serialNumbers)
+            ->update(['status' => 'out']);
+    }
+
+    private function reverseSerials(StockMovement $movement): void
+    {
+        $serialNumbers = $movement->serial_numbers ?? [];
+
+        if (! $serialNumbers) {
+            return;
+        }
+
+        if ($movement->type === 'inbound') {
+            $used = ProductSerial::where('product_id', $movement->product_id)
+                ->whereIn('serial_number', $serialNumbers)
+                ->where('status', 'out')
+                ->exists();
+
+            if ($used) {
+                throw new HttpResponseException(response()->json([
+                    'message' => 'Nomor seri dari stok masuk ini sudah pernah keluar.',
+                    'code' => 'serial_already_moved',
+                ], 422));
+            }
+
+            ProductSerial::where('product_id', $movement->product_id)
+                ->whereIn('serial_number', $serialNumbers)
+                ->delete();
+
+            return;
+        }
+
+        ProductSerial::where('product_id', $movement->product_id)
+            ->whereIn('serial_number', $serialNumbers)
+            ->update(['status' => 'in_stock']);
     }
 
     private function stockDelta(string $type, int $quantity): int

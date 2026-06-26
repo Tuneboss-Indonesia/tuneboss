@@ -19,6 +19,7 @@ class StockMovementResource extends JsonResource
             'saleId' => $this->sale_id,
             'type' => $this->type,
             'quantity' => $this->quantity,
+            'serialNumbers' => $this->serial_numbers ?? [],
             'beforeQuantity' => $this->before_quantity,
             'afterQuantity' => $this->after_quantity,
             'party' => $this->party,

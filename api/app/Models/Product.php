@@ -46,6 +46,11 @@ class Product extends Model
         return $this->hasMany(StockMovement::class);
     }
 
+    public function serials(): HasMany
+    {
+        return $this->hasMany(ProductSerial::class);
+    }
+
     public function restockAlert(): HasOne
     {
         return $this->hasOne(RestockAlert::class);

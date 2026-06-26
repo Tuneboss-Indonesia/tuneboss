@@ -17,6 +17,7 @@ class StockMovement extends Model
         'sale_id',
         'type',
         'quantity',
+        'serial_numbers',
         'before_quantity',
         'after_quantity',
         'party',
@@ -27,6 +28,7 @@ class StockMovement extends Model
     {
         return [
             'quantity' => 'integer',
+            'serial_numbers' => 'array',
             'before_quantity' => 'integer',
             'after_quantity' => 'integer',
         ];

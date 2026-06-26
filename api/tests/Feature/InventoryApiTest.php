@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AuditLog;
 use App\Models\Product;
+use App\Models\ProductSerial;
 use App\Models\ProductStock;
 use App\Models\RestockAlert;
 use App\Models\StockMovement;
@@ -362,6 +363,54 @@ class InventoryApiTest extends TestCase
             ->assertJsonStructure(['id', 'invoiceNumber', 'items']);
 
         $this->assertSame($initialStock + 2, ProductStock::where('product_id', $product->id)->value('quantity'));
+    }
+
+    public function test_stock_movements_can_track_serial_numbers(): void
+    {
+        $this->seed();
+        $staffToken = $this->postJson('/api/auth/login', [
+            'email' => 'staff@tuneboss.co.id',
+            'password' => 'password',
+        ])->assertOk()->json('accessToken');
+        $product = Product::where('sku', 'TB-YMH-XMAX-V2')->firstOrFail();
+        $initialStock = $product->stock->quantity;
+
+        $this->withToken($staffToken)
+            ->postJson('/api/stock/inbound', [
+                'productId' => $product->id,
+                'quantity' => 2,
+                'serialNumbers' => ['TDYA020A001', 'TDYA020A002'],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('quantity', 2)
+            ->assertJsonPath('serialNumbers.0', 'TDYA020A001');
+
+        $this->assertSame($initialStock + 2, ProductStock::where('product_id', $product->id)->value('quantity'));
+        $this->assertDatabaseHas('product_serials', [
+            'product_id' => $product->id,
+            'serial_number' => 'TDYA020A001',
+            'status' => 'in_stock',
+        ]);
+
+        $this->withToken($staffToken)
+            ->postJson('/api/stock/outbound', [
+                'productId' => $product->id,
+                'quantity' => 1,
+                'serialNumbers' => ['TDYA020A001'],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('serialNumbers.0', 'TDYA020A001');
+
+        $this->assertSame('out', ProductSerial::where('serial_number', 'TDYA020A001')->value('status'));
+
+        $this->withToken($staffToken)
+            ->postJson('/api/stock/outbound', [
+                'productId' => $product->id,
+                'quantity' => 1,
+                'serialNumbers' => ['TDYA020A001'],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'serial_not_available');
     }
 
     public function test_admin_can_edit_stock_movement_and_rebalance_stock(): void
