@@ -9,8 +9,8 @@ import type { CategoryItem, ModalMode, PressState } from "../types";
 import { CrudShell, EmptyText, IconButton } from "../components/common";
 import { Edit3, Trash2 } from "lucide-react-native";
 
-function CategoryCard({ name, desc, count, onEdit, onDelete }: { name: string; desc: string; count: number; onEdit: () => void; onDelete: () => void }) {
-  return <View style={styles.categoryCard}><View style={styles.categoryIcon}><Tag color={colors.primary} size={22} /></View><View style={styles.categoryContent}><Text style={styles.categoryTitle}>{name}</Text><Text style={styles.categoryCount}>{count} produk</Text><Text style={styles.categoryDesc}>{desc}</Text></View><View style={styles.inlineActions}><IconButton icon={Edit3} onPress={onEdit} /><IconButton icon={Trash2} onPress={onDelete} /></View></View>;
+function CategoryCard({ name, desc, count, onEdit, onDelete, onPress }: { name: string; desc: string; count: number; onEdit: () => void; onDelete: () => void; onPress: () => void }) {
+  return <View style={styles.categoryCard}><Pressable onPress={onPress} style={({ hovered, pressed }: PressState) => [{ flex: 1, flexDirection: "row", gap: 16 }, hovered && { opacity: 0.85 }, pressed && styles.pressed]}><View style={styles.categoryIcon}><Tag color={colors.primary} size={22} /></View><View style={styles.categoryContent}><Text style={styles.categoryTitle}>{name}</Text><Text style={styles.categoryCount}>{count} produk</Text><Text style={styles.categoryDesc}>{desc}</Text></View></Pressable><View style={styles.inlineActions}><IconButton icon={Edit3} onPress={onEdit} /><IconButton icon={Trash2} onPress={onDelete} /></View></View>;
 }
 
 function CategorySkeleton() {
@@ -47,7 +47,7 @@ function ConfirmModal({ title, message, confirmText, onCancel, onConfirm, hideCa
   );
 }
 
-export function KategoriPage({ onOpenModal }: { onOpenModal: (mode: ModalMode, item?: CategoryItem) => void }) {
+export function KategoriPage({ onOpenModal, onSelectCategory }: { onOpenModal: (mode: ModalMode, item?: CategoryItem) => void; onSelectCategory: (category: CategoryItem) => void }) {
   const [query, setQuery] = useState("");
   const [blockedMsg, setBlockedMsg] = useState("");
   const [operationError, setOperationError] = useState("");
@@ -82,7 +82,7 @@ export function KategoriPage({ onOpenModal }: { onOpenModal: (mode: ModalMode, i
   return (
     <>
       <CrudShell title="Kategori Produk" button="Tambah Kategori" onButton={() => onOpenModal("add")} search="Cari kategori..." searchValue={query} onSearchChange={setQuery} loading={loading}>
-        {loading ? <CategorySkeleton /> : <View style={styles.categoryGrid}>{filtered.map((item) => <View key={item.id} style={styles.categoryGridItem}><CategoryCard name={item.name} desc={item.desc} count={item.count} onEdit={() => onOpenModal("edit", item)} onDelete={() => { if (!deleting) void handleDelete(item); }} /></View>)}</View>}
+        {loading ? <CategorySkeleton /> : <View style={styles.categoryGrid}>{filtered.map((item) => <View key={item.id} style={styles.categoryGridItem}><CategoryCard name={item.name} desc={item.desc} count={item.count} onPress={() => onSelectCategory(item)} onEdit={() => onOpenModal("edit", item)} onDelete={() => { if (!deleting) void handleDelete(item); }} /></View>)}</View>}
         {!loading && !filtered.length ? <EmptyText text="Kategori tidak ditemukan" /> : null}
       </CrudShell>
       {blockedMsg ? <ConfirmModal title="Tidak Bisa Dihapus" message={blockedMsg} confirmText="OK" hideCancel onCancel={() => setBlockedMsg("")} onConfirm={() => setBlockedMsg("")} /> : null}

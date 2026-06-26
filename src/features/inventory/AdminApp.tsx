@@ -37,6 +37,7 @@ export function AdminApp() {
   const [modal, setModal] = useState<ModalKind>(null);
   const [modalMode, setModalMode] = useState<ModalMode>("add");
   const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
+  const [stokCategoryId, setStokCategoryId] = useState("");
   const [auth, setAuth] = useState<StoredAuth | null>(null);
   const [storageReady, setStorageReady] = useState(false);
   const token = auth?.accessToken ?? "";
@@ -78,6 +79,7 @@ export function AdminApp() {
       setPage("dashboard");
       return;
     }
+    if (nextPage !== "stok") setStokCategoryId("");
     setPage(nextPage);
   };
 
@@ -99,8 +101,8 @@ export function AdminApp() {
       <InventoryDataProvider activePage={page} token={token}>
         <Layout active={page} role={role} onLogout={() => { void clearStoredAuth(); void clearStoredPage(); setAuth(null); setPage("dashboard"); }} onNavigate={navigate}>
           {page === "dashboard" ? <DashboardPage /> : null}
-          {page === "kategori" ? <KategoriPage onOpenModal={(mode, item) => openModal("kategori", mode, item)} /> : null}
-          {page === "stok" ? <StokPage onOpenModal={(mode) => openModal("stok", mode)} /> : null}
+          {page === "kategori" ? <KategoriPage onSelectCategory={(category) => { setStokCategoryId(category.id); setPage("stok"); }} onOpenModal={(mode, item) => openModal("kategori", mode, item)} /> : null}
+          {page === "stok" ? <StokPage initialCategoryId={stokCategoryId} onOpenModal={(mode) => openModal("stok", mode)} /> : null}
           {page === "penjualan" ? <PenjualanPage /> : null}
           {page === "scan" ? <ScanPage onGoInbound={() => setPage("masuk")} onGoOutbound={() => setPage("keluar")} /> : null}
           {page === "masuk" ? <MovementPage kind="inbound" onOpenModal={() => openModal("masuk")} /> : null}
