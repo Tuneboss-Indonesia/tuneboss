@@ -167,7 +167,7 @@ export function InventoryDataProvider({ activePage, children, token }: { activeP
     setError(null);
 
     try {
-      if (page === "dashboard") await Promise.all([loadSummary(), loadRestockAlertsPage(1)]);
+      if (page === "dashboard") await Promise.all([loadSummary(), loadMovementsPage(1, "outbound")]);
       if (page === "kategori") await loadCategories();
       if (page === "stok") await loadProductsPage(1);
       if (page === "penjualan") await loadSalesPage(1);

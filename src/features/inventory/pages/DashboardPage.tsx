@@ -113,31 +113,16 @@ export function DashboardPage() {
   const [topData, setTopData] = useState<ChartPoint[]>([]);
   const [loadedSalesPeriods, setLoadedSalesPeriods] = useState<PeriodKey[]>([]);
   const [loadedTopPeriods, setLoadedTopPeriods] = useState<PeriodKey[]>([]);
-  const [restockSearch, setRestockSearch] = useState("");
-  const [restockLoading, setRestockLoading] = useState(false);
+  const [salesSearch, setSalesSearch] = useState("");
+  const [salesTableLoading, setSalesTableLoading] = useState(false);
   const [salesChartLoading, setSalesChartLoading] = useState(false);
   const [topChartLoading, setTopChartLoading] = useState(false);
-  const { error, loadRestockAlertsPage, loading, restockAlerts, restockMeta, summary, token } = useInventoryData();
+  const { error, loadMovementsPage, loading, movementMeta, movements, summary, token } = useInventoryData();
   const { width } = useWindowDimensions();
   const compact = width < 760;
 
-  // Auto-search saat ketik (debounce 500ms)
-  // Skip initial render because data is already loaded by InventoryDataContext
-  const isFirstRender = useRef(true);
   const salesFetchingRef = useRef(false);
   const topFetchingRef = useRef(false);
-
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    const timer = setTimeout(() => {
-      setRestockLoading(true);
-      void loadRestockAlertsPage(1, restockSearch).finally(() => setRestockLoading(false));
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [restockSearch]);
 
   useEffect(() => {
     const key = getChartKey(token, "sales", salesPeriod);
@@ -193,15 +178,15 @@ export function DashboardPage() {
     return () => { cancelled = true; };
   }, [topPeriod, token]);
 
-  const handleRestockPage = (page: number) => {
-    setRestockLoading(true);
-    void loadRestockAlertsPage(page, restockSearch).finally(() => setRestockLoading(false));
+  const salesRows = movements.filter((item) => item.type === "outbound" && `${item.customerName ?? ""} ${item.party ?? ""} ${item.productName} ${item.sku} ${item.serialNumbers?.join(" ") ?? ""} ${item.paymentStatus ?? ""}`.toLowerCase().includes(salesSearch.toLowerCase()));
+
+  const handleSalesPage = (page: number) => {
+    setSalesTableLoading(true);
+    void loadMovementsPage(page, "outbound").finally(() => setSalesTableLoading(false));
   };
 
-  const handleRestockReset = () => {
-    // CrudShell already clears search via onSearchChange, which triggers useEffect.
-    // We just set loading here for immediate feedback; useEffect handles the API call.
-    setRestockLoading(true);
+  const handleSalesReset = () => {
+    setSalesSearch("");
   };
 
   const selectSalesPeriod = (period: PeriodKey) => {
@@ -237,32 +222,33 @@ export function DashboardPage() {
         <Metric title="Total Stok Habis" value={`${summary.outOfStockCount} produk`} />
       </View>
       <CrudShell
-        search="Cari produk..."
-        searchValue={restockSearch}
-        onSearchChange={setRestockSearch}
-        onSearchReset={handleRestockReset}
-        searchDisabled={restockLoading}
+        search="Cari penjualan..."
+        searchValue={salesSearch}
+        onSearchChange={setSalesSearch}
+        onSearchReset={handleSalesReset}
+        searchDisabled={salesTableLoading}
       >
-        <WhiteCard title="Produk Habis">
+        <WhiteCard title="Riwayat Penjualan">
           <DataTable
-            columns={["Kode Produk", "Produk", "Status", "Stok", "Update"]}
-            pagination={restockMeta}
-            onPageChange={handleRestockPage}
-            loading={restockLoading}
+            columns={["Nama", "Alamat", "Produk", "Kode Produk + No Seri", "Tanggal", "Status"]}
+            pagination={movementMeta}
+            onPageChange={handleSalesPage}
+            loading={salesTableLoading}
           >
-            {restockAlerts.map((alert) => (
+            {salesRows.map((item) => (
               <TableRow
-                key={alert.id}
+                key={item.id}
                 cells={[
-                  alert.product?.sku ?? "-",
-                  alert.product?.name ?? "-",
-                  alert.severity === "empty" ? "Habis" : "Menipis",
-                  String(alert.currentStock),
-                  formatDate(alert.updatedAt),
+                  item.customerName ?? "-",
+                  item.saleAddress ?? item.party ?? "-",
+                  item.productName,
+                  item.serialNumbers?.length ? item.serialNumbers.join(", ") : item.sku,
+                  formatDate(item.timestamp),
+                  item.paymentStatus ?? "-",
                 ]}
               />
             ))}
-            {!restockAlerts.length && !restockLoading ? <EmptyRow text="Tidak ada produk habis aktif" /> : null}
+            {!salesRows.length && !salesTableLoading ? <EmptyRow text="Belum ada riwayat penjualan" /> : null}
           </DataTable>
         </WhiteCard>
       </CrudShell>
