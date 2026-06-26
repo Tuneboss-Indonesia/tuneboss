@@ -24,6 +24,11 @@ build/
 # Browser test artifacts
 .playwright-mcp/
 
+# Archives / deployment bundles
+*.zip
+*.tar.gz
+*.tgz
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
