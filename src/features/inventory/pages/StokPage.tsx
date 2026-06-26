@@ -30,7 +30,7 @@ function ProductCodeCell({ item }: { item: StockItem }) {
   );
 }
 
-export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => void }) {
+export function StokPage({ initialCategoryId = "", onOpenModal }: { initialCategoryId?: string; onOpenModal: (mode: ModalMode) => void }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("Semua");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -64,6 +64,13 @@ export function StokPage({ onOpenModal }: { onOpenModal: (mode: ModalMode) => vo
     }, 500);
     return () => clearTimeout(timer);
   }, [query]);
+
+  useEffect(() => {
+    if (!initialCategoryId || initialCategoryId === categoryFilter) return;
+    setCategoryFilter(initialCategoryId);
+    setTableLoading("filter");
+    void loadProductsPage(1, initialCategoryId, statusFilter === "Semua" ? "" : statusFilter, query).finally(() => setTableLoading(null));
+  }, [initialCategoryId]);
 
   const handlePageChange = (page: number) => {
     setTableLoading("page");
