@@ -126,7 +126,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
         if (kind === "keluar" && Number(stock || 0) > product.stock) throw new Error(`Jumlah keluar tidak boleh lebih dari stok tersedia (${product.stock}).`);
 
         await apiRequest(kind === "masuk" ? "/stock/inbound" : "/stock/outbound", {
-          body: JSON.stringify({ note: note.trim() || null, party: party.trim() || null, productId: product.id, quantity: movementQuantity, serialNumbers: serialList }),
+          body: JSON.stringify({ note: note.trim() || null, party: kind === "keluar" ? party.trim() || null : null, productId: product.id, quantity: movementQuantity, serialNumbers: serialList }),
           method: "POST",
           token,
         });
@@ -182,7 +182,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
                 <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
                 {movementError ? <Text style={styles.errorText}>{movementError}</Text> : null}
                 <TextInput multiline onChangeText={setSerialNumbers} style={[styles.modalInput, { minHeight: 88, textAlignVertical: "top" }]} placeholder="Kode Produk + No Seri, satu per baris" placeholderTextColor="#9aa4b5" value={serialNumbers} />
-                <TextInput onChangeText={setParty} style={styles.modalInput} placeholder={kind === "masuk" ? "Supplier" : "Alamat"} placeholderTextColor="#9aa4b5" value={party} />
+                {kind === "keluar" ? <TextInput onChangeText={setParty} style={styles.modalInput} placeholder="Alamat" placeholderTextColor="#9aa4b5" value={party} /> : null}
                 <TextInput onChangeText={setNote} style={styles.modalInput} placeholder="Catatan (Opsional)" placeholderTextColor="#9aa4b5" value={note} />
               </>
             ) : null}

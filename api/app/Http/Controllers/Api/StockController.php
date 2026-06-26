@@ -18,7 +18,7 @@ class StockController extends Controller
 {
     public function movements(Request $request)
     {
-        $movements = StockMovement::with(['product', 'operator', 'sale'])
+        $movements = StockMovement::with(['product.category', 'operator', 'sale'])
             ->when($request->query('type'), function ($query, string $type) {
                 $types = collect(explode(',', $type))
                     ->map(fn (string $item) => trim($item))
@@ -47,14 +47,14 @@ class StockController extends Controller
     {
         $data = $this->validateMovement($request);
 
-        return (new StockMovementResource($this->move($request, $data, 'inbound')->load(['product', 'operator'])))->response()->setStatusCode(201);
+        return (new StockMovementResource($this->move($request, $data, 'inbound')->load(['product.category', 'operator'])))->response()->setStatusCode(201);
     }
 
     public function outbound(Request $request)
     {
         $data = $this->validateMovement($request);
 
-        return (new StockMovementResource($this->move($request, $data, 'outbound')->load(['product', 'operator'])))->response()->setStatusCode(201);
+        return (new StockMovementResource($this->move($request, $data, 'outbound')->load(['product.category', 'operator'])))->response()->setStatusCode(201);
     }
 
     public function updateMovement(Request $request, StockMovement $stockMovement)
@@ -106,7 +106,7 @@ class StockController extends Controller
             return $movement;
         });
 
-        return new StockMovementResource($movement->load(['product', 'operator']));
+        return new StockMovementResource($movement->load(['product.category', 'operator']));
     }
 
     public function destroyMovement(Request $request, StockMovement $stockMovement)
@@ -170,7 +170,7 @@ class StockController extends Controller
             return $movement;
         });
 
-        return (new StockMovementResource($movement->load(['product', 'operator'])))->response()->setStatusCode(201);
+        return (new StockMovementResource($movement->load(['product.category', 'operator'])))->response()->setStatusCode(201);
     }
 
     private function validateMovement(Request $request): array

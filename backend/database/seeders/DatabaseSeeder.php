@@ -36,6 +36,9 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        $this->call(TuneBossProductSeeder::class);
+        $this->call([
+            TuneBossProductSeeder::class,
+            TuneBossSerialSeeder::class,
+        ]);
     }
 }

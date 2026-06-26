@@ -15,7 +15,7 @@ type ReportType = "stok" | "penjualan" | "masuk" | "keluar";
 type Paginated<T> = { data: T[]; meta?: { lastPage?: number } };
 type ExportProductRow = { category?: string | { name?: string } | null; name: string; stock: number; status: string };
 type ExportSaleRow = { address?: string | null; cashier?: string | null; createdAt: string; invoiceNumber: string; status: string; items?: Array<{ productName?: string | null; quantity: number }> };
-type ExportMovementRow = { note?: string | null; operator?: string | null; party?: string | null; productName: string; quantity: number; saleAddress?: string | null; serialNumbers?: string[]; timestamp?: string | null; createdAt?: string | null; type?: string };
+type ExportMovementRow = { note?: string | null; operator?: string | null; party?: string | null; productCategory?: string | null; productName: string; quantity: number; saleAddress?: string | null; serialNumbers?: string[]; timestamp?: string | null; createdAt?: string | null; type?: string };
 
 const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const stockStatusFilters = ["Semua", "Tersedia", "Menipis", "Habis"];
@@ -212,7 +212,7 @@ function LaporanSkeleton() {
 function reportColumns(type: ReportType) {
   if (type === "stok") return ["Produk", "Kategori", "Stok", "Status"];
   if (type === "penjualan") return ["Invoice", "Tanggal", "Produk", "Total", "Alamat"];
-  if (type === "masuk") return ["Tanggal", "Produk", "Jumlah", "No Seri", "Supplier", "Catatan"];
+  if (type === "masuk") return ["Tanggal", "Produk", "Jumlah", "No Seri", "Kategori", "Catatan"];
   return ["Tanggal", "Produk", "Jumlah", "No Seri", "Alamat", "Catatan"];
 }
 
@@ -285,7 +285,7 @@ export function ReportDetail({ type, onBack }: { type: ReportType; onBack: () =>
     ? stockItems.map((item) => [item.name, item.category, String(item.stock), stockStatusLabel(item.status)])
     : type === "penjualan"
       ? sales.map((sale) => [sale.invoiceNumber, formatDate(sale.createdAt), sale.items?.map((item) => item.productName ?? "-").join(", ") || "-", String(sale.items?.reduce((total, item) => total + item.quantity, 0) ?? 0), sale.address ?? "-"])
-      : movements.filter((item) => type === "masuk" ? item.type === "inbound" : item.type === "outbound").map((item) => [formatDate(item.timestamp), item.productName, String(item.quantity), item.serialNumbers?.join(", ") || "-", type === "masuk" ? item.party : (item.saleAddress ?? item.party ?? "-"), item.note ?? "-"]);
+      : movements.filter((item) => type === "masuk" ? item.type === "inbound" : item.type === "outbound").map((item) => [formatDate(item.timestamp), item.productName, String(item.quantity), item.serialNumbers?.join(", ") || "-", type === "masuk" ? item.productCategory ?? "-" : (item.saleAddress ?? item.party ?? "-"), item.note ?? "-"]);
   const availableStock = summary.totalUnits;
   const lowStock = summary.lowStockCount;
   const emptyStock = summary.outOfStockCount;
@@ -302,7 +302,7 @@ export function ReportDetail({ type, onBack }: { type: ReportType; onBack: () =>
       return data.map((sale) => [sale.invoiceNumber, formatDate(sale.createdAt), sale.items?.map((item) => item.productName ?? "-").join(", ") || "-", String(sale.items?.reduce((total, item) => total + item.quantity, 0) ?? 0), sale.address ?? "-"]);
     }
     const data = await fetchAllApiPages<ExportMovementRow>("/stock/movements", token, { type: type === "masuk" ? "inbound" : "outbound", ...(filterFrom ? { from: filterFrom } : {}), ...(filterTo ? { to: filterTo } : {}) });
-    return data.map((item) => [formatDate(item.createdAt ?? item.timestamp), item.productName, String(item.quantity), item.serialNumbers?.join(", ") || "-", type === "masuk" ? item.party : (item.saleAddress ?? item.party ?? "-"), item.note ?? "-"]);
+    return data.map((item) => [formatDate(item.createdAt ?? item.timestamp), item.productName, String(item.quantity), item.serialNumbers?.join(", ") || "-", type === "masuk" ? item.productCategory ?? "-" : (item.saleAddress ?? item.party ?? "-"), item.note ?? "-"]);
   };
 
   const updateSalesMetrics = async (from = filterFrom, to = filterTo) => {
