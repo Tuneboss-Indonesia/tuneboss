@@ -27,6 +27,12 @@ class ReportController extends Controller
         return response()->json([
             'sales' => [
                 'completedCount' => (clone $sales)->where('status', 'completed')->count(),
+                'completedQuantity' => (int) DB::table('sale_items')
+                    ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+                    ->where('sales.status', 'completed')
+                    ->when($request->query('from'), fn ($query, string $from) => $query->whereDate('sales.created_at', '>=', $from))
+                    ->when($request->query('to'), fn ($query, string $to) => $query->whereDate('sales.created_at', '<=', $to))
+                    ->sum('sale_items.quantity'),
                 'voidCount' => (clone $sales)->where('status', 'void')->count(),
             ],
             'stockMovements' => [
