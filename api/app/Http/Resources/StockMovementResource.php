@@ -24,6 +24,8 @@ class StockMovementResource extends JsonResource
             'beforeQuantity' => $this->before_quantity,
             'afterQuantity' => $this->after_quantity,
             'party' => $this->party,
+            'customerName' => $this->customer_name,
+            'paymentStatus' => $this->payment_status,
             'saleAddress' => $this->sale?->address,
             'saleInvoice' => $this->sale?->invoice_number,
             'note' => $this->note,

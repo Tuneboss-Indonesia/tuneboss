@@ -8,6 +8,8 @@ import type { CategoryItem, ModalKind, ModalMode, PressState } from "../types";
 import { styles } from "../styles";
 import { colors } from "../../../theme/tokens";
 
+const paymentStatuses = ["Lunas", "DP", "Unpaid", "PayLater"] as const;
+
 export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: ModalKind; mode: ModalMode; editingCategory?: CategoryItem | null; onClose: () => void }) {
   const { categories, loadProductsPage, refresh, stockItems, token } = useInventoryData();
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
@@ -21,6 +23,9 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
   const [stock, setStock] = useState("");
   const [serialNumbers, setSerialNumbers] = useState("");
   const [party, setParty] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState("Unpaid");
+  const [paymentStatusOpen, setPaymentStatusOpen] = useState(false);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [operationError, setOperationError] = useState("");
@@ -76,6 +81,9 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
     setStock("");
     setSerialNumbers("");
     setParty("");
+    setCustomerName("");
+    setPaymentStatus("Unpaid");
+    setPaymentStatusOpen(false);
     setSelectedCategoryId("");
     setSelectedProductId("");
     setNote("");
@@ -127,7 +135,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
         if (kind === "keluar" && Number(stock || 0) > product.stock) throw new Error(`Jumlah keluar tidak boleh lebih dari stok tersedia (${product.stock}).`);
 
         await apiRequest(kind === "masuk" ? "/stock/inbound" : "/stock/outbound", {
-          body: JSON.stringify({ note: note.trim() || null, party: kind === "keluar" ? party.trim() || null : null, productId: product.id, quantity: movementQuantity, serialNumbers: serialList }),
+          body: JSON.stringify({ customerName: kind === "keluar" ? customerName.trim() || null : null, note: note.trim() || null, party: kind === "keluar" ? party.trim() || null : null, paymentStatus: kind === "keluar" ? paymentStatus : null, productId: product.id, quantity: movementQuantity, serialNumbers: serialList }),
           method: "POST",
           token,
         });
@@ -184,6 +192,14 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
                 <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
                 {movementError ? <Text style={styles.errorText}>{movementError}</Text> : null}
                 <TextInput multiline onChangeText={setSerialNumbers} style={[styles.modalInput, { minHeight: 88, textAlignVertical: "top" }]} placeholder="Kode Produk + No Seri, satu per baris" placeholderTextColor="#9aa4b5" value={serialNumbers} />
+                {kind === "keluar" ? <TextInput onChangeText={setCustomerName} style={styles.modalInput} placeholder="Nama pembeli/dealer" placeholderTextColor="#9aa4b5" value={customerName} /> : null}
+                {kind === "keluar" ? (
+                  <View style={styles.modalFieldGroup}>
+                    <Text style={styles.modalLabel}>Status pembayaran</Text>
+                    <Pressable onPress={() => setPaymentStatusOpen((open) => !open)} style={({ hovered, pressed }: PressState) => [styles.modalSelect, hovered && styles.modalSelectHover, pressed && styles.pressed]}><Text style={styles.modalSelectText}>{paymentStatus}</Text><ChevronDown color={colors.muted} size={18} /></Pressable>
+                    {paymentStatusOpen ? <View style={styles.modalSelectOptions}>{paymentStatuses.map((status) => <Pressable key={status} onPress={() => { setPaymentStatus(status); setPaymentStatusOpen(false); }} style={({ hovered, pressed }: PressState) => [styles.modalSelectOption, paymentStatus === status && styles.modalSelectOptionActive, hovered && paymentStatus !== status && styles.modalSelectOptionHover, pressed && styles.pressed]}><Text style={[styles.modalSelectOptionText, paymentStatus === status && styles.modalSelectOptionTextActive]}>{status}</Text></Pressable>)}</View> : null}
+                  </View>
+                ) : null}
                 {kind === "keluar" ? <TextInput onChangeText={setParty} style={styles.modalInput} placeholder="Alamat" placeholderTextColor="#9aa4b5" value={party} /> : null}
                 <TextInput onChangeText={setNote} style={styles.modalInput} placeholder="Catatan (Opsional)" placeholderTextColor="#9aa4b5" value={note} />
               </>

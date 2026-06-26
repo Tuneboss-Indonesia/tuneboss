@@ -56,6 +56,8 @@ export type StockMovement = {
   afterQuantity?: number;
   operator: string;
   party: string;
+  customerName?: string | null;
+  paymentStatus?: "Lunas" | "DP" | "Unpaid" | "PayLater" | null;
   saleAddress?: string | null;
   saleInvoice?: string | null;
   timestamp: string;
