@@ -204,6 +204,11 @@ export function AdminPage({ currentUserId }: { currentUserId?: string }) {
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
       {loading ? <AdminSkeleton /> : (
         <CrudShell title="Admin" button="Tambah Akun" onButton={openAdd} buttonDisabled={userTableLoading} search="Cari user..." searchValue={query} onSearchChange={setQuery} searchDisabled={userTableLoading} loading={loading}>
+          <WhiteCard title="Perbedaan Role">
+            <Text style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 16, lineHeight: 24 }}>
+              Admin dapat mengelola akun, data master, perubahan data, dan audit log. Staff dapat menjalankan operasional gudang seperti scan barcode, produk masuk, produk keluar, dealer, dan laporan, tetapi tidak dapat membuka halaman Admin.
+            </Text>
+          </WhiteCard>
           <WhiteCard title="Users">
             <DataTable columns={["Nama", "Email", "Role", "Status", "Dibuat", "Aksi"]} pagination={userMeta} onPageChange={(page) => reloadUsers(page, query)} loading={userTableLoading}>
               {users.map((user) => <TableRow key={user.id} cells={[user.name, user.email, user.role, user.isActive ? "Aktif" : "Nonaktif", formatDate(user.createdAt)]} actions={<RowActions deleteDisabled={user.id === currentUserId} onEdit={() => openEdit(user)} onDelete={() => setPendingDelete(user)} />} />)}
