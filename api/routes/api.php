@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DealerController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\RestockAlertController;
@@ -65,6 +66,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/categories', [CategoryController::class, 'store'])->middleware('role:admin');
     Route::patch('/categories/{category}', [CategoryController::class, 'update'])->middleware('role:admin');
     Route::delete('/categories/{category}', [CategoryController::class, 'destroy'])->middleware('role:admin');
+
+    Route::get('/dealers', [DealerController::class, 'index']);
+    Route::post('/dealers', [DealerController::class, 'store']);
+    Route::patch('/dealers/{dealer}', [DealerController::class, 'update']);
+    Route::delete('/dealers/{dealer}', [DealerController::class, 'destroy'])->middleware('role:admin');
 
     Route::get('/stock/movements', [StockController::class, 'movements']);
     Route::patch('/stock/movements/{stockMovement}', [StockController::class, 'updateMovement'])->middleware('role:admin');
