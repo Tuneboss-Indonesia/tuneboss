@@ -22,7 +22,10 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
   const [serialNumbers, setSerialNumbers] = useState("");
   const [party, setParty] = useState("");
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("Unpaid");
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [nominalAmount, setNominalAmount] = useState("");
   const [paymentStatusOpen, setPaymentStatusOpen] = useState(false);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -78,7 +81,10 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
     setSerialNumbers("");
     setParty("");
     setCustomerName("");
+    setCustomerPhone("");
     setPaymentStatus("Unpaid");
+    setPaymentMethod("");
+    setNominalAmount("");
     setPaymentStatusOpen(false);
     setSelectedCategoryId("");
     setSelectedProductId("");
@@ -118,7 +124,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
         if (kind === "keluar" && Number(stock || 0) > product.stock) throw new Error(`Jumlah keluar tidak boleh lebih dari stok tersedia (${product.stock}).`);
 
         await apiRequest(kind === "masuk" ? "/stock/inbound" : "/stock/outbound", {
-          body: JSON.stringify({ customerName: kind === "keluar" ? customerName.trim() || null : null, note: note.trim() || null, party: kind === "keluar" ? party.trim() || null : null, paymentStatus: kind === "keluar" ? paymentStatus : null, productId: product.id, quantity: movementQuantity, serialNumbers: serialList }),
+          body: JSON.stringify({ customerName: kind === "keluar" ? customerName.trim() || null : null, customerPhone: kind === "keluar" ? customerPhone.trim() || null : null, nominalAmount: kind === "keluar" ? Number(nominalAmount || 0) || null : null, note: note.trim() || null, party: kind === "keluar" ? party.trim() || null : null, paymentMethod: kind === "keluar" ? paymentMethod.trim() || null : null, paymentStatus: kind === "keluar" ? paymentStatus : null, productId: product.id, quantity: movementQuantity, serialNumbers: serialList }),
           method: "POST",
           token,
         });
@@ -170,6 +176,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
                 {movementError ? <Text style={styles.errorText}>{movementError}</Text> : null}
                 <TextInput multiline onChangeText={setSerialNumbers} style={[styles.modalInput, { minHeight: 88, textAlignVertical: "top" }]} placeholder="Kode Produk + No Seri, satu per baris" placeholderTextColor="#9aa4b5" value={serialNumbers} />
                 {kind === "keluar" ? <TextInput onChangeText={setCustomerName} style={styles.modalInput} placeholder="Nama pembeli/dealer" placeholderTextColor="#9aa4b5" value={customerName} /> : null}
+                {kind === "keluar" ? <TextInput onChangeText={setCustomerPhone} style={styles.modalInput} placeholder="No. Telp / WhatsApp" placeholderTextColor="#9aa4b5" value={customerPhone} /> : null}
                 {kind === "keluar" ? (
                   <View style={styles.modalFieldGroup}>
                     <Text style={styles.modalLabel}>Status pembayaran</Text>
@@ -178,6 +185,8 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
                   </View>
                 ) : null}
                 {kind === "keluar" ? <TextInput onChangeText={setParty} style={styles.modalInput} placeholder="Alamat" placeholderTextColor="#9aa4b5" value={party} /> : null}
+                {kind === "keluar" ? <TextInput onChangeText={setPaymentMethod} style={styles.modalInput} placeholder="Metode Pembayaran" placeholderTextColor="#9aa4b5" value={paymentMethod} /> : null}
+                {kind === "keluar" ? <TextInput onChangeText={(value) => setNominalAmount(value.replace(/\D/g, ""))} style={styles.modalInput} placeholder="Nominal" placeholderTextColor="#9aa4b5" value={nominalAmount} keyboardType="number-pad" inputMode="numeric" /> : null}
                 <TextInput onChangeText={setNote} style={styles.modalInput} placeholder="Catatan (Opsional)" placeholderTextColor="#9aa4b5" value={note} />
               </>
             ) : null}

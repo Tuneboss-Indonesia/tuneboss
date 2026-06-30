@@ -22,7 +22,10 @@ class StockMovement extends Model
         'after_quantity',
         'party',
         'customer_name',
+        'customer_phone',
         'payment_status',
+        'payment_method',
+        'nominal_amount',
         'note',
     ];
 
@@ -33,6 +36,7 @@ class StockMovement extends Model
             'serial_numbers' => 'array',
             'before_quantity' => 'integer',
             'after_quantity' => 'integer',
+            'nominal_amount' => 'decimal:2',
         ];
     }
 

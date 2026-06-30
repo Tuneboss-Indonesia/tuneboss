@@ -57,7 +57,10 @@ export type StockMovement = {
   operator: string;
   party: string;
   customerName?: string | null;
+  customerPhone?: string | null;
   paymentStatus?: "Lunas" | "DP" | "Unpaid" | "PayLater" | null;
+  paymentMethod?: string | null;
+  nominalAmount?: string | number | null;
   saleAddress?: string | null;
   saleInvoice?: string | null;
   timestamp: string;
