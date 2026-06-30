@@ -26,7 +26,7 @@ export function MovementPage({ kind, onOpenModal }: { kind: "inbound" | "outboun
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [editing, setEditing] = useState<StockMovement | null>(null);
-  const [invoice, setInvoice] = useState<StockMovement | null>(null);
+  const [invoice, setInvoice] = useState<StockMovement[] | null>(null);
   const [pendingDelete, setPendingDelete] = useState<StockMovement | null>(null);
   const [operationError, setOperationError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -132,16 +132,26 @@ export function MovementPage({ kind, onOpenModal }: { kind: "inbound" | "outboun
     <>
       <CrudShell title={isIn ? "Riwayat Produk Masuk" : "Riwayat Produk Keluar"} button={isIn ? "Tambah Stok" : "Kurangi Stok"} onButton={onOpenModal} search={isIn ? "Cari produk, no seri..." : "Cari produk keluar..."} searchValue={query} onSearchChange={setQuery} searchDisabled={filterLoading} buttonDisabled={filterLoading} dateFrom={dateFrom} onDateFromChange={setDateFrom} dateTo={dateTo} onDateToChange={setDateTo} loading={loading}>
         <DataTable columns={isIn ? ["Tanggal", "Produk", "Jumlah", "No Seri", "Kategori", "Catatan", "Aksi"] : ["Tanggal", "Produk", "Jumlah", "No Seri", "Pembeli/Dealer", "Status Bayar", "Alamat", "Catatan", "Aksi"]} pagination={movementMeta} onPageChange={handlePageChange} loading={filterLoading}>
-          {rows.length ? rows.map((item) => <MovementTableRow key={item.id} item={item} onEdit={() => setEditing(item)} onDelete={() => setPendingDelete(item)} onInvoice={item.type === "outbound" ? () => setInvoice(item) : undefined} />) : null}
+          {rows.length ? rows.map((item) => <MovementTableRow key={item.id} item={item} onEdit={() => setEditing(item)} onDelete={() => setPendingDelete(item)} onInvoice={item.type === "outbound" ? () => setInvoice(invoiceGroup(item, rows)) : undefined} />) : null}
           {!rows.length && !filterLoading ? <EmptyRow text="Tidak ada data ditemukan" /> : null}
         </DataTable>
       </CrudShell>
-      {invoice ? <InvoiceModal item={invoice} onClose={() => setInvoice(null)} /> : null}
+      {invoice ? <InvoiceModal items={invoice} onClose={() => setInvoice(null)} /> : null}
       {editing ? <MovementEditModal item={editing} stockItems={stockItems} saving={saving} onClose={() => setEditing(null)} onSave={saveEdit} /> : null}
       {pendingDelete ? <ConfirmModal title="Hapus Riwayat" message={`Yakin ingin menghapus riwayat "${pendingDelete.productName}"? Stok akan dikoreksi otomatis.`} confirmText="Hapus" loading={deleting} onCancel={() => setPendingDelete(null)} onConfirm={deleteMovement} /> : null}
       {operationError ? <ConfirmModal title="Gagal" message={operationError} confirmText="OK" hideCancel onCancel={() => setOperationError("")} onConfirm={() => setOperationError("")} /> : null}
     </>
   );
+}
+
+function invoiceDateKey(timestamp: string) {
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? timestamp.slice(0, 10) : date.toISOString().slice(0, 10);
+}
+
+function invoiceGroup(item: StockMovement, rows: StockMovement[]) {
+  const key = [item.customerName ?? "", item.saleAddress ?? item.party ?? "", item.customerPhone ?? "", item.paymentStatus ?? "", item.paymentMethod ?? "", invoiceDateKey(item.timestamp)].join("|").toLowerCase();
+  return rows.filter((row) => row.type === "outbound" && [row.customerName ?? "", row.saleAddress ?? row.party ?? "", row.customerPhone ?? "", row.paymentStatus ?? "", row.paymentMethod ?? "", invoiceDateKey(row.timestamp)].join("|").toLowerCase() === key);
 }
 
 function invoiceNumber(item: StockMovement) {
@@ -151,9 +161,9 @@ function invoiceNumber(item: StockMovement) {
   return item.saleInvoice ?? `INV/TB/${year}/${month}/${item.id.slice(0, 4).toUpperCase()}`;
 }
 
-function InvoiceModal({ item, onClose }: { item: StockMovement; onClose: () => void }) {
-  const serials = item.serialNumbers?.join(", ") || item.sku;
-  const nominal = Number(item.nominalAmount ?? 0);
+function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () => void }) {
+  const item = items[0];
+  const nominal = items.reduce((total, row) => total + Number(row.nominalAmount ?? 0), 0);
   const nominalText = nominal > 0 ? new Intl.NumberFormat("id-ID", { currency: "IDR", style: "currency" }).format(nominal) : "Rp -";
   const print = () => {
     if (Platform.OS === "web" && typeof window !== "undefined") window.print();
@@ -193,10 +203,14 @@ function InvoiceModal({ item, onClose }: { item: StockMovement; onClose: () => v
                 <View style={{ backgroundColor: colors.primary, flexDirection: "row" }}>
                   {["NO", "DESKRIPSI BARANG", "NO SERI", "NOMINAL", "STATUS"].map((header, index) => <Text key={header} style={{ borderRightColor: "#222", borderRightWidth: index === 4 ? 0 : 1, color: colors.white, flex: index === 0 ? 0.35 : index === 2 ? 1.6 : 1, fontFamily: fonts.bodyMedium, padding: 10, textAlign: "center" }}>{header}</Text>)}
                 </View>
-                <View style={{ flexDirection: "row", minHeight: 48 }}>
-                  {["1", item.productName, serials, nominalText, item.paymentStatus ?? "-"].map((cell, index) => <Text key={index} style={{ borderRightColor: "#222", borderRightWidth: index === 4 ? 0 : 1, color: colors.black, flex: index === 0 ? 0.35 : index === 2 ? 1.6 : 1, fontFamily: fonts.bodyMedium, padding: 10, textAlign: "center" }}>{cell}</Text>)}
-                </View>
-                {Array.from({ length: 6 }).map((_, index) => <View key={index} style={{ borderTopColor: "#222", borderTopWidth: 1, height: 42 }} />)}
+                {items.map((row, rowIndex) => {
+                  const serials = row.serialNumbers?.join(", ") || row.sku;
+                  const rowNominal = Number(row.nominalAmount ?? 0);
+                  const rowNominalText = rowNominal > 0 ? new Intl.NumberFormat("id-ID", { currency: "IDR", style: "currency" }).format(rowNominal) : "Rp -";
+                  return <View key={row.id} style={{ borderTopColor: "#222", borderTopWidth: rowIndex ? 1 : 0, flexDirection: "row", minHeight: 48 }}>{[String(rowIndex + 1), row.productName, serials, rowNominalText, row.paymentStatus ?? "-"].map((cell, index) => <Text key={index} style={{ borderRightColor: "#222", borderRightWidth: index === 4 ? 0 : 1, color: colors.black, flex: index === 0 ? 0.35 : index === 2 ? 1.6 : 1, fontFamily: fonts.bodyMedium, padding: 10, textAlign: "center" }}>{cell}</Text>)}</View>;
+                })}
+                {Array.from({ length: Math.max(0, 7 - items.length) }).map((_, index) => <View key={index} style={{ borderTopColor: "#222", borderTopWidth: 1, height: 42 }} />)}
+                <View style={{ borderTopColor: "#222", borderTopWidth: 1, flexDirection: "row" }}><Text style={{ color: colors.black, flex: 1.35, fontFamily: fonts.bodyMedium, padding: 10 }}>TOTAL</Text><Text style={{ borderLeftColor: "#222", borderLeftWidth: 1, color: colors.black, flex: 1.6, fontFamily: fonts.bodyMedium, padding: 10 }}>{items.reduce((total, row) => total + row.quantity, 0)} Unit</Text><Text style={{ borderLeftColor: "#222", borderLeftWidth: 1, color: colors.black, flex: 2, fontFamily: fonts.bodyMedium, padding: 10, textAlign: "center" }}>{nominalText}</Text></View>
               </View>
               <View style={{ alignItems: "flex-end", marginTop: 48, paddingRight: 70 }}>
                 <Text style={{ color: colors.black, fontFamily: fonts.body, marginBottom: 70 }}>Hormat Kami,</Text>
