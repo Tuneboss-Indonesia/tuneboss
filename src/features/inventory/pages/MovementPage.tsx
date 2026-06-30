@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Image, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { ChevronDown } from "lucide-react-native";
 import { apiRequest, formatDate } from "../api";
+import { logoUri } from "../data";
 import { useInventoryData } from "../InventoryDataContext";
 import { CrudShell, DataTable, EmptyRow, RowActions, TableRow } from "../components/common";
 import type { StockItem, StockMovement } from "../../../types/dashboard";
@@ -11,11 +12,12 @@ import type { PressState } from "../types";
 
 const paymentStatuses = ["Lunas", "DP", "Unpaid", "PayLater"] as const;
 
-function MovementTableRow({ columns, compact, item, onDelete, onEdit }: { columns?: string[]; compact?: boolean; item: StockMovement; onDelete: () => void; onEdit: () => void }) {
+function MovementTableRow({ columns, compact, item, onDelete, onEdit, onInvoice }: { columns?: string[]; compact?: boolean; item: StockMovement; onDelete: () => void; onEdit: () => void; onInvoice?: () => void }) {
   const serials = item.serialNumbers?.join(", ") || "-";
   const cells = item.type === "inbound" ? [formatDate(item.timestamp), item.productName, String(item.quantity), serials, item.productCategory ?? "-", item.note || "-"] : [formatDate(item.timestamp), item.productName, String(item.quantity), serials, item.customerName ?? "-", item.paymentStatus ?? "-", item.saleAddress ?? item.party ?? "-", item.note || "-"];
   const canModify = item.type === "inbound" || item.type === "outbound";
-  return <TableRow columns={columns} compact={compact} cells={cells} actions={canModify ? <RowActions onEdit={onEdit} onDelete={onDelete} /> : null} />;
+  const actions = canModify ? <View style={styles.rowActions}>{onInvoice ? <Pressable onPress={onInvoice} style={styles.cancelButton}><Text style={styles.cancelText}>Invoice</Text></Pressable> : null}<RowActions onEdit={onEdit} onDelete={onDelete} /></View> : null;
+  return <TableRow columns={columns} compact={compact} cells={cells} actions={actions} />;
 }
 
 export function MovementPage({ kind, onOpenModal }: { kind: "inbound" | "outbound"; onOpenModal: () => void }) {
@@ -24,6 +26,7 @@ export function MovementPage({ kind, onOpenModal }: { kind: "inbound" | "outboun
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [editing, setEditing] = useState<StockMovement | null>(null);
+  const [invoice, setInvoice] = useState<StockMovement | null>(null);
   const [pendingDelete, setPendingDelete] = useState<StockMovement | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -124,14 +127,92 @@ export function MovementPage({ kind, onOpenModal }: { kind: "inbound" | "outboun
     <>
       <CrudShell title={isIn ? "Riwayat Produk Masuk" : "Riwayat Produk Keluar"} button={isIn ? "Tambah Stok" : "Kurangi Stok"} onButton={onOpenModal} search={isIn ? "Cari produk, no seri..." : "Cari produk keluar..."} searchValue={query} onSearchChange={setQuery} searchDisabled={filterLoading} buttonDisabled={filterLoading} dateFrom={dateFrom} onDateFromChange={setDateFrom} dateTo={dateTo} onDateToChange={setDateTo} loading={loading}>
         <DataTable columns={isIn ? ["Tanggal", "Produk", "Jumlah", "No Seri", "Kategori", "Catatan", "Aksi"] : ["Tanggal", "Produk", "Jumlah", "No Seri", "Pembeli/Dealer", "Status Bayar", "Alamat", "Catatan", "Aksi"]} pagination={movementMeta} onPageChange={handlePageChange} loading={filterLoading}>
-          {rows.length ? rows.map((item) => <MovementTableRow key={item.id} item={item} onEdit={() => setEditing(item)} onDelete={() => setPendingDelete(item)} />) : null}
+          {rows.length ? rows.map((item) => <MovementTableRow key={item.id} item={item} onEdit={() => setEditing(item)} onDelete={() => setPendingDelete(item)} onInvoice={item.type === "outbound" ? () => setInvoice(item) : undefined} />) : null}
           {!rows.length && !filterLoading ? <EmptyRow text="Tidak ada data ditemukan" /> : null}
         </DataTable>
       </CrudShell>
+      {invoice ? <InvoiceModal item={invoice} onClose={() => setInvoice(null)} /> : null}
       {editing ? <MovementEditModal item={editing} stockItems={stockItems} saving={saving} onClose={() => setEditing(null)} onSave={saveEdit} /> : null}
       {pendingDelete ? <ConfirmModal title="Hapus Riwayat" message={`Yakin ingin menghapus riwayat "${pendingDelete.productName}"? Stok akan dikoreksi otomatis.`} confirmText="Hapus" loading={deleting} onCancel={() => setPendingDelete(null)} onConfirm={deleteMovement} /> : null}
     </>
   );
+}
+
+function invoiceNumber(item: StockMovement) {
+  const date = new Date(item.timestamp);
+  const year = Number.isNaN(date.getTime()) ? new Date().getFullYear() : date.getFullYear();
+  const month = String(Number.isNaN(date.getTime()) ? new Date().getMonth() + 1 : date.getMonth() + 1).padStart(2, "0");
+  return item.saleInvoice ?? `INV/TB/${year}/${month}/${item.id.slice(0, 4).toUpperCase()}`;
+}
+
+function InvoiceModal({ item, onClose }: { item: StockMovement; onClose: () => void }) {
+  const serials = item.serialNumbers?.join(", ") || item.sku;
+  const print = () => {
+    if (Platform.OS === "web" && typeof window !== "undefined") window.print();
+  };
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={[styles.modalCard, { maxWidth: 920 }]}> 
+          <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalBodyContent}>
+            <View style={{ backgroundColor: colors.white, gap: 18, padding: 28 }}>
+              <View style={{ alignItems: "center", borderBottomColor: colors.primary, borderBottomWidth: 2, flexDirection: "row", gap: 22, paddingBottom: 16 }}>
+                <Image source={logoUri} style={{ height: 72, width: 190 }} resizeMode="contain" />
+                <View style={{ borderLeftColor: "#222", borderLeftWidth: 1, flex: 1, paddingLeft: 18 }}>
+                  <Text style={{ color: colors.black, fontFamily: fonts.bodyMedium, fontSize: 22 }}>TUNEBOSS INDONESIA</Text>
+                  <Text style={{ color: colors.black, fontFamily: fonts.body, fontSize: 13 }}>Jl. Ringroad Selatan No.72, Banguntapan</Text>
+                  <Text style={{ color: colors.black, fontFamily: fonts.body, fontSize: 13 }}>Bantul, Daerah Istimewa Yogyakarta 55198</Text>
+                  <Text style={{ color: colors.black, fontFamily: fonts.body, fontSize: 13 }}>0817-5792-805</Text>
+                </View>
+                <Text style={{ borderBottomColor: colors.primary, borderBottomWidth: 2, color: colors.black, fontFamily: fonts.display, fontSize: 50, letterSpacing: 4 }}>INVOICE</Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 28 }}>
+                <View style={{ flex: 1, gap: 8 }}>
+                  <Text style={{ color: colors.primary, fontFamily: fonts.bodyMedium, fontSize: 14 }}>DITERBITKAN KEPADA</Text>
+                  <InvoiceLine label="Nama Dealer / Customer" value={item.customerName ?? "-"} />
+                  <InvoiceLine label="Alamat" value={item.saleAddress ?? item.party ?? "-"} />
+                  <InvoiceLine label="No. Telp / WhatsApp" value="-" />
+                </View>
+                <View style={{ flex: 0.9, gap: 0 }}>
+                  <InvoiceInfo label="NOMOR INVOICE" value={invoiceNumber(item)} />
+                  <InvoiceInfo label="TANGGAL" value={formatDate(item.timestamp)} />
+                  <InvoiceInfo label="STATUS" value="Dealer" />
+                  <InvoiceInfo label="METODE PEMBAYARAN" value="-" />
+                </View>
+              </View>
+              <View style={{ borderColor: "#222", borderWidth: 1 }}>
+                <View style={{ backgroundColor: colors.primary, flexDirection: "row" }}>
+                  {["NO", "DESKRIPSI BARANG", "NO SERI", "NOMINAL", "STATUS"].map((header, index) => <Text key={header} style={{ borderRightColor: "#222", borderRightWidth: index === 4 ? 0 : 1, color: colors.white, flex: index === 0 ? 0.35 : index === 2 ? 1.6 : 1, fontFamily: fonts.bodyMedium, padding: 10, textAlign: "center" }}>{header}</Text>)}
+                </View>
+                <View style={{ flexDirection: "row", minHeight: 48 }}>
+                  {["1", item.productName, serials, "Rp -", item.paymentStatus ?? "-"].map((cell, index) => <Text key={index} style={{ borderRightColor: "#222", borderRightWidth: index === 4 ? 0 : 1, color: colors.black, flex: index === 0 ? 0.35 : index === 2 ? 1.6 : 1, fontFamily: fonts.bodyMedium, padding: 10, textAlign: "center" }}>{cell}</Text>)}
+                </View>
+                {Array.from({ length: 6 }).map((_, index) => <View key={index} style={{ borderTopColor: "#222", borderTopWidth: 1, height: 42 }} />)}
+              </View>
+              <View style={{ alignItems: "flex-end", marginTop: 48, paddingRight: 70 }}>
+                <Text style={{ color: colors.black, fontFamily: fonts.body, marginBottom: 70 }}>Hormat Kami,</Text>
+                <View style={{ backgroundColor: colors.black, height: 2, width: 170 }} />
+                <Text style={{ color: colors.black, fontFamily: fonts.bodyMedium, marginTop: 8 }}>Tuneboss Indonesia</Text>
+              </View>
+            </View>
+          </ScrollView>
+          <View style={styles.modalActions}>
+            <Pressable onPress={onClose} style={styles.cancelButton}><Text style={styles.cancelText}>Tutup</Text></Pressable>
+            <Pressable onPress={print} style={styles.saveButton}><Text style={styles.saveText}>Print</Text></Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function InvoiceLine({ label, value }: { label: string; value: string }) {
+  return <View style={{ flexDirection: "row", gap: 8 }}><Text style={{ color: colors.black, flex: 0.65, fontFamily: fonts.bodyMedium, fontSize: 13 }}>{label}</Text><Text style={{ color: colors.black, fontFamily: fonts.bodyMedium, fontSize: 13 }}>:</Text><Text style={{ borderBottomColor: "#222", borderBottomWidth: 1, color: colors.black, flex: 1, fontFamily: fonts.bodyMedium, fontSize: 13 }}>{value}</Text></View>;
+}
+
+function InvoiceInfo({ label, value }: { label: string; value: string }) {
+  return <View style={{ flexDirection: "row" }}><Text style={{ backgroundColor: colors.black, color: colors.white, flex: 0.9, fontFamily: fonts.bodyMedium, fontSize: 12, padding: 10 }}>{label}</Text><Text style={{ borderBottomColor: colors.primary, borderBottomWidth: 1, color: colors.black, flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12, padding: 10 }}>: {value}</Text></View>;
 }
 
 function MovementEditModal({ item, onClose, onSave, saving, stockItems }: { item: StockMovement; onClose: () => void; onSave: (form: { customerName: string; note: string; party: string; paymentStatus: string; productId: string; quantity: string }) => Promise<void>; saving: boolean; stockItems: StockItem[] }) {
