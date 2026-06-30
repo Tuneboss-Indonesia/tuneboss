@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as XLSX from "xlsx";
@@ -42,6 +42,11 @@ function dateValue(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function currentMonthPeriod() {
+  const now = new Date();
+  return { from: dateValue(new Date(now.getFullYear(), now.getMonth(), 1)), to: dateValue(now) };
 }
 
 function formatMonthLabel(month: Date) {
@@ -272,13 +277,13 @@ export function ReportDetail({ type, onBack }: { type: ReportType; onBack: () =>
   const { loadMovementsPage, loadProductsPage, loadSalesPage, loading, movementMeta, movements, productMeta, saleMeta, sales, stockItems, summary, token } = useInventoryData();
   const [tableLoading, setTableLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
-  const [filterFrom, setFilterFrom] = useState("");
-  const [filterTo, setFilterTo] = useState("");
+  const defaultPeriod = currentMonthPeriod();
+  const [filterFrom, setFilterFrom] = useState(defaultPeriod.from);
+  const [filterTo, setFilterTo] = useState(defaultPeriod.to);
   const [stockStatusFilter, setStockStatusFilter] = useState("Semua");
   const [salesMetricLoading, setSalesMetricLoading] = useState(false);
   const [salesMetrics, setSalesMetrics] = useState({ topProduct: "-", totalQuantity: 0 });
   const isLoading = loading || tableLoading;
-  const initialLoadRef = useRef(true);
   const title = type === "stok" ? "Daftar Stok Produk" : type === "penjualan" ? "Daftar Transaksi Penjualan" : type === "masuk" ? "Daftar Produk Masuk" : "Daftar Produk Keluar";
   const columns = reportColumns(type);
   const rows = type === "stok"
@@ -357,10 +362,6 @@ export function ReportDetail({ type, onBack }: { type: ReportType; onBack: () =>
   };
 
   useEffect(() => {
-    if (initialLoadRef.current) {
-      initialLoadRef.current = false;
-      return;
-    }
     if (type === "penjualan") {
       void applySalesFilter();
     }
