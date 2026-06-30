@@ -40,6 +40,15 @@ class TuneBossProductSeeder extends Seeder
             ['brand' => 'Yamaha', 'sku' => 'TB-YMH-MX-KING-V2', 'name' => 'MX KING V2'],
             ['brand' => 'Yamaha', 'sku' => 'TB-YMH-CDI-NJMX-135', 'name' => 'CDI NJMX 135'],
             ['brand' => 'Yamaha', 'sku' => 'TB-YMH-CDI-JUPITER-MX', 'name' => 'CDI JUPITER MX'],
+            ['brand' => 'Yamaha', 'sku' => 'TCYA/TDYA019A', 'name' => 'XMAX 250 V1 (BASIC/PRO)'],
+            ['brand' => 'Yamaha', 'sku' => 'TCYA/TDYA020A', 'name' => 'XMAX 250 V2 (BASIC/PRO)'],
+            ['brand' => 'Yamaha', 'sku' => 'TCYA/TDYA028A', 'name' => 'XMAX 250 V3 (BASIC/PRO)'],
+            ['brand' => 'Yamaha', 'sku' => 'TCYA/TCYA013', 'name' => 'R15 V3 / VIXION 155R (BASIC/PRO)'],
+            ['brand' => 'Yamaha', 'sku' => 'TCYA/TCYA017', 'name' => 'MT15 V1 / XSR 155 / WR155 (BASIC/PRO)'],
+            ['brand' => 'Yamaha', 'sku' => 'TCYA/TCYA022', 'name' => 'MT15 V2 / XSR 155 V2 (BASIC/PRO)'],
+            ['brand' => 'Yamaha', 'sku' => 'TCYA014', 'name' => 'NMAX 155 (PRO)'],
+            ['brand' => 'Yamaha', 'sku' => 'TDYA010', 'name' => 'R25 OLD V1 / V2'],
+            ['brand' => 'Yamaha', 'sku' => 'TDYA025', 'name' => 'R25 ABS V3'],
 
             ['brand' => 'Honda', 'sku' => 'TB-HND-SUPRA-GTR-150-OLD', 'name' => 'SUPRA GTR 150 OLD'],
             ['brand' => 'Honda', 'sku' => 'TB-HND-SUPRA-GTR-150-NEW', 'name' => 'SUPRA GTR 150 NEW'],
@@ -59,19 +68,22 @@ class TuneBossProductSeeder extends Seeder
             ['brand' => 'Honda', 'sku' => 'TB-HND-CRF-150L-K84-F', 'name' => 'CRF 150L K84/F'],
             ['brand' => 'Honda', 'sku' => 'TB-HND-CRF-250-RALLY', 'name' => 'CRF 250 RALLY'],
             ['brand' => 'Honda', 'sku' => 'TB-HND-FORZA-250', 'name' => 'FORZA 250'],
+            ['brand' => 'Honda', 'sku' => 'TDHN004', 'name' => 'CBR 250R (KYJ / K33) (PRO)'],
+            ['brand' => 'Honda', 'sku' => 'TDHN011', 'name' => 'CBR 150R CBU (PRO)'],
+            ['brand' => 'Honda', 'sku' => 'TDHN/TCHN009', 'name' => 'CBR 150R LOCAL (K45A) (BASIC/PRO)'],
+            ['brand' => 'Honda', 'sku' => 'TDHN/TCHN010', 'name' => 'CRF 150L (K84/F) (PRO/BASIC)'],
+            ['brand' => 'Honda', 'sku' => 'TCHN003', 'name' => 'SONIC / SUPRA GTR / CB150R / CBR150R (PRO)'],
 
             ['brand' => 'Suzuki', 'sku' => 'TB-SZK-SATRIA-FU-FI', 'name' => 'SATRIA FU FI'],
             ['brand' => 'Suzuki', 'sku' => 'TB-SZK-GSX-150', 'name' => 'GSX 150'],
             ['brand' => 'Suzuki', 'sku' => 'TB-SZK-GSX-250R', 'name' => 'GSX 250R'],
             ['brand' => 'Suzuki', 'sku' => 'TB-SZK-VSTOM-250', 'name' => 'VSTOM 250'],
+            ['brand' => 'Suzuki', 'sku' => 'TCSU/TDSU001', 'name' => 'SATRIA FUFI (BASIC/PRO)'],
+            ['brand' => 'Suzuki', 'sku' => 'TCSU002', 'name' => 'GSX-S / GSX-R'],
 
             ['brand' => 'Kawasaki', 'sku' => 'TB-KWS-NINJA-MONO-250', 'name' => 'NINJA MONO 250'],
             ['brand' => 'Kawasaki', 'sku' => 'TB-KWS-CDI-KLX-150', 'name' => 'CDI KLX 150'],
         ];
-
-        $activeSkus = collect($products)->pluck('sku')->all();
-
-        Product::whereNotIn('sku', $activeSkus)->update(['is_active' => false]);
 
         foreach ($products as $item) {
             $product = Product::updateOrCreate(
