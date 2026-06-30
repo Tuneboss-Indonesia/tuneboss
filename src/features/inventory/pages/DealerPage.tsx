@@ -4,7 +4,7 @@ import { CrudShell, DataTable, EmptyRow, TableRow } from "../components/common";
 import { useInventoryData } from "../InventoryDataContext";
 import type { StockMovement } from "../../../types/dashboard";
 
-type DealerRow = { address: string; lastTransaction: string; name: string };
+type DealerRow = { address: string; lastTransaction: string; name: string; phone: string };
 
 export function DealerPage() {
   const { token } = useInventoryData();
@@ -25,8 +25,9 @@ export function DealerPage() {
           const name = item.customerName?.trim();
           if (!name) return;
           const address = item.saleAddress ?? item.party ?? "-";
-          const key = `${name.toLowerCase()}|${address.toLowerCase()}`;
-          if (!unique.has(key)) unique.set(key, { address, lastTransaction: item.timestamp, name });
+          const phone = item.customerPhone ?? "-";
+          const key = `${name.toLowerCase()}|${address.toLowerCase()}|${phone.toLowerCase()}`;
+          if (!unique.has(key)) unique.set(key, { address, lastTransaction: item.timestamp, name, phone });
         });
         setDealers([...unique.values()]);
       } finally {
@@ -38,12 +39,12 @@ export function DealerPage() {
     return () => { cancelled = true; };
   }, [token]);
 
-  const rows = dealers.filter((dealer) => `${dealer.name} ${dealer.address}`.toLowerCase().includes(query.toLowerCase()));
+  const rows = dealers.filter((dealer) => `${dealer.name} ${dealer.address} ${dealer.phone}`.toLowerCase().includes(query.toLowerCase()));
 
   return (
     <CrudShell title="Dealer" subtitle="Daftar dealer dari riwayat Produk Keluar" search="Cari dealer..." searchValue={query} onSearchChange={setQuery} loading={loading}>
-      <DataTable columns={["Nama", "Alamat", "Transaksi Terakhir"]} loading={loading}>
-        {rows.map((dealer) => <TableRow key={`${dealer.name}-${dealer.address}`} cells={[dealer.name, dealer.address, formatDate(dealer.lastTransaction)]} />)}
+      <DataTable columns={["Nama", "Alamat", "No. Telp", "Transaksi Terakhir"]} loading={loading}>
+        {rows.map((dealer) => <TableRow key={`${dealer.name}-${dealer.address}-${dealer.phone}`} cells={[dealer.name, dealer.address, dealer.phone, formatDate(dealer.lastTransaction)]} />)}
         {!rows.length && !loading ? <EmptyRow text="Belum ada dealer" /> : null}
       </DataTable>
     </CrudShell>

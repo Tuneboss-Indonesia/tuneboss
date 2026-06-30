@@ -99,7 +99,10 @@ class StockController extends Controller
                 'after_quantity' => $after,
                 'party' => $this->party($data),
                 'customer_name' => $this->customerName($data),
+                'customer_phone' => $this->customerPhone($data),
                 'payment_status' => $this->paymentStatus($data),
+                'payment_method' => $this->paymentMethod($data),
+                'nominal_amount' => $this->nominalAmount($data),
                 'note' => $data['note'] ?? null,
             ]);
 
@@ -192,6 +195,16 @@ class StockController extends Controller
             'serial_numbers' => ['nullable', 'array'],
             'serial_numbers.*' => ['string', 'max:120'],
             'party' => ['nullable', 'string', 'max:180'],
+            'customerName' => ['nullable', 'string', 'max:180'],
+            'customer_name' => ['nullable', 'string', 'max:180'],
+            'customerPhone' => ['nullable', 'string', 'max:40'],
+            'customer_phone' => ['nullable', 'string', 'max:40'],
+            'paymentStatus' => ['nullable', 'string', 'in:Lunas,DP,Unpaid,PayLater'],
+            'payment_status' => ['nullable', 'string', 'in:Lunas,DP,Unpaid,PayLater'],
+            'paymentMethod' => ['nullable', 'string', 'max:80'],
+            'payment_method' => ['nullable', 'string', 'max:80'],
+            'nominalAmount' => ['nullable', 'numeric', 'min:0'],
+            'nominal_amount' => ['nullable', 'numeric', 'min:0'],
             'note' => ['nullable', 'string'],
         ]);
     }
@@ -237,6 +250,11 @@ class StockController extends Controller
                 'before_quantity' => $before,
                 'after_quantity' => $after,
                 'party' => $this->party($data),
+                'customer_name' => $this->customerName($data),
+                'customer_phone' => $this->customerPhone($data),
+                'payment_status' => $this->paymentStatus($data),
+                'payment_method' => $this->paymentMethod($data),
+                'nominal_amount' => $this->nominalAmount($data),
                 'note' => $data['note'] ?? null,
             ]);
 
@@ -392,5 +410,20 @@ class StockController extends Controller
     private function paymentStatus(array $data): ?string
     {
         return $data['payment_status'] ?? $data['paymentStatus'] ?? null;
+    }
+
+    private function customerPhone(array $data): ?string
+    {
+        return $data['customer_phone'] ?? $data['customerPhone'] ?? null;
+    }
+
+    private function paymentMethod(array $data): ?string
+    {
+        return $data['payment_method'] ?? $data['paymentMethod'] ?? null;
+    }
+
+    private function nominalAmount(array $data): mixed
+    {
+        return $data['nominal_amount'] ?? $data['nominalAmount'] ?? null;
     }
 }
