@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { ChevronDown, Eye, EyeOff } from "lucide-react-native";
+import { ChevronDown, Eye, EyeOff, X } from "lucide-react-native";
 import { apiRequest, formatDate } from "../api";
 import { useInventoryData } from "../InventoryDataContext";
 import { CrudShell, DataTable, EmptyRow, RowActions, TableRow, WhiteCard, type TablePagination } from "../components/common";
@@ -49,6 +49,7 @@ export function AdminPage({ currentUserId }: { currentUserId?: string }) {
   const [modalMode, setModalMode] = useState<"add" | "edit" | null>(null);
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [pendingDelete, setPendingDelete] = useState<UserRow | null>(null);
+  const [showRoleInfo, setShowRoleInfo] = useState(true);
   const [userMeta, setUserMeta] = useState<TablePagination>(emptyMeta);
   const [auditMeta, setAuditMeta] = useState<TablePagination>(emptyMeta);
   const [error, setError] = useState("");
@@ -204,11 +205,13 @@ export function AdminPage({ currentUserId }: { currentUserId?: string }) {
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
       {loading ? <AdminSkeleton /> : (
         <CrudShell title="Admin" button="Tambah Akun" onButton={openAdd} buttonDisabled={userTableLoading} search="Cari user..." searchValue={query} onSearchChange={setQuery} searchDisabled={userTableLoading} loading={loading}>
-          <WhiteCard title="Perbedaan Role">
-            <Text style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 16, lineHeight: 24 }}>
-              Admin dapat mengelola akun, data master, perubahan data, dan audit log. Staff dapat menjalankan operasional gudang seperti scan barcode, produk masuk, produk keluar, dealer, dan laporan, tetapi tidak dapat membuka halaman Admin.
-            </Text>
-          </WhiteCard>
+          {showRoleInfo ? (
+            <WhiteCard title="Perbedaan Role" action={<Pressable onPress={() => setShowRoleInfo(false)}><X color={colors.muted} size={22} /></Pressable>}>
+              <Text style={{ color: colors.muted, fontFamily: fonts.body, fontSize: 16, lineHeight: 24 }}>
+                Admin dapat mengelola akun, data master, perubahan data, dan audit log. Staff dapat menjalankan operasional gudang seperti scan barcode, produk masuk, produk keluar, dealer, dan laporan, tetapi tidak dapat membuka halaman Admin.
+              </Text>
+            </WhiteCard>
+          ) : null}
           <WhiteCard title="Users">
             <DataTable columns={["Nama", "Email", "Role", "Status", "Dibuat", "Aksi"]} pagination={userMeta} onPageChange={(page) => reloadUsers(page, query)} loading={userTableLoading}>
               {users.map((user) => <TableRow key={user.id} cells={[user.name, user.email, user.role, user.isActive ? "Aktif" : "Nonaktif", formatDate(user.createdAt)]} actions={<RowActions deleteDisabled={user.id === currentUserId} onEdit={() => openEdit(user)} onDelete={() => setPendingDelete(user)} />} />)}
