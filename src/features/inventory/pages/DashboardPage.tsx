@@ -4,7 +4,7 @@ import { colors } from "../../../theme/tokens";
 import { formatDate, periodMap } from "../api";
 import { styles } from "../styles";
 import type { ChartPoint, PeriodKey, PressState } from "../types";
-import { CrudShell, DataTable, EmptyRow, Metric, TableRow, WhiteCard } from "../components/common";
+import { CrudShell, DataTable, EmptyRow, TableRow, WhiteCard } from "../components/common";
 import { loadChart, useInventoryData } from "../InventoryDataContext";
 
 // Dedupe only in-flight chart requests. Results are intentionally not cached so
@@ -71,6 +71,15 @@ function SkeletonBlock({ style }: { style?: object }) {
   return <View style={[styles.skeletonBlock, style]} />;
 }
 
+function StockListCard({ items, title }: { items: Array<{ id: string; name: string; sku: string; stock: number }>; title: string }) {
+  return (
+    <View style={styles.metric}>
+      <Text style={styles.metricTitle}>{title}</Text>
+      {items.length ? items.slice(0, 5).map((item) => <Text key={item.id} style={[styles.scanResultMeta, { marginTop: 8 }]}>{item.name} ({item.stock})</Text>) : <Text style={[styles.scanResultMeta, { marginTop: 8 }]}>Tidak ada produk</Text>}
+    </View>
+  );
+}
+
 function DashboardSkeleton({ compact }: { compact: boolean }) {
   const salesBars = [0, 1, 2, 3, 4, 5];
   const topBars = [0, 1, 2, 3, 4];
@@ -108,7 +117,7 @@ export function DashboardPage() {
   const [salesTableLoading, setSalesTableLoading] = useState(false);
   const [salesChartLoading, setSalesChartLoading] = useState(false);
   const [topChartLoading, setTopChartLoading] = useState(false);
-  const { error, loadMovementsPage, loading, movementMeta, movements, summary, token } = useInventoryData();
+  const { error, loadMovementsPage, loading, movementMeta, movements, stockItems, token } = useInventoryData();
   const { width } = useWindowDimensions();
   const compact = width < 760;
 
@@ -143,6 +152,8 @@ export function DashboardPage() {
   }, [topPeriod, token]);
 
   const salesRows = movements.filter((item) => item.type === "outbound" && `${item.customerName ?? ""} ${item.party ?? ""} ${item.productName} ${item.sku} ${item.serialNumbers?.join(" ") ?? ""} ${item.paymentStatus ?? ""}`.toLowerCase().includes(salesSearch.toLowerCase()));
+  const lowStockItems = stockItems.filter((item) => item.status === "low");
+  const emptyStockItems = stockItems.filter((item) => item.status === "empty");
 
   const handleSalesPage = (page: number) => {
     setSalesTableLoading(true);
@@ -171,9 +182,8 @@ export function DashboardPage() {
     <View style={styles.stack}>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
       <View style={styles.metricGrid}>
-        <Metric title="Total Stok Tersedia" value={String(summary.totalUnits)} />
-        <Metric title="Total Stok Menipis" value={`${summary.lowStockCount} produk`} />
-        <Metric title="Total Stok Habis" value={`${summary.outOfStockCount} produk`} />
+        <StockListCard title="Stok Menipis" items={lowStockItems} />
+        <StockListCard title="Stok Habis" items={emptyStockItems} />
       </View>
       <CrudShell
         search="Cari penjualan..."
