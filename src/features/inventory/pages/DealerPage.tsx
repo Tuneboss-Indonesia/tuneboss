@@ -8,6 +8,7 @@ import type { PressState } from "../types";
 import type { StockMovement } from "../../../types/dashboard";
 
 type DealerRow = { address: string; id: string; lastTransaction?: string; name: string; phone: string; source: "master" | "history" };
+type DealerPayload = Array<{ address?: string | null; id: string; name: string; phone?: string | null }> | { data?: Array<{ address?: string | null; id: string; name: string; phone?: string | null }> };
 
 export function DealerPage() {
   const { token } = useInventoryData();
@@ -20,15 +21,16 @@ export function DealerPage() {
   const loadDealers = async () => {
     setLoading(true);
     try {
-      const master = await apiRequest<{ data: Array<{ address?: string | null; id: string; name: string; phone?: string | null }> }>("/dealers", { token });
-      if (master.data.length) {
-        setDealers(master.data.map((dealer) => ({ address: dealer.address ?? "-", id: dealer.id, name: dealer.name, phone: dealer.phone ?? "-", source: "master" })));
+      const master = await apiRequest<DealerPayload>("/dealers", { token });
+      const masterRows = Array.isArray(master) ? master : master.data ?? [];
+      if (masterRows.length) {
+        setDealers(masterRows.map((dealer) => ({ address: dealer.address ?? "-", id: dealer.id, name: dealer.name, phone: dealer.phone ?? "-", source: "master" })));
         return;
       }
 
       const history = await apiRequest<{ data: StockMovement[] }>("/stock/movements?type=outbound&page=1&per_page=100", { token });
       const unique = new Map<string, DealerRow>();
-      history.data.forEach((item) => {
+      (history.data ?? []).forEach((item) => {
         const name = item.customerName?.trim();
         if (!name) return;
         const address = item.saleAddress ?? item.party ?? "-";

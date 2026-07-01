@@ -9,6 +9,9 @@ import { colors } from "../../../theme/tokens";
 
 const paymentStatuses = ["Lunas", "DP", "Unpaid", "PayLater"] as const;
 
+type DealerOption = { address?: string | null; id: string; name: string; phone?: string | null };
+type DealerPayload = DealerOption[] | { data?: DealerOption[] };
+
 export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: ModalKind; mode: ModalMode; editingCategory?: CategoryItem | null; onClose: () => void }) {
   const { categories, loadProductsPage, refresh, stockItems, token } = useInventoryData();
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
@@ -27,6 +30,9 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
   const [paymentMethod, setPaymentMethod] = useState("");
   const [nominalAmount, setNominalAmount] = useState("");
   const [paymentStatusOpen, setPaymentStatusOpen] = useState(false);
+  const [dealerOpen, setDealerOpen] = useState(false);
+  const [dealers, setDealers] = useState<DealerOption[]>([]);
+  const [serialOpen, setSerialOpen] = useState(false);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const loadedOutboundProductsRef = useRef(false);
@@ -34,6 +40,8 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
   const title = kind === "kategori" ? `${actionLabel} Kategori` : kind === "stok" ? `${actionLabel} Produk` : kind === "masuk" ? "Tambah Stok Masuk" : kind === "keluar" ? "Kurangi Stok" : "";
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
   const selectedProduct = stockItems.find((item) => item.id === selectedProductId);
+  const availableSerials = selectedProduct?.serialNumbers ?? [];
+  const dealerOptions = customerName.trim() ? dealers.filter((dealer) => `${dealer.name} ${dealer.address ?? ""} ${dealer.phone ?? ""}`.toLowerCase().includes(customerName.trim().toLowerCase())) : dealers;
   const productOptions = kind === "keluar" ? stockItems.filter((item) => item.stock > 0) : stockItems;
   const quantityNumber = Number(stock || 0);
   const serialList = serialNumbers.split(/[\n,]+/).map((value) => value.trim()).filter(Boolean);
@@ -72,6 +80,11 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
     void loadProductsPage(1, "", kind === "keluar" ? "Tersedia" : "", "", 100);
   }, [kind, loadProductsPage]);
 
+  useEffect(() => {
+    if (kind !== "keluar") return;
+    void apiRequest<DealerPayload>("/dealers", { token }).then((response) => setDealers(Array.isArray(response) ? response : response.data ?? [])).catch(() => setDealers([]));
+  }, [kind, token]);
+
   const reset = () => {
     setName("");
     setDescription("");
@@ -85,6 +98,8 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
     setPaymentMethod("");
     setNominalAmount("");
     setPaymentStatusOpen(false);
+    setDealerOpen(false);
+    setSerialOpen(false);
     setSelectedCategoryId("");
     setSelectedProductId("");
     setNote("");
@@ -138,6 +153,18 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
     }
   };
 
+  const chooseDealer = (dealer: DealerOption) => {
+    setCustomerName(dealer.name);
+    setCustomerPhone(dealer.phone ?? "");
+    setParty(dealer.address ?? "");
+    setDealerOpen(false);
+  };
+
+  const toggleSerial = (serial: string) => {
+    const current = serialNumbers.split(/[\n,]+/).map((value) => value.trim()).filter(Boolean);
+    setSerialNumbers(current.includes(serial) ? current.filter((value) => value !== serial).join("\n") : [...current, serial].join("\n"));
+  };
+
   return (
     <Modal visible={kind !== null} transparent animationType="fade" onRequestClose={close}>
       <View style={styles.modalBackdrop}>
@@ -172,8 +199,12 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
                 {kind === "masuk" ? <TextInput editable={false} style={styles.modalInput} placeholder="Kategori" placeholderTextColor="#9aa4b5" value={selectedProduct?.category ?? ""} /> : null}
                 <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
                 {movementError ? <Text style={styles.errorText}>{movementError}</Text> : null}
-                <TextInput multiline onChangeText={setSerialNumbers} style={[styles.modalInput, { minHeight: 88, textAlignVertical: "top" }]} placeholder="Kode Produk + No Seri, satu per baris" placeholderTextColor="#9aa4b5" value={serialNumbers} />
-                {kind === "keluar" ? <TextInput onChangeText={setCustomerName} style={styles.modalInput} placeholder="Nama pembeli/dealer" placeholderTextColor="#9aa4b5" value={customerName} /> : null}
+                <View style={styles.modalFieldGroup}>
+                  <TextInput multiline onChangeText={setSerialNumbers} style={[styles.modalInput, { minHeight: 88, textAlignVertical: "top" }]} placeholder="Kode Produk + No Seri, satu per baris" placeholderTextColor="#9aa4b5" value={serialNumbers} />
+                  {kind === "keluar" && availableSerials.length ? <Pressable onPress={() => setSerialOpen((open) => !open)} style={({ hovered, pressed }: PressState) => [styles.modalSelect, hovered && styles.modalSelectHover, pressed && styles.pressed]}><Text style={styles.modalSelectText}>Pilih no seri tersedia</Text><ChevronDown color={colors.muted} size={18} /></Pressable> : null}
+                  {kind === "keluar" && serialOpen ? <ScrollView nestedScrollEnabled style={[styles.modalSelectOptions, styles.modalSelectOptionsScroll]} showsVerticalScrollIndicator={false}>{availableSerials.map((serial) => <Pressable key={serial} onPress={() => toggleSerial(serial)} style={({ hovered, pressed }: PressState) => [styles.modalSelectOption, serialList.includes(serial) && styles.modalSelectOptionActive, hovered && !serialList.includes(serial) && styles.modalSelectOptionHover, pressed && styles.pressed]}><Text style={[styles.modalSelectOptionText, serialList.includes(serial) && styles.modalSelectOptionTextActive]}>{serial}</Text></Pressable>)}</ScrollView> : null}
+                </View>
+                {kind === "keluar" ? <View style={styles.modalFieldGroup}><TextInput onChangeText={(value) => { setCustomerName(value); setDealerOpen(Boolean(value.trim())); }} style={styles.modalInput} placeholder="Nama pembeli/dealer" placeholderTextColor="#9aa4b5" value={customerName} /><Pressable onPress={() => setDealerOpen((open) => !open)} style={({ hovered, pressed }: PressState) => [styles.modalSelect, hovered && styles.modalSelectHover, pressed && styles.pressed]}><Text style={styles.modalSelectText}>Pilih dealer</Text><ChevronDown color={colors.muted} size={18} /></Pressable>{dealerOpen ? <ScrollView nestedScrollEnabled style={[styles.modalSelectOptions, styles.modalSelectOptionsScroll]} showsVerticalScrollIndicator={false}>{dealerOptions.map((dealer) => <Pressable key={dealer.id} onPress={() => chooseDealer(dealer)} style={({ hovered, pressed }: PressState) => [styles.modalSelectOption, hovered && styles.modalSelectOptionHover, pressed && styles.pressed]}><Text style={styles.modalSelectOptionText}>{dealer.name}{dealer.phone ? ` - ${dealer.phone}` : ""}</Text></Pressable>)}{!dealerOptions.length ? <Text style={[styles.modalSelectOptionText, { padding: 16 }]}>Dealer tidak ditemukan</Text> : null}</ScrollView> : null}</View> : null}
                 {kind === "keluar" ? <TextInput onChangeText={setCustomerPhone} style={styles.modalInput} placeholder="No. Telp / WhatsApp" placeholderTextColor="#9aa4b5" value={customerPhone} /> : null}
                 {kind === "keluar" ? (
                   <View style={styles.modalFieldGroup}>

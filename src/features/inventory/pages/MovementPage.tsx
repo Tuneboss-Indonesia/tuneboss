@@ -163,7 +163,7 @@ function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () 
   const nominal = items.reduce((total, row) => total + Number(row.nominalAmount ?? 0), 0);
   const nominalText = nominal > 0 ? new Intl.NumberFormat("id-ID", { currency: "IDR", style: "currency" }).format(nominal) : "Rp -";
   const print = () => {
-    if (Platform.OS === "web" && typeof window !== "undefined") window.print();
+    if (Platform.OS === "web" && typeof window !== "undefined") printInvoiceHtml(items);
   };
 
   return (
@@ -173,7 +173,7 @@ function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () 
           <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalBodyContent}>
             <View style={{ backgroundColor: colors.white, gap: 18, padding: 28 }}>
               <View style={{ alignItems: "center", borderBottomColor: colors.primary, borderBottomWidth: 2, flexDirection: "row", gap: 22, paddingBottom: 16 }}>
-                <Image source={logoUri} style={{ height: 72, width: 190 }} resizeMode="contain" />
+                <Image source={logoUri} style={{ height: 88, width: 230 }} resizeMode="contain" />
                 <View style={{ borderLeftColor: "#222", borderLeftWidth: 1, flex: 1, paddingLeft: 18 }}>
                   <Text style={{ color: colors.black, fontFamily: fonts.bodyMedium, fontSize: 22 }}>TUNEBOSS INDONESIA</Text>
                   <Text style={{ color: colors.black, fontFamily: fonts.body, fontSize: 13 }}>Jl. Ringroad Selatan No.72, Banguntapan</Text>
@@ -218,7 +218,7 @@ function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () 
           </ScrollView>
           <View style={styles.modalActions}>
             <Pressable onPress={onClose} style={styles.cancelButton}><Text style={styles.cancelText}>Tutup</Text></Pressable>
-            <Pressable onPress={print} style={styles.saveButton}><Text style={styles.saveText}>Print</Text></Pressable>
+            <Pressable onPress={print} style={styles.saveButton}><Text style={styles.saveText}>Print / Save PDF</Text></Pressable>
           </View>
         </View>
       </View>
@@ -232,6 +232,64 @@ function InvoiceLine({ label, value }: { label: string; value: string }) {
 
 function InvoiceInfo({ label, value }: { label: string; value: string }) {
   return <View style={{ flexDirection: "row" }}><Text style={{ backgroundColor: colors.black, color: colors.white, flex: 0.9, fontFamily: fonts.bodyMedium, fontSize: 12, padding: 10 }}>{label}</Text><Text style={{ borderBottomColor: colors.primary, borderBottomWidth: 1, color: colors.black, flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12, padding: 10 }}>: {value}</Text></View>;
+}
+
+function printInvoiceHtml(items: StockMovement[]) {
+  const item = items[0];
+  const totalQty = items.reduce((total, row) => total + row.quantity, 0);
+  const totalNominal = items.reduce((total, row) => total + Number(row.nominalAmount ?? 0), 0);
+  const money = (value: number) => value > 0 ? new Intl.NumberFormat("id-ID", { currency: "IDR", style: "currency" }).format(value) : "Rp -";
+  const logo = typeof logoUri === "string" ? logoUri : typeof logoUri === "object" && logoUri && "uri" in logoUri ? String(logoUri.uri) : "";
+  const rows = items.map((row, index) => {
+    const serials = row.serialNumbers?.join(", ") || row.sku;
+    return `<tr><td>${index + 1}</td><td>${escapeHtml(row.productName)}</td><td>${escapeHtml(serials)}</td><td>${escapeHtml(money(Number(row.nominalAmount ?? 0)))}</td><td>${escapeHtml(row.paymentStatus ?? "-")}</td></tr>`;
+  }).join("") + Array.from({ length: Math.max(0, 7 - items.length) }).map(() => "<tr class=blank><td></td><td></td><td></td><td></td><td></td></tr>").join("");
+  const popup = window.open("", "_blank", "width=900,height=1200");
+  if (!popup) return;
+
+  popup.document.write(`<!doctype html><html><head><title>${escapeHtml(invoiceNumber(item))}</title><style>
+    @page { size: A4; margin: 14mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f3f3f3; color: #111; font-family: Arial, sans-serif; }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; padding: 18mm; }
+    .head { align-items: center; border-bottom: 3px solid #ed6c05; display: flex; gap: 18px; padding-bottom: 14px; }
+    .logo { height: 86px; object-fit: contain; width: 230px; }
+    .company { border-left: 1px solid #111; flex: 1; padding-left: 16px; }
+    .company h1 { font-size: 22px; letter-spacing: .5px; margin: 0 0 5px; }
+    .company p { font-size: 12px; line-height: 1.35; margin: 0; }
+    .title { border-bottom: 3px solid #ed6c05; font-size: 46px; font-weight: 800; letter-spacing: 5px; margin: 0; }
+    .meta { display: grid; grid-template-columns: 1.05fr .95fr; gap: 24px; margin: 24px 0; }
+    .section-title { color: #ed6c05; font-size: 13px; font-weight: 800; letter-spacing: .7px; margin: 0 0 10px; }
+    .line { display: grid; grid-template-columns: 155px 10px 1fr; gap: 8px; font-size: 12px; margin: 7px 0; }
+    .line span:last-child { border-bottom: 1px solid #111; min-height: 18px; }
+    .info { display: grid; grid-template-columns: 150px 1fr; font-size: 11px; }
+    .info b { background: #111; color: #fff; padding: 9px; }
+    .info span { border-bottom: 1px solid #ed6c05; padding: 9px; }
+    table { border-collapse: collapse; font-size: 12px; width: 100%; }
+    th { background: #ed6c05; color: #fff; font-weight: 800; }
+    th, td { border: 1px solid #111; padding: 10px; text-align: center; vertical-align: middle; }
+    th:nth-child(1), td:nth-child(1) { width: 42px; }
+    th:nth-child(3), td:nth-child(3) { width: 185px; }
+    tr.blank td { height: 39px; }
+    .total { display: grid; grid-template-columns: 1fr 185px 240px; border: 1px solid #111; border-top: 0; font-size: 12px; font-weight: 800; }
+    .total div { padding: 10px; }
+    .total div + div { border-left: 1px solid #111; text-align: center; }
+    .sign { margin-top: 48px; margin-left: auto; text-align: center; width: 210px; }
+    .sign p:first-child { margin-bottom: 70px; }
+    .sign .line-sign { border-top: 2px solid #111; padding-top: 8px; }
+    @media print { body { background: #fff; } .page { margin: 0; padding: 0; width: auto; min-height: auto; } }
+  </style></head><body><main class=page>
+    <header class=head>${logo ? `<img class=logo src="${escapeHtml(logo)}" />` : ""}<section class=company><h1>TUNEBOSS INDONESIA</h1><p>Jl. Ringroad Selatan No.72, Banguntapan</p><p>Bantul, Daerah Istimewa Yogyakarta 55198</p><p>0817-5792-805</p></section><h2 class=title>INVOICE</h2></header>
+    <section class=meta><div><p class=section-title>DITERBITKAN KEPADA</p><div class=line><b>Nama Dealer / Customer</b><span>:</span><span>${escapeHtml(item.customerName ?? "-")}</span></div><div class=line><b>Alamat</b><span>:</span><span>${escapeHtml(item.saleAddress ?? item.party ?? "-")}</span></div><div class=line><b>No. Telp / WhatsApp</b><span>:</span><span>${escapeHtml(item.customerPhone ?? "-")}</span></div></div><div><div class=info><b>NOMOR INVOICE</b><span>: ${escapeHtml(invoiceNumber(item))}</span></div><div class=info><b>TANGGAL</b><span>: ${escapeHtml(formatDate(item.timestamp))}</span></div><div class=info><b>STATUS</b><span>: Dealer</span></div><div class=info><b>METODE PEMBAYARAN</b><span>: ${escapeHtml(item.paymentMethod ?? "-")}</span></div></div></section>
+    <table><thead><tr><th>NO</th><th>DESKRIPSI BARANG</th><th>NO SERI</th><th>NOMINAL</th><th>STATUS</th></tr></thead><tbody>${rows}</tbody></table>
+    <section class=total><div>TOTAL</div><div>${totalQty} Unit</div><div>${escapeHtml(money(totalNominal))}</div></section>
+    <section class=sign><p>Hormat Kami,</p><p class=line-sign>Tuneboss Indonesia</p></section>
+  </main><script>window.onload = () => { window.focus(); window.print(); };</script></body></html>`);
+  popup.document.close();
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char] ?? char));
 }
 
 function MovementEditModal({ item, onClose, onSave, saving, stockItems }: { item: StockMovement; onClose: () => void; onSave: (form: { customerName: string; customerPhone: string; nominalAmount: string; note: string; party: string; paymentMethod: string; paymentStatus: string; productId: string; quantity: string }) => Promise<void>; saving: boolean; stockItems: StockItem[] }) {
