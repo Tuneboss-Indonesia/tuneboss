@@ -1,4 +1,4 @@
-# TuneBoss Inventory
+# TuneBoss Inventory 
 
 TuneBoss Inventory adalah aplikasi inventory internal untuk TuneBoss ID. Project terdiri dari dashboard Expo/React Native untuk admin/staff gudang dan backend Laravel REST API untuk autentikasi, stok, penjualan, laporan, audit log.
 

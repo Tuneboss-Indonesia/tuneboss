@@ -1,4 +1,4 @@
-# TuneBoss Inventory Backend
+# TuneBoss Inventory Backend 
 
 Backend API untuk aplikasi inventory internal TuneBoss ID. Backend menggunakan Laravel dan MariaDB/MySQL dan diintegrasikan dengan aplikasi React Native/Expo.
 
