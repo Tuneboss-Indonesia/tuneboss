@@ -1,0 +1,117 @@
+name: Deploy to cPanel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: 22
+  PHP_VERSION: 8.2
+  WEB_BUILD_DIR: web-build
+  DEPLOY_DIR: deploy
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          tools: composer
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Typecheck frontend
+        run: npm run typecheck
+
+      - name: Export web build
+        run: npx expo export:web --output-dir web-build
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+
+      - name: Install api dependencies
+        working-directory: api
+        run: composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+
+      - name: Prepare deploy bundle
+        shell: bash
+        run: |
+          rm -rf "${DEPLOY_DIR}"
+          mkdir -p "${DEPLOY_DIR}/public_html" "${DEPLOY_DIR}/backend" "${DEPLOY_DIR}/api"
+          cp -R "${WEB_BUILD_DIR}/." "${DEPLOY_DIR}/public_html/"
+          cp -R backend/. "${DEPLOY_DIR}/backend/"
+          cp -R api/. "${DEPLOY_DIR}/api/"
+          find "${DEPLOY_DIR}" -type d -name .git -prune -exec rm -rf {} +
+          find "${DEPLOY_DIR}" -type d -name node_modules -prune -exec rm -rf {} +
+          find "${DEPLOY_DIR}" -type f \( -name ".env" -o -name ".env.*" -o -name "*.log" -o -name "*.map" \) -delete
+
+      - name: Start ssh agent
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.CPANEL_SSH_KEY }}
+
+      - name: Add cPanel host key
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" "${{ secrets.CPANEL_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy web to main domain
+        shell: bash
+        run: |
+          rsync -az --delete \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='storage/logs/' \
+            --exclude='storage/framework/cache/' \
+            --exclude='storage/framework/sessions/' \
+            --exclude='storage/framework/views/' \
+            --exclude='bootstrap/cache/' \
+            --exclude='tests/' \
+            "${DEPLOY_DIR}/public_html/" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_PUBLIC_DIR }}/"
+
+      - name: Deploy backend to subdomain
+        shell: bash
+        run: |
+          rsync -az --delete \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='storage/logs/' \
+            --exclude='storage/framework/cache/' \
+            --exclude='storage/framework/sessions/' \
+            --exclude='storage/framework/views/' \
+            --exclude='bootstrap/cache/' \
+            --exclude='tests/' \
+            "${DEPLOY_DIR}/backend/" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_BACKEND_DIR }}/"
+
+      - name: Deploy api to subdomain
+        shell: bash
+        run: |
+          rsync -az --delete \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='storage/logs/' \
+            --exclude='storage/framework/cache/' \
+            --exclude='storage/framework/sessions/' \
+            --exclude='storage/framework/views/' \
+            --exclude='bootstrap/cache/' \
+            --exclude='tests/' \
+            "${DEPLOY_DIR}/api/" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_API_DIR }}/"
