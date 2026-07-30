@@ -10,6 +10,7 @@ env:
   PHP_VERSION: 8.2
   WEB_BUILD_DIR: web-build
   DEPLOY_DIR: deploy
+  EXPO_PUBLIC_API_URL: http://tuneboss-landing.dasrams.biz.id/api-inventory/api
 
 jobs:
   build-and-deploy:
@@ -87,16 +88,29 @@ jobs:
           tar -C "${DEPLOY_DIR}/api-app" -czf "${DEPLOY_DIR}/api-app.tar.gz" .
           tar -C "${DEPLOY_DIR}/api-public" -czf "${DEPLOY_DIR}/api-public.tar.gz" .
 
-      - name: Start ssh agent
-        uses: webfactory/ssh-agent@v0.9.1
-        with:
-          ssh-private-key: ${{ secrets.CPANEL_SSH_KEY }}
+      - name: Start SSH agent
+        shell: bash
+        env:
+          CPANEL_SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+        run: |
+          eval "$(ssh-agent -s)"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+          printf '%s\n' "$CPANEL_SSH_KEY" | ssh-add -
 
       - name: Add cPanel host key
         shell: bash
+        env:
+          CPANEL_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          CPANEL_PORT: ${{ secrets.CPANEL_SSH_PORT || '22' }}
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
-          ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" "${{ secrets.CPANEL_SSH_HOST }}" >> ~/.ssh/known_hosts
+          for attempt in 1 2 3; do
+            ssh-keyscan -T 10 -p "$CPANEL_PORT" "$CPANEL_HOST" >> ~/.ssh/known_hosts && exit 0
+            sleep $((attempt * 2))
+          done
+          exit 1
 
       - name: Ensure remote directories exist
         shell: bash
@@ -179,6 +193,8 @@ jobs:
           /usr/local/bin/ea-php82 artisan config:cache
           /usr/local/bin/ea-php82 artisan route:cache
           chmod -R ug+rw storage bootstrap/cache
+          ln -sfn "$API_APP_DIR/storage/app/public" "$API_PUBLIC_DIR/storage"
+          ln -sfn "$API_PUBLIC_DIR" "$HOME/public_html/api-inventory"
 
           cat > "$API_PUBLIC_DIR/.htaccess" <<'HTACCESS'
           AddHandler application/x-httpd-ea-php82 .php .php8 .phtml
