@@ -113,9 +113,9 @@ jobs:
             "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:~/frontend.tar.gz"
 
           ssh -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" <<EOF
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
+            "FRONTEND_DIR='${{ secrets.CPANEL_FRONTEND_DIR }}' bash -s" <<'EOF'
           set -e
-          FRONTEND_DIR='${{ secrets.CPANEL_FRONTEND_DIR }}'
           mkdir -p "$FRONTEND_DIR"
           find "$FRONTEND_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
           tar -xzf ~/frontend.tar.gz -C "$FRONTEND_DIR"
@@ -130,9 +130,9 @@ jobs:
             "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:~/api-app.tar.gz"
 
           ssh -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" <<EOF
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
+            "API_APP_DIR='${{ secrets.CPANEL_API_APP_DIR }}' bash -s" <<'EOF'
           set -e
-          API_APP_DIR='${{ secrets.CPANEL_API_APP_DIR }}'
           mkdir -p "$API_APP_DIR"
           find "$API_APP_DIR" -mindepth 1 -maxdepth 1 \
             ! -name '.env' \
@@ -150,9 +150,9 @@ jobs:
             "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:~/api-public.tar.gz"
 
           ssh -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" <<EOF
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
+            "API_PUBLIC_DIR='${{ secrets.CPANEL_API_PUBLIC_DIR }}' bash -s" <<'EOF'
           set -e
-          API_PUBLIC_DIR='${{ secrets.CPANEL_API_PUBLIC_DIR }}'
           mkdir -p "$API_PUBLIC_DIR"
           find "$API_PUBLIC_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
           tar -xzf ~/api-public.tar.gz -C "$API_PUBLIC_DIR"
@@ -163,10 +163,9 @@ jobs:
         shell: bash
         run: |
           ssh -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" <<EOF
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
+            "API_APP_DIR='${{ secrets.CPANEL_API_APP_DIR }}' API_PUBLIC_DIR='${{ secrets.CPANEL_API_PUBLIC_DIR }}' bash -s" <<'EOF'
           set -e
-          API_APP_DIR='${{ secrets.CPANEL_API_APP_DIR }}'
-          API_PUBLIC_DIR='${{ secrets.CPANEL_API_PUBLIC_DIR }}'
 
           cd "$API_APP_DIR"
 
