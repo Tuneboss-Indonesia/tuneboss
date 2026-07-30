@@ -80,6 +80,13 @@ jobs:
           find "${DEPLOY_DIR}" -type d -name node_modules -prune -exec rm -rf {} +
           find "${DEPLOY_DIR}" -type f \( -name ".env" -o -name ".env.*" -o -name "*.log" -o -name "*.map" \) -delete
 
+      - name: Pack deploy archives
+        shell: bash
+        run: |
+          tar -C "${DEPLOY_DIR}/frontend" -czf "${DEPLOY_DIR}/frontend.tar.gz" .
+          tar -C "${DEPLOY_DIR}/api-app" -czf "${DEPLOY_DIR}/api-app.tar.gz" .
+          tar -C "${DEPLOY_DIR}/api-public" -czf "${DEPLOY_DIR}/api-public.tar.gz" .
+
       - name: Start ssh agent
         uses: webfactory/ssh-agent@v0.9.1
         with:
@@ -101,36 +108,56 @@ jobs:
       - name: Deploy web to /inventory
         shell: bash
         run: |
-          rsync -az --delete \
-            --exclude='.env' \
-            --exclude='.env.*' \
-            "${DEPLOY_DIR}/frontend/" \
-            -e "ssh -p ${{ secrets.CPANEL_SSH_PORT || 22 }}" \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_FRONTEND_DIR }}/"
+          scp -P "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
+            "${DEPLOY_DIR}/frontend.tar.gz" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:~/frontend.tar.gz"
+
+          ssh -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" <<EOF
+          set -e
+          FRONTEND_DIR='${{ secrets.CPANEL_FRONTEND_DIR }}'
+          mkdir -p "$FRONTEND_DIR"
+          find "$FRONTEND_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+          tar -xzf ~/frontend.tar.gz -C "$FRONTEND_DIR"
+          rm -f ~/frontend.tar.gz
+          EOF
 
       - name: Deploy api app
         shell: bash
         run: |
-          rsync -az --delete \
-            --exclude='.env' \
-            --exclude='.env.*' \
-            --exclude='storage/logs/' \
-            --exclude='storage/framework/cache/' \
-            --exclude='storage/framework/sessions/' \
-            --exclude='storage/framework/views/' \
-            --exclude='bootstrap/cache/' \
-            --exclude='tests/' \
-            "${DEPLOY_DIR}/api-app/" \
-            -e "ssh -p ${{ secrets.CPANEL_SSH_PORT || 22 }}" \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_API_APP_DIR }}/"
+          scp -P "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
+            "${DEPLOY_DIR}/api-app.tar.gz" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:~/api-app.tar.gz"
+
+          ssh -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" <<EOF
+          set -e
+          API_APP_DIR='${{ secrets.CPANEL_API_APP_DIR }}'
+          mkdir -p "$API_APP_DIR"
+          find "$API_APP_DIR" -mindepth 1 -maxdepth 1 \
+            ! -name '.env' \
+            ! -name 'storage' \
+            -exec rm -rf {} +
+          tar -xzf ~/api-app.tar.gz -C "$API_APP_DIR"
+          rm -f ~/api-app.tar.gz
+          EOF
 
       - name: Deploy api public docroot
         shell: bash
         run: |
-          rsync -az --delete \
-            "${DEPLOY_DIR}/api-public/" \
-            -e "ssh -p ${{ secrets.CPANEL_SSH_PORT || 22 }}" \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_API_PUBLIC_DIR }}/"
+          scp -P "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
+            "${DEPLOY_DIR}/api-public.tar.gz" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:~/api-public.tar.gz"
+
+          ssh -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" <<EOF
+          set -e
+          API_PUBLIC_DIR='${{ secrets.CPANEL_API_PUBLIC_DIR }}'
+          mkdir -p "$API_PUBLIC_DIR"
+          find "$API_PUBLIC_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+          tar -xzf ~/api-public.tar.gz -C "$API_PUBLIC_DIR"
+          rm -f ~/api-public.tar.gz
+          EOF
 
       - name: Finalize api release on server
         shell: bash
