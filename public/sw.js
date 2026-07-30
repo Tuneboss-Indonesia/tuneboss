@@ -1,9 +1,9 @@
-const CACHE = "tuneboss-v2";
+const CACHE = "tuneboss-v3";
+const BASE_PATH = "/inventory/";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) =>
-      cache.addAll(["/"]).catch(() => {})
+      caches.open(CACHE).then((cache) => cache.addAll([BASE_PATH]).catch(() => {}))
     )
   );
   self.skipWaiting();
@@ -26,12 +26,12 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(() => caches.match("/"))
+      fetch(request).catch(() => caches.match(BASE_PATH))
     );
     return;
   }
 
-  if (url.pathname.startsWith("/api/") || url.port === "8000" || url.hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/inventory/api/") || url.port === "8000" || url.hostname.match(/^\d+\.\d+\.\d+\.\d+$/)) {
     event.respondWith(
       fetch(request).catch(() => caches.match(request))
     );

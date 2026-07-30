@@ -2,7 +2,7 @@ name: Deploy to cPanel
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
 
 env:
@@ -38,24 +38,44 @@ jobs:
         run: npm run typecheck
 
       - name: Export web build
-        run: npx expo export:web --output-dir web-build
+        run: npx expo export --platform web --output-dir web-build
 
-      - name: Install backend dependencies
-        working-directory: backend
-        run: composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+      - name: Rewrite web build for /inventory
+        shell: bash
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+          const path = process.env.WEB_BUILD_DIR;
+
+          function walk(dir) {
+            return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+              entry.isDirectory() ? walk(`${dir}/${entry.name}`) : [`${dir}/${entry.name}`]
+            );
+          }
+
+          for (const file of walk(path)) {
+            if (!/\.(html|js)$/.test(file)) continue;
+            let source = fs.readFileSync(file, 'utf8');
+            source = source.replace(/href=\"\/favicon\.ico\"/g, 'href="./favicon.ico"');
+            source = source.replace(/src=\"\/_expo\//g, 'src="./_expo/');
+            source = source.replace(/\"\/_expo\//g, '"./_expo/');
+            source = source.replace(/\"\/assets\//g, '"./assets/');
+            fs.writeFileSync(file, source);
+          }
+          EOF
 
       - name: Install api dependencies
         working-directory: api
-        run: composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
+        run: composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader --no-scripts
 
       - name: Prepare deploy bundle
         shell: bash
         run: |
           rm -rf "${DEPLOY_DIR}"
-          mkdir -p "${DEPLOY_DIR}/public_html" "${DEPLOY_DIR}/backend" "${DEPLOY_DIR}/api"
-          cp -R "${WEB_BUILD_DIR}/." "${DEPLOY_DIR}/public_html/"
-          cp -R backend/. "${DEPLOY_DIR}/backend/"
-          cp -R api/. "${DEPLOY_DIR}/api/"
+          mkdir -p "${DEPLOY_DIR}/frontend" "${DEPLOY_DIR}/api-app" "${DEPLOY_DIR}/api-public"
+          cp -R "${WEB_BUILD_DIR}/." "${DEPLOY_DIR}/frontend/"
+          cp -R api/. "${DEPLOY_DIR}/api-app/"
+          cp -R api/public/. "${DEPLOY_DIR}/api-public/"
           find "${DEPLOY_DIR}" -type d -name .git -prune -exec rm -rf {} +
           find "${DEPLOY_DIR}" -type d -name node_modules -prune -exec rm -rf {} +
           find "${DEPLOY_DIR}" -type f \( -name ".env" -o -name ".env.*" -o -name "*.log" -o -name "*.map" \) -delete
@@ -71,37 +91,24 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" "${{ secrets.CPANEL_SSH_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Deploy web to main domain
+      - name: Ensure remote directories exist
         shell: bash
         run: |
-          rsync -az --delete \
-            --exclude='.env' \
-            --exclude='.env.*' \
-            --exclude='storage/logs/' \
-            --exclude='storage/framework/cache/' \
-            --exclude='storage/framework/sessions/' \
-            --exclude='storage/framework/views/' \
-            --exclude='bootstrap/cache/' \
-            --exclude='tests/' \
-            "${DEPLOY_DIR}/public_html/" \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_PUBLIC_DIR }}/"
+          ssh -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" \
+            "mkdir -p '${{ secrets.CPANEL_FRONTEND_DIR }}' '${{ secrets.CPANEL_API_APP_DIR }}' '${{ secrets.CPANEL_API_PUBLIC_DIR }}'"
 
-      - name: Deploy backend to subdomain
+      - name: Deploy web to /inventory
         shell: bash
         run: |
           rsync -az --delete \
             --exclude='.env' \
             --exclude='.env.*' \
-            --exclude='storage/logs/' \
-            --exclude='storage/framework/cache/' \
-            --exclude='storage/framework/sessions/' \
-            --exclude='storage/framework/views/' \
-            --exclude='bootstrap/cache/' \
-            --exclude='tests/' \
-            "${DEPLOY_DIR}/backend/" \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_BACKEND_DIR }}/"
+            "${DEPLOY_DIR}/frontend/" \
+            -e "ssh -p ${{ secrets.CPANEL_SSH_PORT || 22 }}" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_FRONTEND_DIR }}/"
 
-      - name: Deploy api to subdomain
+      - name: Deploy api app
         shell: bash
         run: |
           rsync -az --delete \
@@ -113,5 +120,74 @@ jobs:
             --exclude='storage/framework/views/' \
             --exclude='bootstrap/cache/' \
             --exclude='tests/' \
-            "${DEPLOY_DIR}/api/" \
-            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_API_DIR }}/"
+            "${DEPLOY_DIR}/api-app/" \
+            -e "ssh -p ${{ secrets.CPANEL_SSH_PORT || 22 }}" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_API_APP_DIR }}/"
+
+      - name: Deploy api public docroot
+        shell: bash
+        run: |
+          rsync -az --delete \
+            "${DEPLOY_DIR}/api-public/" \
+            -e "ssh -p ${{ secrets.CPANEL_SSH_PORT || 22 }}" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:${{ secrets.CPANEL_API_PUBLIC_DIR }}/"
+
+      - name: Finalize api release on server
+        shell: bash
+        run: |
+          ssh -p "${{ secrets.CPANEL_SSH_PORT || 22 }}" \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}" <<EOF
+          set -e
+          API_APP_DIR='${{ secrets.CPANEL_API_APP_DIR }}'
+          API_PUBLIC_DIR='${{ secrets.CPANEL_API_PUBLIC_DIR }}'
+
+          cd "$API_APP_DIR"
+
+          /usr/local/bin/ea-php82 /opt/cpanel/ea-wappspector/composer.phar install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
+
+          if ! grep -Eq '^APP_KEY=.+$' .env; then
+            /usr/local/bin/ea-php82 artisan key:generate --force
+          fi
+
+          /usr/local/bin/ea-php82 artisan migrate --force
+          /usr/local/bin/ea-php82 artisan config:cache
+          /usr/local/bin/ea-php82 artisan route:cache
+          chmod -R ug+rw storage bootstrap/cache
+
+          cat > "$API_PUBLIC_DIR/.htaccess" <<'HTACCESS'
+          AddHandler application/x-httpd-ea-php82 .php .php8 .phtml
+          <IfModule mod_rewrite.c>
+              <IfModule mod_negotiation.c>
+                  Options -MultiViews -Indexes
+              </IfModule>
+
+              RewriteEngine On
+
+              <IfModule mod_headers.c>
+                  Header always set Access-Control-Allow-Origin "*"
+                  Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+                  Header always set Access-Control-Allow-Headers "Authorization, Content-Type, Accept, X-Requested-With"
+                  Header always set Access-Control-Max-Age "86400"
+              </IfModule>
+
+              RewriteCond %{REQUEST_METHOD} OPTIONS
+              RewriteRule ^ - [R=204,L]
+
+              RewriteCond %{HTTP:Authorization} .
+              RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+              RewriteCond %{HTTP:x-xsrf-token} .
+              RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
+
+              RewriteCond %{REQUEST_FILENAME} !-d
+              RewriteCond %{REQUEST_URI} (.+)/$
+              RewriteRule ^ %1 [L,R=301]
+
+              RewriteCond %{REQUEST_FILENAME} !-d
+              RewriteCond %{REQUEST_FILENAME} !-f
+              RewriteRule ^ index.php [L]
+          </IfModule>
+          HTACCESS
+
+          perl -0pi -e "s#__DIR__\\.'/\\.\\./vendor/autoload\\.php'#__DIR__.'/../../../api.tuneboss.id/vendor/autoload.php'#g; s#__DIR__\\.'/\\.\\./bootstrap/app\\.php'#__DIR__.'/../../../api.tuneboss.id/bootstrap/app.php'#g; s#__DIR__\\.'/\\.\\./storage/framework/maintenance\\.php'#__DIR__.'/../../../api.tuneboss.id/storage/framework/maintenance.php'#g" "$API_PUBLIC_DIR/index.php"
+          EOF
