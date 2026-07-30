@@ -79,6 +79,13 @@ class ReportController extends Controller
         ]);
     }
 
+    public function stockPdf(Request $request)
+    {
+        $products = $this->stockQuery($request)->orderBy('name')->get();
+
+        return $this->pdf('stock-report.pdf', 'TuneBoss Stock Report', $this->stockHeaders(), $this->stockRows($products), $request);
+    }
+
     public function sales(Request $request)
     {
         $sales = $this->salesQuery($request)
