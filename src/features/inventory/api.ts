@@ -1,15 +1,16 @@
 import { Platform } from "react-native";
 
-declare const process: { env?: Record<string, string | undefined> };
+declare const process: { env: Record<string, string | undefined> };
 
 export type ApiError = Error & { code?: string; status?: number; errors?: Record<string, string[]> };
 
 const defaultBaseUrl = Platform.select({
-  android: "http://10.0.2.2:8000",
-  default: "http://localhost:8000",
-}) + "/api";
+  android: "http://10.0.2.2:8000/api",
+  web: "https://api.tuneboss.id/api",
+  default: "http://localhost:8000/api",
+}) ?? "https://api.tuneboss.id/api";
 
-export const apiBaseUrl = process.env?.EXPO_PUBLIC_API_URL ?? defaultBaseUrl;
+export const apiBaseUrl = process.env.EXPO_PUBLIC_API_URL ?? defaultBaseUrl;
 
 function apiRootUrl(): string {
   const base = apiBaseUrl.replace(/\/+$/, "");
