@@ -10,7 +10,7 @@ env:
   PHP_VERSION: 8.2
   WEB_BUILD_DIR: web-build
   DEPLOY_DIR: deploy
-  EXPO_PUBLIC_API_URL: http://tuneboss-landing.dasrams.biz.id/api-inventory/api
+  EXPO_PUBLIC_API_URL: https://tuneboss.id/api-inventory/api
 
 jobs:
   build-and-deploy:
