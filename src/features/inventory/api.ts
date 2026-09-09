@@ -6,9 +6,9 @@ export type ApiError = Error & { code?: string; status?: number; errors?: Record
 
 const defaultBaseUrl = Platform.select({
   android: "http://10.0.2.2:8000/api",
-  web: "https://api.tuneboss.id/api",
+  web: "https://tuneboss.id/api-inventory/api",
   default: "http://localhost:8000/api",
-}) ?? "https://api.tuneboss.id/api";
+}) ?? "https://tuneboss.id/api-inventory/api";
 
 export const apiBaseUrl = process.env.EXPO_PUBLIC_API_URL ?? defaultBaseUrl;
 
