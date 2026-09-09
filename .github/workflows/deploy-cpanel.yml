@@ -197,7 +197,9 @@ jobs:
           ln -sfn "$API_PUBLIC_DIR" "$HOME/public_html/api-inventory"
 
           cat > "$API_PUBLIC_DIR/.htaccess" <<'HTACCESS'
-          AddHandler application/x-httpd-ea-php82 .php .php8 .phtml
+          <IfModule mime_module>
+            AddHandler application/x-httpd-ea-php82___lsphp .php .php8 .phtml
+          </IfModule>
           <IfModule mod_rewrite.c>
               <IfModule mod_negotiation.c>
                   Options -MultiViews -Indexes
