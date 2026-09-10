@@ -1,6 +1,6 @@
 import { Children, cloneElement, isValidElement, useState } from "react";
 import { AlertTriangle } from "lucide-react-native";
-import { Pressable, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { Archive, Calendar, Edit3, PackageCheck, Search, Trash2, type LucideIcon } from "lucide-react-native";
 import { colors, fonts } from "../../../theme/tokens";
 import type { PressState } from "../types";
@@ -161,7 +161,8 @@ export function DataTable({ columns, children, loading, pagination, onPageChange
   const loadingRows = [0, 1, 2, 3, 4].map((row) => <View key={row} style={styles.skeletonTableRow}>{columns.map((column) => <View key={column} style={[styles.skeletonTableCell, { flex: tableColumnFlex(column) }]} />)}</View>);
   const loadingHeader = <View style={styles.tableHeader}>{columns.map((column) => <View key={column} style={[styles.skeletonTableCell, { backgroundColor: "rgba(237,108,5,0.4)", flex: tableColumnFlex(column), height: 20 }]} />)}</View>;
   const enhancedChildren = loading ? loadingRows : Children.map(children, (child) => isValidElement(child) ? cloneElement(child as React.ReactElement<{ columns?: string[]; compact?: boolean }>, { columns, compact: isCompact }) : child);
-  const table = isCompact ? <View style={styles.mobileTableList}>{enhancedChildren}</View> : <View style={styles.table}>{loading ? loadingHeader : <View style={styles.tableHeader}>{columns.map((column) => <Text key={column} style={[styles.th, { flex: tableColumnFlex(column) }]}>{column}</Text>)}</View>}{enhancedChildren}</View>;
+  const minWidth = Math.max(640, Math.ceil(columns.reduce((total, column) => total + tableColumnFlex(column) * 140, 0)));
+  const table = isCompact ? <View style={styles.mobileTableList}>{enhancedChildren}</View> : <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled style={{ width: "100%" }} contentContainerStyle={{ flexGrow: 1 }}><View style={[styles.table, { minWidth }]}>{loading ? loadingHeader : <View style={styles.tableHeader}>{columns.map((column) => <Text key={column} style={[styles.th, { flex: tableColumnFlex(column) }]}>{column}</Text>)}</View>}{enhancedChildren}</View></ScrollView>;
   return <View style={styles.tableWrap}>{table}{pagination && onPageChange ? <TablePager disabled={loading} pagination={pagination} onPageChange={onPageChange} /> : null}</View>;
 }
 

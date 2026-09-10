@@ -83,6 +83,58 @@ test("refresh failure is visible instead of an empty success state", async () =>
   assert.equal(find(h.render(), "EmptyRow"), undefined);
 });
 
+test("dealer deletion requires confirmation and refreshes after success", async () => {
+  const calls = [];
+  let removed = false;
+  const h = harness(async (path, options) => {
+    calls.push({ path, method: options.method });
+    if (options.method === "DELETE") { removed = true; return {}; }
+    if (path === "/dealers") return removed ? [] : [{ id: "dealer", name: "Dealer Test" }];
+    return { data: [] };
+  });
+  await openModal(h).props.onSaved();
+  find(h.render(), "TableRow").props.actions.props.onDelete();
+  assert.equal(calls.some(call => call.method === "DELETE"), false);
+  assert.ok(find(h.render(), "Modal"), "confirmation must be rendered on web");
+  const confirm = nodes(h.render()).find(node => node.type === "Pressable" && text(node) === "Hapus Dealer");
+  assert.ok(confirm);
+  confirm.props.onPress();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls.filter(call => call.method === "DELETE").length, 1);
+  assert.equal(find(h.render(), "TableRow"), undefined);
+});
+
+test("cancelling dealer deletion leaves data untouched", async () => {
+  let deletes = 0;
+  const h = harness(async (path, options) => {
+    if (options.method === "DELETE") deletes++;
+    return [{ id: "dealer", name: "Dealer Test" }];
+  });
+  await openModal(h).props.onSaved();
+  find(h.render(), "TableRow").props.actions.props.onDelete();
+  const cancel = nodes(h.render()).find(node => node.type === "Pressable" && text(node) === "Batal");
+  assert.ok(cancel);
+  cancel.props.onPress();
+  assert.equal(find(h.render(), "Modal"), undefined);
+  assert.equal(deletes, 0);
+  assert.ok(find(h.render(), "TableRow"));
+});
+
+test("delete failure stays visible without removing the dealer", async () => {
+  const h = harness(async (path, options) => {
+    if (options.method === "DELETE") throw new Error("offline");
+    return [{ id: "dealer", name: "Dealer Test" }];
+  });
+  await openModal(h).props.onSaved();
+  find(h.render(), "TableRow").props.actions.props.onDelete();
+  const confirm = nodes(h.render()).find(node => node.type === "Pressable" && text(node) === "Hapus Dealer");
+  assert.ok(confirm);
+  confirm.props.onPress();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(text(h.render()), /gagal dihapus/i);
+  assert.ok(find(h.render(), "TableRow"));
+});
+
 test("save failure stays in the modal with a visible message", async () => {
   const h = harness(async () => { throw new Error("offline"); });
   h.mount(openModal(h));
