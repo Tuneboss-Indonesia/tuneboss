@@ -155,10 +155,18 @@ function invoiceGroup(item: StockMovement, rows: StockMovement[]) {
 }
 
 function invoiceNumber(item: StockMovement) {
+  if (item.saleInvoice) return item.saleInvoice;
+
   const date = new Date(item.timestamp);
   const year = Number.isNaN(date.getTime()) ? new Date().getFullYear() : date.getFullYear();
   const month = String(Number.isNaN(date.getTime()) ? new Date().getMonth() + 1 : date.getMonth() + 1).padStart(2, "0");
-  return item.saleInvoice ?? `INV/TB/${year}/${month}/${item.id.slice(0, 4).toUpperCase()}`;
+  const day = String(Number.isNaN(date.getTime()) ? new Date().getDate() : date.getDate()).padStart(2, "0");
+
+  // Ambil identifier unik: perpaduan ID mutasi dan timestamp agar tidak pernah kembar
+  const rawId = (item.id || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  const uniqueCode = rawId.length >= 6 ? rawId.slice(-6) : rawId.padStart(6, "0");
+
+  return `INV/TB/${year}${month}${day}/${uniqueCode}`;
 }
 
 const invoiceFont = Platform.OS === "web" ? "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" : "System";
