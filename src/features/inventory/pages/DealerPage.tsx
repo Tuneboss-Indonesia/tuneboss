@@ -16,13 +16,15 @@ export function DealerPage() {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<DealerRow | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   const loadDealers = async () => {
     setLoading(true);
+    setLoadError("");
     try {
-      const master = await apiRequest<{ data: Array<{ address?: string | null; id: string; name: string; phone?: string | null }> }>("/dealers", { token });
-      if (master.data.length) {
-        setDealers(master.data.map((dealer) => ({ address: dealer.address ?? "-", id: dealer.id, name: dealer.name, phone: dealer.phone ?? "-", source: "master" })));
+      const master = await apiRequest<Array<{ address?: string | null; id: string; name: string; phone?: string | null }>>("/dealers", { token });
+      if (master.length) {
+        setDealers(master.map((dealer) => ({ address: dealer.address ?? "-", id: dealer.id, name: dealer.name, phone: dealer.phone ?? "-", source: "master" })));
         return;
       }
 
@@ -37,6 +39,8 @@ export function DealerPage() {
         if (!unique.has(key)) unique.set(key, { address, id: key, lastTransaction: item.timestamp, name, phone, source: "history" });
       });
       setDealers([...unique.values()]);
+    } catch (error) {
+      setLoadError(`Daftar dealer gagal dimuat. ${error instanceof Error ? error.message : "Silakan coba lagi."}`);
     } finally {
       setLoading(false);
     }
@@ -56,34 +60,37 @@ export function DealerPage() {
   return (
     <>
       <CrudShell title="Dealer" subtitle="Data dealer yang sudah bekerja sama" button="Tambah Dealer" onButton={() => { setEditing(null); setModalOpen(true); }} search="Cari dealer..." searchValue={query} onSearchChange={setQuery} loading={loading}>
+        {loadError ? <View><Text accessibilityRole="alert" style={styles.errorText}>{loadError}</Text><Pressable onPress={() => void loadDealers()}><Text style={styles.saveText}>Coba lagi</Text></Pressable></View> : null}
         <DataTable columns={["Nama", "Alamat", "No. Telp", "Transaksi Terakhir", "Aksi"]} loading={loading}>
           {rows.map((dealer) => <TableRow key={dealer.id} cells={[dealer.name, dealer.address, dealer.phone, dealer.lastTransaction ? formatDate(dealer.lastTransaction) : "-"]} actions={dealer.source === "master" ? <RowActions onEdit={() => { setEditing(dealer); setModalOpen(true); }} onDelete={() => deleteDealer(dealer)} /> : null} />)}
-          {!rows.length && !loading ? <EmptyRow text="Belum ada dealer" /> : null}
+          {!rows.length && !loading && !loadError ? <EmptyRow text="Belum ada dealer" /> : null}
         </DataTable>
       </CrudShell>
-      {modalOpen ? <DealerModal dealer={editing} token={token} onClose={() => setModalOpen(false)} onSaved={() => { setModalOpen(false); void loadDealers(); }} /> : null}
+      {modalOpen ? <DealerModal dealer={editing} token={token} onClose={() => setModalOpen(false)} onSaved={async () => { setModalOpen(false); setQuery(""); await loadDealers(); }} /> : null}
     </>
   );
 }
 
-function DealerModal({ dealer, onClose, onSaved, token }: { dealer: DealerRow | null; onClose: () => void; onSaved: () => void; token: string }) {
+function DealerModal({ dealer, onClose, onSaved, token }: { dealer: DealerRow | null; onClose: () => void; onSaved: () => Promise<void>; token: string }) {
   const [name, setName] = useState(dealer?.name ?? "");
   const [address, setAddress] = useState(dealer?.address === "-" ? "" : dealer?.address ?? "");
   const [phone, setPhone] = useState(dealer?.phone === "-" ? "" : dealer?.phone ?? "");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const disabled = saving || !name.trim();
 
   const save = async () => {
     setSaving(true);
+    setSaveError("");
     try {
       await apiRequest(dealer ? `/dealers/${dealer.id}` : "/dealers", {
         body: JSON.stringify({ address: address.trim() || null, name: name.trim(), phone: phone.trim() || null }),
         method: dealer ? "PATCH" : "POST",
         token,
       });
-      onSaved();
+      await onSaved();
     } catch (error) {
-      Alert.alert("Gagal", error instanceof Error ? error.message : "Dealer gagal disimpan.");
+      setSaveError(`Dealer gagal disimpan. ${error instanceof Error ? error.message : "Silakan coba lagi."}`);
     } finally {
       setSaving(false);
     }
@@ -95,6 +102,7 @@ function DealerModal({ dealer, onClose, onSaved, token }: { dealer: DealerRow | 
         <View style={styles.modalCard}>
           <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalBodyContent}>
             <Text style={styles.modalTitle}>{dealer ? "Edit Dealer" : "Tambah Dealer"}</Text>
+            {saveError ? <Text accessibilityRole="alert" style={styles.errorText}>{saveError}</Text> : null}
             <TextInput onChangeText={setName} style={styles.modalInput} placeholder="Nama dealer" placeholderTextColor="#9aa4b5" value={name} />
             <TextInput onChangeText={setAddress} style={styles.modalInput} placeholder="Alamat" placeholderTextColor="#9aa4b5" value={address} />
             <TextInput onChangeText={setPhone} style={styles.modalInput} placeholder="No. Telp" placeholderTextColor="#9aa4b5" value={phone} />
