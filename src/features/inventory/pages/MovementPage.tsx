@@ -195,8 +195,23 @@ export function generateInvoicePrintHtml(items: StockMovement[], item: StockMove
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     @page {
-      size: A4 landscape;
-      margin: 8mm 10mm;
+      size: A4 portrait;
+      margin: 6mm 8mm;
+    }
+    @media print {
+      html, body {
+        width: 100% !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+      }
+      .invoice-sheet {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+        margin: 0 auto !important;
+      }
     }
     * {
       box-sizing: border-box;
@@ -215,10 +230,10 @@ export function generateInvoicePrintHtml(items: StockMovement[], item: StockMove
     }
     .invoice-sheet {
       width: 100%;
-      max-width: 980px;
+      max-width: 100%;
       margin: 0 auto;
       background: #ffffff;
-      padding: 10px 18px;
+      padding: 4px 6px;
     }
     .header-table {
       width: 100%;
