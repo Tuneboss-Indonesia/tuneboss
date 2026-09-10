@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { ChevronDown } from "lucide-react-native";
+import { ChevronDown, Users } from "lucide-react-native";
 import { apiRequest } from "../api";
 import { useInventoryData } from "../InventoryDataContext";
 import type { CategoryItem, ModalKind, ModalMode, PressState } from "../types";
@@ -30,6 +30,8 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [operationError, setOperationError] = useState("");
+  const [dealerOptions, setDealerOptions] = useState<Array<{ address: string; id: string; name: string; phone: string }>>([]);
+  const [dealerPickerOpen, setDealerPickerOpen] = useState(false);
   const loadedOutboundProductsRef = useRef(false);
   const actionLabel = mode === "edit" ? "Edit" : "Tambah";
   const title = kind === "kategori" ? `${actionLabel} Kategori` : kind === "stok" ? `${actionLabel} Produk` : kind === "masuk" ? "Tambah Stok Masuk" : kind === "keluar" ? "Kurangi Stok" : "";
@@ -68,10 +70,20 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
       return;
     }
 
+    if (kind === "keluar") {
+      void apiRequest<Array<{ address?: string | null; id: string; name: string; phone?: string | null }>>("/dealers", { token })
+        .then((data) => {
+          if (Array.isArray(data)) {
+            setDealerOptions(data.map((d) => ({ address: d.address || "", id: d.id, name: d.name, phone: d.phone || "" })));
+          }
+        })
+        .catch(() => {});
+    }
+
     if (loadedOutboundProductsRef.current) return;
     loadedOutboundProductsRef.current = true;
     void loadProductsPage(1, "", kind === "keluar" ? "Tersedia" : "", "", 100);
-  }, [kind, loadProductsPage]);
+  }, [kind, loadProductsPage, token]);
 
   const reset = () => {
     setName("");
@@ -86,6 +98,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
     setPaymentMethod("");
     setNominalAmount("");
     setPaymentStatusOpen(false);
+    setDealerPickerOpen(false);
     setSelectedCategoryId("");
     setSelectedProductId("");
     setNote("");
@@ -175,7 +188,60 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
                 <TextInput style={styles.modalInput} placeholder="Jumlah" placeholderTextColor="#9aa4b5" value={stock} onChangeText={(value) => setStock(value.replace(/\D/g, ""))} keyboardType="number-pad" inputMode="numeric" />
                 {movementError ? <Text style={styles.errorText}>{movementError}</Text> : null}
                 <TextInput multiline onChangeText={setSerialNumbers} style={[styles.modalInput, { minHeight: 88, textAlignVertical: "top" }]} placeholder="Kode Produk + No Seri, satu per baris" placeholderTextColor="#9aa4b5" value={serialNumbers} />
-                {kind === "keluar" ? <TextInput onChangeText={setCustomerName} style={styles.modalInput} placeholder="Nama pembeli/dealer" placeholderTextColor="#9aa4b5" value={customerName} /> : null}
+                {kind === "keluar" ? (
+                  <View style={{ gap: 8 }}>
+                    <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+                      <View style={{ flex: 1 }}>
+                        <TextInput onChangeText={setCustomerName} style={styles.modalInput} placeholder="Nama pembeli / dealer" placeholderTextColor="#9aa4b5" value={customerName} />
+                      </View>
+                      {dealerOptions.length > 0 ? (
+                        <Pressable
+                          onPress={() => setDealerPickerOpen((prev) => !prev)}
+                          style={({ hovered, pressed }: PressState) => [
+                            styles.modalSelect,
+                            { paddingHorizontal: 12, height: 48, justifyContent: "center" },
+                            hovered && styles.modalSelectHover,
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Users size={16} color={colors.primary} />
+                            <Text style={{ color: colors.primary, fontSize: 13, fontWeight: "600" }}>Pilih Dealer</Text>
+                            <ChevronDown size={14} color={colors.muted} />
+                          </View>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                    {dealerPickerOpen && dealerOptions.length > 0 ? (
+                      <ScrollView nestedScrollEnabled style={[styles.modalSelectOptions, styles.modalSelectOptionsScroll, { maxHeight: 180 }]} showsVerticalScrollIndicator={false}>
+                        {dealerOptions.map((dealer) => (
+                          <Pressable
+                            key={dealer.id}
+                            onPress={() => {
+                              setCustomerName(dealer.name);
+                              if (dealer.phone) setCustomerPhone(dealer.phone);
+                              if (dealer.address) setParty(dealer.address);
+                              setDealerPickerOpen(false);
+                            }}
+                            style={({ hovered, pressed }: PressState) => [
+                              styles.modalSelectOption,
+                              customerName.toLowerCase() === dealer.name.toLowerCase() && styles.modalSelectOptionActive,
+                              hovered && styles.modalSelectOptionHover,
+                              pressed && styles.pressed,
+                            ]}
+                          >
+                            <Text style={[styles.modalSelectOptionText, customerName.toLowerCase() === dealer.name.toLowerCase() && styles.modalSelectOptionTextActive]}>
+                              {dealer.name} {dealer.phone ? `(${dealer.phone})` : ""}
+                            </Text>
+                            {dealer.address ? (
+                              <Text style={{ color: colors.muted, fontSize: 11, marginTop: 2 }}>{dealer.address}</Text>
+                            ) : null}
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    ) : null}
+                  </View>
+                ) : null}
                 {kind === "keluar" ? <TextInput onChangeText={setCustomerPhone} style={styles.modalInput} placeholder="No. Telp / WhatsApp" placeholderTextColor="#9aa4b5" value={customerPhone} /> : null}
                 {kind === "keluar" ? (
                   <View style={styles.modalFieldGroup}>
