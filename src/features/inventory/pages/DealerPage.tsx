@@ -26,20 +26,53 @@ export function DealerPage() {
     setLoadError("");
     try {
       const master = await apiRequest<Array<{ address?: string | null; id: string; name: string; phone?: string | null }>>("/dealers", { token });
+      
+      // Ambil riwayat produk keluar untuk mengecek tanggal transaksi terakhir
+      let historyData: StockMovement[] = [];
+      try {
+        const history = await apiRequest<{ data: StockMovement[] }>("/stock/movements?type=outbound&page=1&per_page=100", { token });
+        historyData = history.data || [];
+      } catch {
+        historyData = [];
+      }
+
+      // Buat peta tanggal transaksi terakhir per nama dealer/customer
+      const lastTxMap = new Map<string, string>();
+      historyData.forEach((item) => {
+        const cName = item.customerName?.trim().toLowerCase();
+        if (cName && (!lastTxMap.has(cName) || new Date(item.timestamp) > new Date(lastTxMap.get(cName)!))) {
+          lastTxMap.set(cName, item.timestamp);
+        }
+      });
+
       if (master.length) {
-        setDealers(master.map((dealer) => ({ address: dealer.address ?? "-", id: dealer.id, name: dealer.name, phone: dealer.phone ?? "-", source: "master" })));
+        setDealers(master.map((dealer) => {
+          const dName = dealer.name.trim().toLowerCase();
+          const lastTx = lastTxMap.get(dName);
+          return {
+            address: dealer.address ?? "-",
+            id: dealer.id,
+            lastTransaction: lastTx,
+            name: dealer.name,
+            phone: dealer.phone ?? "-",
+            source: "master",
+          };
+        }));
         return;
       }
 
-      const history = await apiRequest<{ data: StockMovement[] }>("/stock/movements?type=outbound&page=1&per_page=100", { token });
       const unique = new Map<string, DealerRow>();
-      history.data.forEach((item) => {
+      historyData.forEach((item) => {
         const name = item.customerName?.trim();
         if (!name) return;
         const address = item.saleAddress ?? item.party ?? "-";
         const phone = item.customerPhone ?? "-";
         const key = `${name.toLowerCase()}|${address.toLowerCase()}|${phone.toLowerCase()}`;
-        if (!unique.has(key)) unique.set(key, { address, id: key, lastTransaction: item.timestamp, name, phone, source: "history" });
+        if (!unique.has(key)) {
+          unique.set(key, { address, id: key, lastTransaction: item.timestamp, name, phone, source: "history" });
+        } else if (new Date(item.timestamp) > new Date(unique.get(key)!.lastTransaction!)) {
+          unique.get(key)!.lastTransaction = item.timestamp;
+        }
       });
       setDealers([...unique.values()]);
     } catch (error) {
