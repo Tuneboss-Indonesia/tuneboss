@@ -187,9 +187,9 @@ export function InventoryDataProvider({ activePage, children, token }: { activeP
       if (page === "scan") setError(null);
       if (page === "masuk") await loadMovementsPage(1, "inbound");
       if (page === "keluar") await loadMovementsPage(1, "outbound");
-      if (page === "laporan") await loadReportSummary();
+      if (page === "laporan") await Promise.all([loadReportSummary(), loadMovementsPage(1, "outbound")]);
       if (page === "laporan-stok") await Promise.all([loadSummary(), loadProductsPage(1)]);
-      if (page === "laporan-penjualan") await loadSalesPage(1);
+      if (page === "laporan-penjualan") await Promise.all([loadSalesPage(1), loadMovementsPage(1, "outbound")]);
       if (page === "laporan-masuk") await loadMovementsPage(1, "inbound");
       if (page === "laporan-keluar") await loadMovementsPage(1, "outbound");
       if (page === "admin") setError(null);

@@ -294,7 +294,9 @@ export function ReportDetail({ type, onBack }: { type: "stok" | "penjualan" | "m
   const rows = type === "stok"
     ? stockItems.map((item) => [item.name, item.category, String(item.stock), stockStatusLabel(item.status)])
     : type === "penjualan"
-      ? sales.map((sale) => [sale.invoiceNumber, formatDate(sale.createdAt), sale.items?.map((item) => item.productName ?? "-").join(", ") || "-", String(sale.items?.reduce((total, item) => total + item.quantity, 0) ?? 0), sale.address ?? "-"])
+      ? (sales.length > 0
+          ? sales.map((sale) => [sale.invoiceNumber, formatDate(sale.createdAt), sale.items?.map((item) => item.productName ?? "-").join(", ") || "-", String(sale.items?.reduce((total, item) => total + item.quantity, 0) ?? 0), sale.address ?? "-"])
+          : movements.filter((item) => item.type === "outbound").map((item) => [item.saleInvoice || (item.id ? `INV-${item.id.slice(0, 6).toUpperCase()}` : "-"), formatDate(item.timestamp), item.productName || "-", String(item.quantity || 0), item.saleAddress || item.party || item.customerName || "-"]))
       : movements.filter((item) => type === "masuk" ? item.type === "inbound" : item.type === "outbound").map((item) => type === "masuk" ? [formatDate(item.timestamp), item.productName, String(item.quantity), item.serialNumbers?.join(", ") || "-", item.productCategory ?? "-", item.note ?? "-"] : [formatDate(item.timestamp), item.productName, String(item.quantity), item.serialNumbers?.join(", ") || "-", item.customerName ?? "-", item.paymentStatus ?? "-", item.saleAddress ?? item.party ?? "-", item.note ?? "-"]);
   const totalSalesQuantity = sales.reduce((total, sale) => total + (sale.items?.reduce((itemTotal, saleItem) => itemTotal + saleItem.quantity, 0) ?? 0), 0);
   const availableStock = summary.totalUnits;
