@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Image, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { ChevronDown } from "lucide-react-native";
 import { apiRequest, formatDate } from "../api";
-import { logoUri } from "../data";
+import { invoiceLogoUri, logoUri } from "../data";
 import { useInventoryData } from "../InventoryDataContext";
 import { CrudShell, DataTable, EmptyRow, RowActions, TableRow } from "../components/common";
 import type { StockItem, StockMovement } from "../../../types/dashboard";
@@ -231,8 +231,9 @@ export function generateInvoicePrintHtml(items: StockMovement[], item: StockMove
       vertical-align: middle;
     }
     .logo-img {
-      height: 72px;
-      max-width: 220px;
+      height: 78px;
+      width: auto;
+      max-width: 230px;
       object-fit: contain;
       display: block;
     }
@@ -478,7 +479,7 @@ function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () 
     let logoSrc = existingImg?.src || "";
     if (!logoSrc) {
       try {
-        const rawLogo = typeof logoUri === "string" ? logoUri : (logoUri as { uri?: string; default?: string })?.uri || (logoUri as { uri?: string; default?: string })?.default || "";
+        const rawLogo = typeof invoiceLogoUri === "string" ? invoiceLogoUri : (invoiceLogoUri as { uri?: string; default?: string })?.uri || (invoiceLogoUri as { uri?: string; default?: string })?.default || "";
         logoSrc = rawLogo ? new URL(rawLogo, window.location.href).href : "";
       } catch {
         logoSrc = "";
@@ -543,7 +544,7 @@ function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () 
           <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalBodyContent}>
             <View nativeID="tuneboss-printable-invoice" style={{ backgroundColor: colors.white, gap: 18, padding: 28 }}>
               <View style={{ alignItems: "center", borderBottomColor: colors.primary, borderBottomWidth: 2, flexDirection: "row", gap: 20, paddingBottom: 16 }}>
-                <Image source={logoUri} style={{ height: 96, width: 250 }} resizeMode="contain" />
+                <Image source={invoiceLogoUri} style={{ height: 78, width: 190 }} resizeMode="contain" />
                 <View style={{ borderLeftColor: "#222", borderLeftWidth: 1, flex: 1, paddingLeft: 18 }}>
                   <Text style={{ color: colors.black, fontFamily: invoiceFont, fontSize: 22, fontWeight: "800", letterSpacing: 0.5 }}>TUNEBOSS INDONESIA</Text>
                   <Text style={{ color: colors.black, fontFamily: invoiceFont, fontSize: 13, fontWeight: "400" }}>Jl. Ringroad Selatan No.72, Banguntapan</Text>
