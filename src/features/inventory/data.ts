@@ -2,6 +2,7 @@ import { BarChart3, ClipboardList, FileBarChart, LayoutDashboard, Package, Packa
 import type { MenuItem, PageKey } from "./types";
 
 export const logoUri = require("../../../assets/logo.png");
+export const invoiceLogoUri = require("../../../assets/invoice-logo.png");
 
 export const mainMenu: MenuItem[] = [
   ["dashboard", LayoutDashboard, "Dashboard"],
