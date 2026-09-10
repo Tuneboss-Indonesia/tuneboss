@@ -14,4 +14,6 @@ test("invoice modal defines print area and exact color adjustments", () => {
   assert.match(source, /nativeID="tuneboss-no-print"/);
   assert.match(source, /print-color-adjust:\s*exact/);
   assert.match(source, /-webkit-print-color-adjust:\s*exact/);
+  assert.match(source, /generateInvoicePrintHtml/);
+  assert.match(source, /Inter/);
 });

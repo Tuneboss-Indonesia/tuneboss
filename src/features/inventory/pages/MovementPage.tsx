@@ -161,6 +161,298 @@ function invoiceNumber(item: StockMovement) {
   return item.saleInvoice ?? `INV/TB/${year}/${month}/${item.id.slice(0, 4).toUpperCase()}`;
 }
 
+const invoiceFont = Platform.OS === "web" ? "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" : "System";
+
+export function generateInvoicePrintHtml(items: StockMovement[], item: StockMovement, logoSrc: string): string {
+  const nominal = items.reduce((total, row) => total + Number(row.nominalAmount ?? 0), 0);
+  const nominalText = nominal > 0 ? new Intl.NumberFormat("id-ID", { currency: "IDR", style: "currency" }).format(nominal) : "Rp -";
+  const totalUnits = items.reduce((total, row) => total + row.quantity, 0);
+  const invNum = invoiceNumber(item);
+  const dateStr = formatDate(item.timestamp);
+
+  const rowsHtml = items.map((row, index) => {
+    const serials = row.serialNumbers?.join(", ") || row.sku || "-";
+    const rowNom = Number(row.nominalAmount ?? 0);
+    const rowNomText = rowNom > 0 ? new Intl.NumberFormat("id-ID", { currency: "IDR", style: "currency" }).format(rowNom) : "Rp -";
+    return `
+      <tr style="height: 38px;">
+        <td style="text-align: center; border-top: 1px solid #222; border-right: 1px solid #222; padding: 6px 8px;">${index + 1}</td>
+        <td style="text-align: center; border-top: 1px solid #222; border-right: 1px solid #222; padding: 6px 8px;">${row.productName || "-"}</td>
+        <td style="text-align: center; border-top: 1px solid #222; border-right: 1px solid #222; padding: 6px 8px;">${serials}</td>
+        <td style="text-align: center; border-top: 1px solid #222; border-right: 1px solid #222; padding: 6px 8px;">${rowNomText}</td>
+        <td style="text-align: center; border-top: 1px solid #222; padding: 6px 8px;">${row.paymentStatus ?? "-"}</td>
+      </tr>
+    `;
+  }).join("");
+
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <title>Invoice - ${invNum}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 8mm 10mm;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff !important;
+      color: #070707 !important;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .invoice-sheet {
+      width: 100%;
+      max-width: 980px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 10px 18px;
+    }
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-bottom: 2px solid #ed6c05;
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+    }
+    .header-table td {
+      vertical-align: middle;
+    }
+    .logo-img {
+      height: 72px;
+      max-width: 220px;
+      object-fit: contain;
+      display: block;
+    }
+    .store-info {
+      border-left: 1px solid #222;
+      padding-left: 16px;
+    }
+    .store-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #070707;
+      margin: 0 0 2px 0;
+      letter-spacing: 0.5px;
+    }
+    .store-line {
+      font-size: 11.5px;
+      color: #333;
+      margin: 1px 0;
+    }
+    .invoice-title {
+      font-size: 42px;
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: #070707;
+      text-align: right;
+      border-bottom: 3px solid #ed6c05;
+      display: inline-block;
+      padding-bottom: 2px;
+    }
+    .meta-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 14px;
+    }
+    .meta-table td {
+      vertical-align: top;
+    }
+    .section-label {
+      color: #ed6c05;
+      font-weight: 700;
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+    .info-row {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 4px;
+    }
+    .info-row td {
+      padding: 2px 0;
+      font-size: 11.5px;
+    }
+    .info-label {
+      width: 155px;
+      font-weight: 500;
+      color: #222;
+    }
+    .info-colon {
+      width: 12px;
+      font-weight: 600;
+    }
+    .info-val {
+      border-bottom: 1px solid #222;
+      font-weight: 600;
+      color: #070707;
+    }
+    .right-box {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .right-box td {
+      padding: 6px 10px;
+      font-size: 11px;
+    }
+    .box-label {
+      background-color: #070707 !important;
+      color: #ffffff !important;
+      font-weight: 700;
+      width: 160px;
+      letter-spacing: 0.5px;
+    }
+    .box-val {
+      border-bottom: 1px solid #ed6c05;
+      font-weight: 600;
+      color: #070707;
+      padding-left: 8px;
+    }
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #222;
+      margin-bottom: 14px;
+    }
+    .items-header th {
+      background-color: #ed6c05 !important;
+      color: #ffffff !important;
+      font-weight: 700;
+      font-size: 11px;
+      padding: 8px;
+      text-align: center;
+      border-right: 1px solid #222;
+    }
+    .items-header th:last-child {
+      border-right: none;
+    }
+    .total-row td {
+      border-top: 1px solid #222;
+      padding: 8px 10px;
+      font-weight: 700;
+      font-size: 11.5px;
+    }
+    .sign-area {
+      text-align: right;
+      margin-top: 24px;
+      padding-right: 48px;
+    }
+    .sign-line {
+      width: 160px;
+      height: 2px;
+      background-color: #070707 !important;
+      display: inline-block;
+      margin-top: 54px;
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-sheet">
+    <table class="header-table">
+      <tr>
+        <td style="width: 230px;">
+          ${logoSrc ? `<img src="${logoSrc}" class="logo-img" alt="TuneBoss Logo" />` : `<div style="font-size: 22px; font-weight: 900; color: #ed6c05;">TUNEBOSS</div>`}
+        </td>
+        <td class="store-info">
+          <div class="store-title">TUNEBOSS INDONESIA</div>
+          <div class="store-line">Jl. Ringroad Selatan No.72, Banguntapan</div>
+          <div class="store-line">Bantul, Daerah Istimewa Yogyakarta 55198</div>
+          <div class="store-line">0817-5792-805</div>
+        </td>
+        <td style="text-align: right; vertical-align: middle;">
+          <div class="invoice-title">INVOICE</div>
+        </td>
+      </tr>
+    </table>
+
+    <table class="meta-table">
+      <tr>
+        <td style="width: 52%; padding-right: 20px;">
+          <div class="section-label">DITERBITKAN KEPADA</div>
+          <table class="info-row">
+            <tr>
+              <td class="info-label">Nama Dealer / Customer</td>
+              <td class="info-colon">:</td>
+              <td class="info-val">${item.customerName || "-"}</td>
+            </tr>
+            <tr>
+              <td class="info-label">Alamat</td>
+              <td class="info-colon">:</td>
+              <td class="info-val">${item.saleAddress || item.party || "-"}</td>
+            </tr>
+            <tr>
+              <td class="info-label">No. Telp / WhatsApp</td>
+              <td class="info-colon">:</td>
+              <td class="info-val">${item.customerPhone || "-"}</td>
+            </tr>
+          </table>
+        </td>
+        <td style="width: 48%;">
+          <table class="right-box">
+            <tr>
+              <td class="box-label">NOMOR INVOICE</td>
+              <td class="box-val">: ${invNum}</td>
+            </tr>
+            <tr>
+              <td class="box-label">TANGGAL</td>
+              <td class="box-val">: ${dateStr}</td>
+            </tr>
+            <tr>
+              <td class="box-label">STATUS</td>
+              <td class="box-val">: Dealer</td>
+            </tr>
+            <tr>
+              <td class="box-label">METODE PEMBAYARAN</td>
+              <td class="box-val">: ${item.paymentMethod || "-"}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <table class="items-table">
+      <thead>
+        <tr class="items-header">
+          <th style="width: 6%;">NO</th>
+          <th style="width: 32%;">DESKRIPSI BARANG</th>
+          <th style="width: 28%;">NO SERI</th>
+          <th style="width: 20%;">NOMINAL</th>
+          <th style="width: 14%;">STATUS</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+        <tr class="total-row">
+          <td colspan="2" style="border-right: 1px solid #222;">TOTAL</td>
+          <td style="text-align: center; border-right: 1px solid #222;">${totalUnits} Unit</td>
+          <td colspan="2" style="text-align: center;">${nominalText}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="sign-area">
+      <div style="font-size: 11.5px; color: #222;">Hormat Kami,</div>
+      <div class="sign-line"></div>
+      <div style="font-size: 12px; font-weight: 700; color: #070707;">Tuneboss Indonesia</div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
 function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () => void }) {
   const item = items[0];
   const nominal = items.reduce((total, row) => total + Number(row.nominalAmount ?? 0), 0);
@@ -168,37 +460,32 @@ function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () 
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
-    const styleId = "tuneboss-print-styles";
-    if (document.getElementById(styleId)) return;
-    const style = document.createElement("style");
-    style.id = styleId;
-    style.innerHTML = `
-      @media print {
-        @page {
-          size: A4 portrait;
-          margin: 10mm;
-        }
-        * {
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-          color-adjust: exact !important;
-        }
-        #tuneboss-no-print {
-          display: none !important;
-        }
-      }
-    `;
-    document.head.appendChild(style);
+
+    const fontId = "tuneboss-inter-font";
+    if (!document.getElementById(fontId)) {
+      const link = document.createElement("link");
+      link.id = fontId;
+      link.rel = "stylesheet";
+      link.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap";
+      document.head.appendChild(link);
+    }
   }, []);
 
   const print = () => {
     if (Platform.OS !== "web" || typeof window === "undefined" || typeof document === "undefined") return;
 
-    const printable = document.getElementById("tuneboss-printable-invoice");
-    if (!printable) {
-      window.print();
-      return;
+    const existingImg = document.querySelector("#tuneboss-printable-invoice img") as HTMLImageElement | null;
+    let logoSrc = existingImg?.src || "";
+    if (!logoSrc) {
+      try {
+        const rawLogo = typeof logoUri === "string" ? logoUri : (logoUri as { uri?: string; default?: string })?.uri || (logoUri as { uri?: string; default?: string })?.default || "";
+        logoSrc = rawLogo ? new URL(rawLogo, window.location.href).href : "";
+      } catch {
+        logoSrc = "";
+      }
     }
+
+    const html = generateInvoicePrintHtml(items, item, logoSrc);
 
     const iframe = document.createElement("iframe");
     iframe.style.position = "fixed";
@@ -211,56 +498,10 @@ function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () 
     document.body.appendChild(iframe);
 
     const doc = iframe.contentWindow?.document;
-    if (!doc) {
-      window.print();
-      return;
-    }
-
-    const styleTags = Array.from(document.querySelectorAll("style, link[rel='stylesheet']"))
-      .map((s) => s.outerHTML)
-      .join("\n");
+    if (!doc) return;
 
     doc.open();
-    doc.write(`<!DOCTYPE html>
-<html>
-<head>
-  <base href="${window.location.href}">
-  <title>Invoice - ${invoiceNumber(item)}</title>
-  ${styleTags}
-  <style>
-    @page {
-      size: A4 portrait;
-      margin: 10mm;
-    }
-    * {
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      color-adjust: exact !important;
-      box-sizing: border-box !important;
-    }
-    html, body {
-      background: #ffffff !important;
-      color: #000000 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      width: 100% !important;
-      height: auto !important;
-    }
-    #print-container {
-      width: 100% !important;
-      max-width: 860px !important;
-      margin: 0 auto !important;
-      padding: 10px !important;
-      background: #ffffff !important;
-    }
-  </style>
-</head>
-<body>
-  <div id="print-container">
-    ${printable.innerHTML}
-  </div>
-</body>
-</html>`);
+    doc.write(html);
     doc.close();
 
     const triggerPrint = () => {
@@ -270,34 +511,30 @@ function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () 
       } finally {
         setTimeout(() => {
           if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-        }, 1000);
+        }, 1500);
       }
     };
 
-    const images = iframe.contentWindow?.document.images;
-    if (images && images.length > 0) {
-      let loaded = 0;
-      const onImgDone = () => {
-        loaded++;
-        if (loaded >= images.length) triggerPrint();
-      };
-      for (let i = 0; i < images.length; i++) {
-        if (images[i].complete) {
-          loaded++;
-        } else {
-          images[i].addEventListener("load", onImgDone);
-          images[i].addEventListener("error", onImgDone);
-        }
-      }
-      if (loaded >= images.length) {
-        setTimeout(triggerPrint, 150);
+    const img = iframe.contentWindow?.document.querySelector("img");
+    if (img) {
+      if (img.complete) {
+        setTimeout(triggerPrint, 120);
       } else {
-        setTimeout(triggerPrint, 1000);
+        img.onload = () => setTimeout(triggerPrint, 120);
+        img.onerror = () => setTimeout(triggerPrint, 120);
       }
     } else {
-      setTimeout(triggerPrint, 150);
+      setTimeout(triggerPrint, 120);
     }
   };
+
+  const invoiceColumns = [
+    { flex: 0.45, key: "no", label: "NO" },
+    { flex: 1.8, key: "desc", label: "DESKRIPSI BARANG" },
+    { flex: 1.7, key: "serial", label: "NO SERI" },
+    { flex: 1.4, key: "nominal", label: "NOMINAL" },
+    { flex: 1.15, key: "status", label: "STATUS" },
+  ];
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -305,19 +542,19 @@ function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () 
         <View style={[styles.modalCard, { maxWidth: 920 }]}> 
           <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalBodyContent}>
             <View nativeID="tuneboss-printable-invoice" style={{ backgroundColor: colors.white, gap: 18, padding: 28 }}>
-              <View style={{ alignItems: "center", borderBottomColor: colors.primary, borderBottomWidth: 2, flexDirection: "row", gap: 22, paddingBottom: 16 }}>
-                <Image source={logoUri} style={{ height: 72, width: 190 }} resizeMode="contain" />
+              <View style={{ alignItems: "center", borderBottomColor: colors.primary, borderBottomWidth: 2, flexDirection: "row", gap: 20, paddingBottom: 16 }}>
+                <Image source={logoUri} style={{ height: 96, width: 250 }} resizeMode="contain" />
                 <View style={{ borderLeftColor: "#222", borderLeftWidth: 1, flex: 1, paddingLeft: 18 }}>
-                  <Text style={{ color: colors.black, fontFamily: fonts.bodyMedium, fontSize: 22 }}>TUNEBOSS INDONESIA</Text>
-                  <Text style={{ color: colors.black, fontFamily: fonts.body, fontSize: 13 }}>Jl. Ringroad Selatan No.72, Banguntapan</Text>
-                  <Text style={{ color: colors.black, fontFamily: fonts.body, fontSize: 13 }}>Bantul, Daerah Istimewa Yogyakarta 55198</Text>
-                  <Text style={{ color: colors.black, fontFamily: fonts.body, fontSize: 13 }}>0817-5792-805</Text>
+                  <Text style={{ color: colors.black, fontFamily: invoiceFont, fontSize: 22, fontWeight: "800", letterSpacing: 0.5 }}>TUNEBOSS INDONESIA</Text>
+                  <Text style={{ color: colors.black, fontFamily: invoiceFont, fontSize: 13, fontWeight: "400" }}>Jl. Ringroad Selatan No.72, Banguntapan</Text>
+                  <Text style={{ color: colors.black, fontFamily: invoiceFont, fontSize: 13, fontWeight: "400" }}>Bantul, Daerah Istimewa Yogyakarta 55198</Text>
+                  <Text style={{ color: colors.black, fontFamily: invoiceFont, fontSize: 13, fontWeight: "500" }}>0817-5792-805</Text>
                 </View>
-                <Text style={{ borderBottomColor: colors.primary, borderBottomWidth: 2, color: colors.black, fontFamily: fonts.display, fontSize: 50, letterSpacing: 4 }}>INVOICE</Text>
+                <Text style={{ borderBottomColor: colors.primary, borderBottomWidth: 3, color: colors.black, fontFamily: invoiceFont, fontSize: 44, fontWeight: "900", letterSpacing: 4 }}>INVOICE</Text>
               </View>
               <View style={{ flexDirection: "row", gap: 28 }}>
                 <View style={{ flex: 1, gap: 8 }}>
-                  <Text style={{ color: colors.primary, fontFamily: fonts.bodyMedium, fontSize: 14 }}>DITERBITKAN KEPADA</Text>
+                  <Text style={{ color: colors.primary, fontFamily: invoiceFont, fontSize: 14, fontWeight: "700" }}>DITERBITKAN KEPADA</Text>
                   <InvoiceLine label="Nama Dealer / Customer" value={item.customerName ?? "-"} />
                   <InvoiceLine label="Alamat" value={item.saleAddress ?? item.party ?? "-"} />
                   <InvoiceLine label="No. Telp / WhatsApp" value={item.customerPhone ?? "-"} />
@@ -331,21 +568,32 @@ function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () 
               </View>
               <View style={{ borderColor: "#222", borderWidth: 1 }}>
                 <View style={{ backgroundColor: colors.primary, flexDirection: "row" }}>
-                  {["NO", "DESKRIPSI BARANG", "NO SERI", "NOMINAL", "STATUS"].map((header, index) => <Text key={header} style={{ borderRightColor: "#222", borderRightWidth: index === 4 ? 0 : 1, color: colors.white, flex: index === 0 ? 0.35 : index === 2 ? 1.6 : 1, fontFamily: fonts.bodyMedium, padding: 10, textAlign: "center" }}>{header}</Text>)}
+                  {invoiceColumns.map((col, index) => (
+                    <Text key={col.key} style={{ borderRightColor: "#222", borderRightWidth: index === invoiceColumns.length - 1 ? 0 : 1, color: colors.white, flex: col.flex, fontFamily: invoiceFont, fontSize: 12, fontWeight: "700", padding: 10, textAlign: "center" }}>{col.label}</Text>
+                  ))}
                 </View>
                 {items.map((row, rowIndex) => {
                   const serials = row.serialNumbers?.join(", ") || row.sku;
                   const rowNominal = Number(row.nominalAmount ?? 0);
                   const rowNominalText = rowNominal > 0 ? new Intl.NumberFormat("id-ID", { currency: "IDR", style: "currency" }).format(rowNominal) : "Rp -";
-                  return <View key={row.id} style={{ borderTopColor: "#222", borderTopWidth: rowIndex ? 1 : 0, flexDirection: "row", minHeight: 48 }}>{[String(rowIndex + 1), row.productName, serials, rowNominalText, row.paymentStatus ?? "-"].map((cell, index) => <Text key={index} style={{ borderRightColor: "#222", borderRightWidth: index === 4 ? 0 : 1, color: colors.black, flex: index === 0 ? 0.35 : index === 2 ? 1.6 : 1, fontFamily: fonts.bodyMedium, padding: 10, textAlign: "center" }}>{cell}</Text>)}</View>;
+                  return (
+                    <View key={row.id} style={{ borderTopColor: "#222", borderTopWidth: rowIndex ? 1 : 0, flexDirection: "row", minHeight: 48 }}>
+                      {[String(rowIndex + 1), row.productName, serials, rowNominalText, row.paymentStatus ?? "-"].map((cell, index) => (
+                        <Text key={index} style={{ borderRightColor: "#222", borderRightWidth: index === 4 ? 0 : 1, color: colors.black, flex: invoiceColumns[index].flex, fontFamily: invoiceFont, fontSize: 12, fontWeight: "500", paddingHorizontal: 6, paddingVertical: 10, textAlign: "center" }}>{cell}</Text>
+                      ))}
+                    </View>
+                  );
                 })}
-                {Array.from({ length: Math.max(0, 7 - items.length) }).map((_, index) => <View key={index} style={{ borderTopColor: "#222", borderTopWidth: 1, height: 42 }} />)}
-                <View style={{ borderTopColor: "#222", borderTopWidth: 1, flexDirection: "row" }}><Text style={{ color: colors.black, flex: 1.35, fontFamily: fonts.bodyMedium, padding: 10 }}>TOTAL</Text><Text style={{ borderLeftColor: "#222", borderLeftWidth: 1, color: colors.black, flex: 1.6, fontFamily: fonts.bodyMedium, padding: 10 }}>{items.reduce((total, row) => total + row.quantity, 0)} Unit</Text><Text style={{ borderLeftColor: "#222", borderLeftWidth: 1, color: colors.black, flex: 2, fontFamily: fonts.bodyMedium, padding: 10, textAlign: "center" }}>{nominalText}</Text></View>
+                <View style={{ borderTopColor: "#222", borderTopWidth: 1, flexDirection: "row" }}>
+                  <Text style={{ color: colors.black, flex: 2.25, fontFamily: invoiceFont, fontSize: 12, fontWeight: "700", padding: 10 }}>TOTAL</Text>
+                  <Text style={{ borderLeftColor: "#222", borderLeftWidth: 1, color: colors.black, flex: 1.7, fontFamily: invoiceFont, fontSize: 12, fontWeight: "600", padding: 10 }}>{items.reduce((total, row) => total + row.quantity, 0)} Unit</Text>
+                  <Text style={{ borderLeftColor: "#222", borderLeftWidth: 1, color: colors.black, flex: 2.55, fontFamily: invoiceFont, fontSize: 12, fontWeight: "700", padding: 10, textAlign: "center" }}>{nominalText}</Text>
+                </View>
               </View>
               <View style={{ alignItems: "flex-end", marginTop: 48, paddingRight: 70 }}>
-                <Text style={{ color: colors.black, fontFamily: fonts.body, marginBottom: 70 }}>Hormat Kami,</Text>
+                <Text style={{ color: colors.black, fontFamily: invoiceFont, fontSize: 13, marginBottom: 70 }}>Hormat Kami,</Text>
                 <View style={{ backgroundColor: colors.black, height: 2, width: 170 }} />
-                <Text style={{ color: colors.black, fontFamily: fonts.bodyMedium, marginTop: 8 }}>Tuneboss Indonesia</Text>
+                <Text style={{ color: colors.black, fontFamily: invoiceFont, fontSize: 13, fontWeight: "700", marginTop: 8 }}>Tuneboss Indonesia</Text>
               </View>
             </View>
           </ScrollView>
@@ -360,11 +608,22 @@ function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () 
 }
 
 function InvoiceLine({ label, value }: { label: string; value: string }) {
-  return <View style={{ flexDirection: "row", gap: 8 }}><Text style={{ color: colors.black, flex: 0.65, fontFamily: fonts.bodyMedium, fontSize: 13 }}>{label}</Text><Text style={{ color: colors.black, fontFamily: fonts.bodyMedium, fontSize: 13 }}>:</Text><Text style={{ borderBottomColor: "#222", borderBottomWidth: 1, color: colors.black, flex: 1, fontFamily: fonts.bodyMedium, fontSize: 13 }}>{value}</Text></View>;
+  return (
+    <View style={{ flexDirection: "row", gap: 8 }}>
+      <Text style={{ color: colors.black, flex: 0.65, fontFamily: invoiceFont, fontSize: 13, fontWeight: "500" }}>{label}</Text>
+      <Text style={{ color: colors.black, fontFamily: invoiceFont, fontSize: 13, fontWeight: "600" }}>:</Text>
+      <Text style={{ borderBottomColor: "#222", borderBottomWidth: 1, color: colors.black, flex: 1, fontFamily: invoiceFont, fontSize: 13, fontWeight: "600" }}>{value}</Text>
+    </View>
+  );
 }
 
 function InvoiceInfo({ label, value }: { label: string; value: string }) {
-  return <View style={{ flexDirection: "row" }}><Text style={{ backgroundColor: colors.black, color: colors.white, flex: 0.9, fontFamily: fonts.bodyMedium, fontSize: 12, padding: 10 }}>{label}</Text><Text style={{ borderBottomColor: colors.primary, borderBottomWidth: 1, color: colors.black, flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12, padding: 10 }}>: {value}</Text></View>;
+  return (
+    <View style={{ flexDirection: "row" }}>
+      <Text style={{ backgroundColor: colors.black, color: colors.white, flex: 0.95, fontFamily: invoiceFont, fontSize: 11, fontWeight: "700", letterSpacing: 0.5, padding: 9 }}>{label}</Text>
+      <Text style={{ borderBottomColor: colors.primary, borderBottomWidth: 1, color: colors.black, flex: 1.05, fontFamily: invoiceFont, fontSize: 12, fontWeight: "600", padding: 9 }}>: {value}</Text>
+    </View>
+  );
 }
 
 function MovementEditModal({ item, onClose, onSave, saving, stockItems }: { item: StockMovement; onClose: () => void; onSave: (form: { customerName: string; customerPhone: string; nominalAmount: string; note: string; party: string; paymentMethod: string; paymentStatus: string; productId: string; quantity: string }) => Promise<void>; saving: boolean; stockItems: StockItem[] }) {
