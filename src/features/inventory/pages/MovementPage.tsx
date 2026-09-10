@@ -165,8 +165,138 @@ function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () 
   const item = items[0];
   const nominal = items.reduce((total, row) => total + Number(row.nominalAmount ?? 0), 0);
   const nominalText = nominal > 0 ? new Intl.NumberFormat("id-ID", { currency: "IDR", style: "currency" }).format(nominal) : "Rp -";
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    const styleId = "tuneboss-print-styles";
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.innerHTML = `
+      @media print {
+        @page {
+          size: A4 portrait;
+          margin: 10mm;
+        }
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        #tuneboss-no-print {
+          display: none !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }, []);
+
   const print = () => {
-    if (Platform.OS === "web" && typeof window !== "undefined") window.print();
+    if (Platform.OS !== "web" || typeof window === "undefined" || typeof document === "undefined") return;
+
+    const printable = document.getElementById("tuneboss-printable-invoice");
+    if (!printable) {
+      window.print();
+      return;
+    }
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.visibility = "hidden";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      return;
+    }
+
+    const styleTags = Array.from(document.querySelectorAll("style, link[rel='stylesheet']"))
+      .map((s) => s.outerHTML)
+      .join("\n");
+
+    doc.open();
+    doc.write(`<!DOCTYPE html>
+<html>
+<head>
+  <base href="${window.location.href}">
+  <title>Invoice - ${invoiceNumber(item)}</title>
+  ${styleTags}
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 10mm;
+    }
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+      box-sizing: border-box !important;
+    }
+    html, body {
+      background: #ffffff !important;
+      color: #000000 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+      height: auto !important;
+    }
+    #print-container {
+      width: 100% !important;
+      max-width: 860px !important;
+      margin: 0 auto !important;
+      padding: 10px !important;
+      background: #ffffff !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="print-container">
+    ${printable.innerHTML}
+  </div>
+</body>
+</html>`);
+    doc.close();
+
+    const triggerPrint = () => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } finally {
+        setTimeout(() => {
+          if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        }, 1000);
+      }
+    };
+
+    const images = iframe.contentWindow?.document.images;
+    if (images && images.length > 0) {
+      let loaded = 0;
+      const onImgDone = () => {
+        loaded++;
+        if (loaded >= images.length) triggerPrint();
+      };
+      for (let i = 0; i < images.length; i++) {
+        if (images[i].complete) {
+          loaded++;
+        } else {
+          images[i].addEventListener("load", onImgDone);
+          images[i].addEventListener("error", onImgDone);
+        }
+      }
+      if (loaded >= images.length) {
+        setTimeout(triggerPrint, 150);
+      } else {
+        setTimeout(triggerPrint, 1000);
+      }
+    } else {
+      setTimeout(triggerPrint, 150);
+    }
   };
 
   return (
@@ -174,7 +304,7 @@ function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () 
       <View style={styles.modalBackdrop}>
         <View style={[styles.modalCard, { maxWidth: 920 }]}> 
           <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalBodyContent}>
-            <View style={{ backgroundColor: colors.white, gap: 18, padding: 28 }}>
+            <View nativeID="tuneboss-printable-invoice" style={{ backgroundColor: colors.white, gap: 18, padding: 28 }}>
               <View style={{ alignItems: "center", borderBottomColor: colors.primary, borderBottomWidth: 2, flexDirection: "row", gap: 22, paddingBottom: 16 }}>
                 <Image source={logoUri} style={{ height: 72, width: 190 }} resizeMode="contain" />
                 <View style={{ borderLeftColor: "#222", borderLeftWidth: 1, flex: 1, paddingLeft: 18 }}>
@@ -219,7 +349,7 @@ function InvoiceModal({ items, onClose }: { items: StockMovement[]; onClose: () 
               </View>
             </View>
           </ScrollView>
-          <View style={styles.modalActions}>
+          <View nativeID="tuneboss-no-print" style={styles.modalActions}>
             <Pressable onPress={onClose} style={styles.cancelButton}><Text style={styles.cancelText}>Tutup</Text></Pressable>
             <Pressable onPress={print} style={styles.saveButton}><Text style={styles.saveText}>Print</Text></Pressable>
           </View>
