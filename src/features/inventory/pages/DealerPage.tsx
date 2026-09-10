@@ -36,12 +36,16 @@ export function DealerPage() {
         historyData = [];
       }
 
-      // Buat peta tanggal transaksi terakhir per nama dealer/customer
+      // Buat peta tanggal transaksi terakhir per nama dealer/customer (cocokkan timestamp atau createdAt)
       const lastTxMap = new Map<string, string>();
-      historyData.forEach((item) => {
+      historyData.forEach((item: any) => {
         const cName = item.customerName?.trim().toLowerCase();
-        if (cName && (!lastTxMap.has(cName) || new Date(item.timestamp) > new Date(lastTxMap.get(cName)!))) {
-          lastTxMap.set(cName, item.timestamp);
+        const txDate = item.timestamp || item.createdAt || item.updatedAt;
+        if (cName && txDate) {
+          const currentRecorded = lastTxMap.get(cName);
+          if (!currentRecorded || new Date(txDate).getTime() > new Date(currentRecorded).getTime()) {
+            lastTxMap.set(cName, txDate);
+          }
         }
       });
 
@@ -62,16 +66,17 @@ export function DealerPage() {
       }
 
       const unique = new Map<string, DealerRow>();
-      historyData.forEach((item) => {
+      historyData.forEach((item: any) => {
         const name = item.customerName?.trim();
         if (!name) return;
         const address = item.saleAddress ?? item.party ?? "-";
         const phone = item.customerPhone ?? "-";
+        const txDate = item.timestamp || item.createdAt || item.updatedAt;
         const key = `${name.toLowerCase()}|${address.toLowerCase()}|${phone.toLowerCase()}`;
         if (!unique.has(key)) {
-          unique.set(key, { address, id: key, lastTransaction: item.timestamp, name, phone, source: "history" });
-        } else if (new Date(item.timestamp) > new Date(unique.get(key)!.lastTransaction!)) {
-          unique.get(key)!.lastTransaction = item.timestamp;
+          unique.set(key, { address, id: key, lastTransaction: txDate, name, phone, source: "history" });
+        } else if (txDate && new Date(txDate).getTime() > new Date(unique.get(key)!.lastTransaction || 0).getTime()) {
+          unique.get(key)!.lastTransaction = txDate;
         }
       });
       setDealers([...unique.values()]);
