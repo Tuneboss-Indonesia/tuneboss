@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { apiRequest, formatDate } from "../api";
 import { CrudShell, DataTable, EmptyRow, RowActions, TableRow } from "../components/common";
 import { useInventoryData } from "../InventoryDataContext";
@@ -17,6 +17,9 @@ export function DealerPage() {
   const [editing, setEditing] = useState<DealerRow | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<DealerRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const loadDealers = async () => {
     setLoading(true);
@@ -51,10 +54,24 @@ export function DealerPage() {
   const rows = dealers.filter((dealer) => `${dealer.name} ${dealer.address} ${dealer.phone}`.toLowerCase().includes(query.toLowerCase()));
 
   const deleteDealer = (dealer: DealerRow) => {
-    Alert.alert("Hapus Dealer", `Yakin ingin menghapus ${dealer.name}?`, [
-      { text: "Batal", style: "cancel" },
-      { text: "Hapus", style: "destructive", onPress: () => void apiRequest(`/dealers/${dealer.id}`, { method: "DELETE", token }).then(loadDealers).catch((error) => Alert.alert("Gagal", error instanceof Error ? error.message : "Dealer gagal dihapus.")) },
-    ]);
+    setDeleteError("");
+    setPendingDelete(dealer);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete || deleting) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await apiRequest(`/dealers/${pendingDelete.id}`, { method: "DELETE", token });
+      setDealers((current) => current.filter((dealer) => dealer.id !== pendingDelete.id));
+      setPendingDelete(null);
+      await loadDealers();
+    } catch (error) {
+      setDeleteError(`Dealer gagal dihapus. ${error instanceof Error ? error.message : "Silakan coba lagi."}`);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -66,6 +83,23 @@ export function DealerPage() {
           {!rows.length && !loading && !loadError ? <EmptyRow text="Belum ada dealer" /> : null}
         </DataTable>
       </CrudShell>
+      {pendingDelete ? (
+        <Modal visible transparent animationType="fade" onRequestClose={() => { if (!deleting) setPendingDelete(null); }}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalBodyContent}>
+                <Text style={styles.modalTitle}>Hapus Dealer</Text>
+                <Text style={styles.modalLabel}>Yakin ingin menghapus {pendingDelete.name}? Tindakan ini tidak bisa dibatalkan.</Text>
+                {deleteError ? <Text accessibilityRole="alert" style={styles.errorText}>{deleteError}</Text> : null}
+              </View>
+              <View style={styles.modalActions}>
+                <Pressable accessibilityRole="button" disabled={deleting} onPress={() => setPendingDelete(null)} style={[styles.cancelButton, deleting && styles.tablePagerButtonDisabled]}><Text style={styles.cancelText}>Batal</Text></Pressable>
+                <Pressable accessibilityRole="button" disabled={deleting} onPress={() => void confirmDelete()} style={[styles.saveButton, deleting && styles.tablePagerButtonDisabled]}><Text style={styles.saveText}>{deleting ? "Menghapus..." : "Hapus Dealer"}</Text></Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
       {modalOpen ? <DealerModal dealer={editing} token={token} onClose={() => setModalOpen(false)} onSaved={async () => { setModalOpen(false); setQuery(""); await loadDealers(); }} /> : null}
     </>
   );
