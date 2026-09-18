@@ -637,6 +637,44 @@ class InventoryApiTest extends TestCase
         $this->assertSame(0, PersonalAccessToken::count());
     }
 
+    public function test_product_lookup_by_box_sku_and_inbound_with_serial_numbers(): void
+    {
+        $this->seed();
+        $adminToken = $this->loginToken('admin@tuneboss.co.id');
+
+        // Step 1: Scan box barcode/SKU
+        $lookup = $this->withToken($adminToken)
+            ->getJson('/products/lookup?code=TB-YMH-XMAX-V1')
+            ->assertOk()
+            ->assertJsonStructure(['id', 'name', 'sku', 'stock', 'status']);
+
+        $productId = $lookup->json('id');
+        $this->assertSame('TB-YMH-XMAX-V1', $lookup->json('sku'));
+        $initialStock = $lookup->json('stock');
+
+        // Step 2: Inbound with serial numbers
+        $inbound = $this->withToken($adminToken)
+            ->postJson('/stock/inbound', [
+                'productId' => $productId,
+                'quantity' => 2,
+                'serialNumbers' => ['SN-XMAX-001', 'SN-XMAX-002'],
+                'note' => 'Inbound restock box',
+            ])
+            ->assertCreated();
+
+        $this->assertSame($initialStock + 2, ProductStock::where('product_id', $productId)->value('quantity'));
+        $this->assertDatabaseHas('product_serials', [
+            'product_id' => $productId,
+            'serial_number' => 'SN-XMAX-001',
+            'status' => 'in_stock',
+        ]);
+        $this->assertDatabaseHas('product_serials', [
+            'product_id' => $productId,
+            'serial_number' => 'SN-XMAX-002',
+            'status' => 'in_stock',
+        ]);
+    }
+
     private function loginToken(string $email): string
     {
         return $this->postJson('/auth/login', [

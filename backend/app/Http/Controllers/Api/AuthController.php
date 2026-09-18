@@ -56,6 +56,11 @@ class AuthController extends Controller
             'action' => 'auth.login_success',
             'entity' => 'users',
             'entity_id' => $user->id,
+            'metadata' => [
+                'email' => $user->email,
+                'ip' => $request->ip(),
+                'userAgent' => $request->userAgent(),
+            ],
         ]);
 
         return response()->json([
