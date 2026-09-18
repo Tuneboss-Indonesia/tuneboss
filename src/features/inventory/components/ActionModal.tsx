@@ -9,7 +9,7 @@ import { colors } from "../../../theme/tokens";
 
 const paymentStatuses = ["Lunas", "DP", "Unpaid", "PayLater"] as const;
 
-export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: ModalKind; mode: ModalMode; editingCategory?: CategoryItem | null; onClose: () => void }) {
+export function ActionModal({ kind, mode, editingCategory, initialSku, onClose }: { kind: ModalKind; mode: ModalMode; editingCategory?: CategoryItem | null; initialSku?: string; onClose: () => void }) {
   const { categories, loadProductsPage, refresh, stockItems, token } = useInventoryData();
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
@@ -17,7 +17,7 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
   const [productOpen, setProductOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [sku, setSku] = useState("");
+  const [sku, setSku] = useState(initialSku ?? "");
   const [stock, setStock] = useState("");
   const [serialNumbers, setSerialNumbers] = useState("");
   const [party, setParty] = useState("");
@@ -61,8 +61,11 @@ export function ActionModal({ kind, mode, editingCategory, onClose }: { kind: Mo
       setDescription("");
       setOriginalName("");
       setOriginalDesc("");
+      if (kind === "stok") {
+        setSku(initialSku ?? "");
+      }
     }
-  }, [mode, kind, editingCategory]);
+  }, [mode, kind, editingCategory, initialSku]);
 
   useEffect(() => {
     if (kind !== "masuk" && kind !== "keluar") {

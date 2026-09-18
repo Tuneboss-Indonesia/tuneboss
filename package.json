@@ -13,7 +13,8 @@
     "desktop:build": "npm run desktop:export && electron-builder --win portable",
     "desktop:build:win": "npm run desktop:export && electron-builder --win nsis portable",
     "desktop:build:linux": "npm run desktop:export && electron-builder --linux AppImage",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/features/inventory/**/*.test.cjs"
   },
   "dependencies": {
     "@react-native-community/datetimepicker": "8.6.0",

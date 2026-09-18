@@ -38,6 +38,7 @@ export function AdminApp() {
   const [modalMode, setModalMode] = useState<ModalMode>("add");
   const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
   const [stokCategoryId, setStokCategoryId] = useState("");
+  const [initialProductSku, setInitialProductSku] = useState("");
   const [auth, setAuth] = useState<StoredAuth | null>(null);
   const [storageReady, setStorageReady] = useState(false);
   const token = auth?.accessToken ?? "";
@@ -83,9 +84,10 @@ export function AdminApp() {
     setPage(nextPage);
   };
 
-  const openModal = (kind: Exclude<ModalKind, null>, mode: ModalMode = "add", item?: CategoryItem) => {
+  const openModal = (kind: Exclude<ModalKind, null>, mode: ModalMode = "add", item?: CategoryItem, initialSku?: string) => {
     setModalMode(mode);
     setModal(kind);
+    setInitialProductSku(initialSku ?? "");
     if (kind === "kategori" && item) setEditingCategory(item);
     else setEditingCategory(null);
   };
@@ -104,7 +106,7 @@ export function AdminApp() {
           {page === "kategori" ? <KategoriPage onSelectCategory={(category) => { setStokCategoryId(category.id); setPage("stok"); }} onOpenModal={(mode, item) => openModal("kategori", mode, item)} /> : null}
           {page === "stok" ? <StokPage initialCategoryId={stokCategoryId} onOpenModal={(mode) => openModal("stok", mode)} /> : null}
           {page === "dealer" ? <DealerPage /> : null}
-          {page === "scan" ? <ScanPage onGoInbound={() => setPage("masuk")} onGoOutbound={() => setPage("keluar")} /> : null}
+          {page === "scan" ? <ScanPage onGoInbound={() => setPage("masuk")} onGoOutbound={() => setPage("keluar")} onAddProduct={(code) => openModal("stok", "add", undefined, code)} /> : null}
           {page === "masuk" ? <MovementPage kind="inbound" onOpenModal={() => openModal("masuk")} /> : null}
           {page === "keluar" ? <MovementPage kind="outbound" onOpenModal={() => openModal("keluar")} /> : null}
           {page === "laporan" ? <LaporanPage onNavigate={navigate} /> : null}
@@ -114,7 +116,7 @@ export function AdminApp() {
           {page === "laporan-masuk" ? <ReportDetail type="masuk" onBack={() => setPage("laporan")} /> : null}
           {page === "laporan-keluar" ? <ReportDetail type="keluar" onBack={() => setPage("laporan")} /> : null}
         </Layout>
-        <ActionModal kind={modal} mode={modalMode} editingCategory={editingCategory} onClose={() => { setEditingCategory(null); setModal(null); }} />
+        <ActionModal kind={modal} mode={modalMode} editingCategory={editingCategory} initialSku={initialProductSku} onClose={() => { setEditingCategory(null); setInitialProductSku(""); setModal(null); }} />
       </InventoryDataProvider>
     </ErrorBoundary>
   );

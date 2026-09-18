@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from "expo-camera";
-import { ChevronDown, PackageMinus, PackagePlus, ScanBarcode, Users, X } from "lucide-react-native";
+import { ChevronDown, PackageMinus, PackagePlus, Plus, ScanBarcode, Users, X } from "lucide-react-native";
 import { colors } from "../../../theme/tokens";
 import type { StockItem } from "../../../types/dashboard";
 import { apiRequest } from "../api";
@@ -10,12 +10,12 @@ import { styles } from "../styles";
 import { Metric } from "../components/common";
 import type { PressState } from "../types";
 
-type LookupResponse = StockItem & { categoryId?: string };
+type LookupResponse = StockItem & { categoryId?: string; isNewSerial?: boolean; serialNumber?: string | null; serialStatus?: string | null };
 type ScanMovementType = "masuk" | "keluar";
 
 const paymentStatuses = ["Lunas", "DP", "Unpaid", "PayLater"] as const;
 
-export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => void; onGoOutbound: () => void }) {
+export function ScanPage({ onGoInbound, onGoOutbound, onAddProduct }: { onGoInbound: () => void; onGoOutbound: () => void; onAddProduct?: (initialCode?: string) => void }) {
   const { refresh, token } = useInventoryData();
   const [mode, setMode] = useState<"camera" | "scanner">("camera");
   const [barcode, setBarcode] = useState("");
@@ -53,6 +53,13 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => voi
       const found = await apiRequest<LookupResponse>(`/products/lookup?code=${encodeURIComponent(code)}`, { token });
       setResult({ ...found, category: found.category || "-", lastUpdated: "-", location: "-" });
       setError("");
+
+      if (found.isNewSerial || found.serialNumber) {
+        const targetSerial = found.serialNumber || code;
+        setSerialNumbers(targetSerial);
+        setQuantity("1");
+        setMovementType(found.serialStatus === "in_stock" ? "keluar" : "masuk");
+      }
     } catch {
       setResult(null);
       setError("Barcode/SKU produk tidak ditemukan.");
@@ -231,7 +238,25 @@ export function ScanPage({ onGoInbound, onGoOutbound }: { onGoInbound: () => voi
           <Pressable onPress={() => void processBarcode()} style={({ hovered, pressed }: PressState) => [styles.primaryButton, hovered && styles.primaryButtonHover, pressed && styles.pressed]}>
             <Text style={styles.primaryButtonText}>{lookupLoading ? "Memproses..." : "Proses"}</Text>
           </Pressable>
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? (
+            <View style={{ alignItems: "center", gap: 8, marginTop: 4 }}>
+              <Text style={styles.errorText}>{error}</Text>
+              {onAddProduct ? (
+                <Pressable
+                  onPress={() => onAddProduct(barcode.trim())}
+                  style={({ hovered, pressed }: PressState) => [
+                    styles.secondaryButton,
+                    { borderColor: colors.primary, flexDirection: "row", gap: 6, paddingHorizontal: 16, paddingVertical: 10 },
+                    hovered && styles.secondaryButtonHover,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Plus color={colors.primary} size={16} />
+                  <Text style={[styles.secondaryButtonText, { color: colors.primary, fontWeight: "600" }]}>+ Tambah Master Produk Baru</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
         </View>
       </View>
       {result ? (
