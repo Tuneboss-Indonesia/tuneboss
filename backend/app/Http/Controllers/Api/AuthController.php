@@ -48,8 +48,34 @@ class AuthController extends Controller
             ]);
         }
 
+        $userAgent = $request->userAgent();
+        $ip = $request->ip();
+
+        // Check if this device/browser (User-Agent) has ever logged in for this user
+        $hasPriorDeviceLogin = AuditLog::where('user_id', $user->id)
+            ->where('action', 'auth.login_success')
+            ->where('metadata->userAgent', $userAgent)
+            ->exists();
+
+        $isFirstTimeDevice = ! $hasPriorDeviceLogin;
+
         $expiresAt = $this->tokenExpiresAt();
         $token = $user->createToken('mobile-api', ['*'], $expiresAt)->plainTextToken;
+
+        if ($isFirstTimeDevice) {
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => 'auth.device_first_login',
+                'entity' => 'users',
+                'entity_id' => $user->id,
+                'metadata' => [
+                    'email' => $user->email,
+                    'ip' => $ip,
+                    'userAgent' => $userAgent,
+                    'isNewDevice' => true,
+                ],
+            ]);
+        }
 
         AuditLog::create([
             'user_id' => $user->id,
@@ -58,8 +84,9 @@ class AuthController extends Controller
             'entity_id' => $user->id,
             'metadata' => [
                 'email' => $user->email,
-                'ip' => $request->ip(),
-                'userAgent' => $request->userAgent(),
+                'ip' => $ip,
+                'userAgent' => $userAgent,
+                'isNewDevice' => $isFirstTimeDevice,
             ],
         ]);
 

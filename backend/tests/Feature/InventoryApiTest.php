@@ -715,6 +715,41 @@ class InventoryApiTest extends TestCase
         $this->assertTrue($lookup2->json('isNewSerial'));
     }
 
+    public function test_first_time_device_login_creates_device_first_login_audit_log(): void
+    {
+        $this->seed();
+
+        // 1st login with Device A
+        $this->postJson('/auth/login', [
+            'email' => 'staff@tuneboss.co.id',
+            'password' => 'password',
+        ], ['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'])
+            ->assertOk();
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'auth.device_first_login',
+        ]);
+        $this->assertSame(1, AuditLog::where('action', 'auth.device_first_login')->count());
+
+        // 2nd login with the same Device A (should NOT create a duplicate device_first_login)
+        $this->postJson('/auth/login', [
+            'email' => 'staff@tuneboss.co.id',
+            'password' => 'password',
+        ], ['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'])
+            ->assertOk();
+
+        $this->assertSame(1, AuditLog::where('action', 'auth.device_first_login')->count());
+
+        // 3rd login with a NEW Device B (should create another device_first_login)
+        $this->postJson('/auth/login', [
+            'email' => 'staff@tuneboss.co.id',
+            'password' => 'password',
+        ], ['User-Agent' => 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15'])
+            ->assertOk();
+
+        $this->assertSame(2, AuditLog::where('action', 'auth.device_first_login')->count());
+    }
+
     private function loginToken(string $email): string
     {
         return $this->postJson('/auth/login', [
