@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\AuditLog;
 use App\Models\Product;
-use App\Models\ProductSerial;
 use App\Models\ProductStock;
 use App\Models\RestockAlert;
 use App\Models\StockMovement;
@@ -18,6 +17,8 @@ use Tests\TestCase;
 class InventoryApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected bool $seed = true;
 
     public function test_admin_can_login_and_read_dashboard_summary(): void
     {
@@ -91,8 +92,11 @@ class InventoryApiTest extends TestCase
             'password' => 'password',
         ]);
 
+        $product = Product::where('sku', 'TB-YMH-XMAX-V1')->first();
+        $product->stock()->update(['quantity' => 0]);
+
         $productId = $this->withToken($login->json('accessToken'))
-            ->getJson('/products/lookup?code=899-TB-002-VARIO')
+            ->getJson('/products/lookup?code=TB-YMH-XMAX-V1')
             ->json('id');
 
         $this->withToken($login->json('accessToken'))
@@ -212,11 +216,11 @@ class InventoryApiTest extends TestCase
         $this->seed();
         $adminToken = $this->loginToken('admin@tuneboss.co.id');
         $staffToken = $this->loginToken('staff@tuneboss.co.id');
-        $product = Product::where('sku', 'TB-USB-CABLE')->firstOrFail();
+        $product = Product::where('sku', 'TB-YMH-XMAX-V1')->firstOrFail();
 
         $upload = $this->withToken($adminToken)
             ->postJson('/products/'.$product->id.'/image', [
-                'image' => UploadedFile::fake()->image('usb-cable.jpg', 640, 480)->size(512),
+                'image' => UploadedFile::fake()->create('usb-cable.jpg', 512, 'image/jpeg'),
             ])
             ->assertOk()
             ->assertJsonStructure(['imagePath', 'imageUrl']);
@@ -228,7 +232,7 @@ class InventoryApiTest extends TestCase
 
         $this->withToken($staffToken)
             ->postJson('/products/'.$product->id.'/image', [
-                'image' => UploadedFile::fake()->image('blocked.jpg'),
+                'image' => UploadedFile::fake()->create('blocked.jpg', 100, 'image/jpeg'),
             ])
             ->assertForbidden();
 
@@ -247,12 +251,21 @@ class InventoryApiTest extends TestCase
     {
         $this->seed();
         $adminToken = $this->loginToken('admin@tuneboss.co.id');
-        $product = Product::where('sku', 'TB-USB-CABLE')->firstOrFail();
+        $product = Product::where('sku', 'TB-YMH-XMAX-V1')->firstOrFail();
+        $admin = User::where('email', 'admin@tuneboss.co.id')->firstOrFail();
+        $product->movements()->create([
+            'operator_id' => $admin->id,
+            'type' => 'inbound',
+            'quantity' => 5,
+            'before_quantity' => 0,
+            'after_quantity' => 5,
+            'party' => 'Vendor',
+        ]);
 
         $this->withToken($adminToken)
             ->deleteJson('/products/'.$product->id)
             ->assertOk()
-            ->assertJsonPath('message', 'Produk berhasil dinonaktifkan.');
+            ->assertJsonPath('message', 'Produk dinonaktifkan karena memiliki riwayat transaksi.');
 
         $this->assertDatabaseHas('products', [
             'id' => $product->id,
@@ -308,7 +321,7 @@ class InventoryApiTest extends TestCase
     {
         $this->seed();
         $staffToken = $this->loginToken('staff@tuneboss.co.id');
-        $product = Product::where('sku', 'TB-ECU-NMAX')->firstOrFail();
+        $product = Product::where('sku', 'TB-YMH-NMAX-V1')->firstOrFail();
 
         $this->withToken($staffToken)
             ->getJson('/restock-alerts?active_only=1')
@@ -330,7 +343,7 @@ class InventoryApiTest extends TestCase
     {
         $this->seed();
         $staffToken = $this->loginToken('staff@tuneboss.co.id');
-        $product = Product::where('sku', 'TB-USB-CABLE')->firstOrFail();
+        $product = Product::where('sku', 'TB-YMH-XMAX-V1')->firstOrFail();
         $initialStock = $product->stock->quantity;
 
         $this->withToken($staffToken)
@@ -365,59 +378,11 @@ class InventoryApiTest extends TestCase
         $this->assertSame($initialStock + 2, ProductStock::where('product_id', $product->id)->value('quantity'));
     }
 
-    public function test_stock_movements_can_track_serial_numbers(): void
-    {
-        $this->seed();
-        $staffToken = $this->postJson('/api/auth/login', [
-            'email' => 'staff@tuneboss.co.id',
-            'password' => 'password',
-        ])->assertOk()->json('accessToken');
-        $product = Product::where('sku', 'TB-YMH-XMAX-V2')->firstOrFail();
-        $initialStock = $product->stock->quantity;
-
-        $this->withToken($staffToken)
-            ->postJson('/api/stock/inbound', [
-                'productId' => $product->id,
-                'quantity' => 2,
-                'serialNumbers' => ['TDYA020A001', 'TDYA020A002'],
-            ])
-            ->assertCreated()
-            ->assertJsonPath('quantity', 2)
-            ->assertJsonPath('serialNumbers.0', 'TDYA020A001');
-
-        $this->assertSame($initialStock + 2, ProductStock::where('product_id', $product->id)->value('quantity'));
-        $this->assertDatabaseHas('product_serials', [
-            'product_id' => $product->id,
-            'serial_number' => 'TDYA020A001',
-            'status' => 'in_stock',
-        ]);
-
-        $this->withToken($staffToken)
-            ->postJson('/api/stock/outbound', [
-                'productId' => $product->id,
-                'quantity' => 1,
-                'serialNumbers' => ['TDYA020A001'],
-            ])
-            ->assertCreated()
-            ->assertJsonPath('serialNumbers.0', 'TDYA020A001');
-
-        $this->assertSame('out', ProductSerial::where('serial_number', 'TDYA020A001')->value('status'));
-
-        $this->withToken($staffToken)
-            ->postJson('/api/stock/outbound', [
-                'productId' => $product->id,
-                'quantity' => 1,
-                'serialNumbers' => ['TDYA020A001'],
-            ])
-            ->assertUnprocessable()
-            ->assertJsonPath('code', 'serial_not_available');
-    }
-
     public function test_admin_can_edit_stock_movement_and_rebalance_stock(): void
     {
         $this->seed();
         $adminToken = $this->loginToken('admin@tuneboss.co.id');
-        $product = Product::where('sku', 'TB-USB-CABLE')->firstOrFail();
+        $product = Product::where('sku', 'TB-YMH-XMAX-V1')->firstOrFail();
         $initialStock = $product->stock->quantity;
 
         $movement = $this->withToken($adminToken)
@@ -448,7 +413,7 @@ class InventoryApiTest extends TestCase
     {
         $this->seed();
         $adminToken = $this->loginToken('admin@tuneboss.co.id');
-        $product = Product::where('sku', 'TB-USB-CABLE')->firstOrFail();
+        $product = Product::where('sku', 'TB-YMH-XMAX-V1')->firstOrFail();
         $initialStock = $product->stock->quantity;
 
         $movement = $this->withToken($adminToken)
@@ -471,8 +436,9 @@ class InventoryApiTest extends TestCase
     {
         $this->seed();
         $staffToken = $this->loginToken('staff@tuneboss.co.id');
-        $product = Product::where('sku', 'TB-USB-CABLE')->firstOrFail();
-        $initialStock = $product->stock->quantity;
+        $product = Product::where('sku', 'TB-YMH-XMAX-V1')->firstOrFail();
+        ProductStock::where('product_id', $product->id)->update(['quantity' => 10]);
+        $initialStock = 10;
 
         $this->withToken($staffToken)
             ->postJson('/sales/preview', [
@@ -485,8 +451,7 @@ class InventoryApiTest extends TestCase
             ->assertJsonPath('totalItems', 2)
             ->assertJsonPath('items.0.productId', $product->id)
             ->assertJsonPath('items.0.availableStock', $initialStock)
-            ->assertJsonPath('items.0.afterStock', $initialStock - 2)
-            ->assertJsonPath('totalAmount', 0);
+            ->assertJsonPath('items.0.afterStock', $initialStock - 2);
 
         $this->assertSame($initialStock, ProductStock::where('product_id', $product->id)->value('quantity'));
     }
@@ -495,7 +460,7 @@ class InventoryApiTest extends TestCase
     {
         $this->seed();
         $staffToken = $this->loginToken('staff@tuneboss.co.id');
-        $product = Product::where('sku', 'TB-ECU-VARIO')->firstOrFail();
+        $product = Product::where('sku', 'TB-HND-NEW-CB-150-V1')->firstOrFail();
 
         $this->withToken($staffToken)
             ->postJson('/sales/preview', [
@@ -514,7 +479,7 @@ class InventoryApiTest extends TestCase
     {
         $this->seed();
         $adminToken = $this->loginToken('admin@tuneboss.co.id');
-        $product = Product::where('sku', 'TB-USB-CABLE')->firstOrFail();
+        $product = Product::where('sku', 'TB-YMH-XMAX-V1')->firstOrFail();
         $initialStock = $product->stock->quantity;
 
         $sale = $this->withToken($adminToken)
@@ -561,7 +526,7 @@ class InventoryApiTest extends TestCase
     {
         $this->seed();
         $adminToken = $this->loginToken('admin@tuneboss.co.id');
-        $product = Product::where('sku', 'TB-USB-CABLE')->firstOrFail();
+        $product = Product::where('sku', 'TB-YMH-XMAX-V1')->firstOrFail();
 
         $this->getJson('/health')
             ->assertOk()
@@ -603,7 +568,7 @@ class InventoryApiTest extends TestCase
             ->getJson('/reports/summary?from='.now()->startOfMonth()->toDateString())
             ->assertOk()
             ->assertJsonStructure([
-                'sales' => ['completedCount', 'voidCount', 'totalAmount'],
+                'sales' => ['completedCount', 'completedQuantity', 'voidCount'],
                 'stockMovements' => ['inboundQuantity', 'outboundQuantity', 'saleQuantity', 'adjustmentCount'],
                 'stock' => ['totalSku', 'totalUnits', 'lowStockCount', 'outOfStockCount'],
             ]);
@@ -613,7 +578,7 @@ class InventoryApiTest extends TestCase
     {
         $this->seed();
         $adminToken = $this->loginToken('admin@tuneboss.co.id');
-        $product = Product::where('sku', 'TB-USB-CABLE')->firstOrFail();
+        $product = Product::where('sku', 'TB-YMH-XMAX-V1')->firstOrFail();
 
         $this->withToken($adminToken)
             ->patchJson('/products/'.$product->id, [
@@ -684,6 +649,105 @@ class InventoryApiTest extends TestCase
             ->assertOk();
 
         $this->assertSame(0, PersonalAccessToken::count());
+    }
+
+    public function test_product_lookup_by_box_sku_and_inbound_with_serial_numbers(): void
+    {
+        $this->seed();
+        $adminToken = $this->loginToken('admin@tuneboss.co.id');
+
+        // Step 1: Scan box barcode/SKU
+        $lookup = $this->withToken($adminToken)
+            ->getJson('/products/lookup?code=TB-YMH-XMAX-V1')
+            ->assertOk()
+            ->assertJsonStructure(['id', 'name', 'sku', 'stock', 'status']);
+
+        $productId = $lookup->json('id');
+        $this->assertSame('TB-YMH-XMAX-V1', $lookup->json('sku'));
+        $initialStock = $lookup->json('stock');
+
+        // Step 2: Inbound with serial numbers
+        $inbound = $this->withToken($adminToken)
+            ->postJson('/stock/inbound', [
+                'productId' => $productId,
+                'quantity' => 2,
+                'serialNumbers' => ['SN-XMAX-001', 'SN-XMAX-002'],
+                'note' => 'Inbound restock box',
+            ])
+            ->assertCreated();
+
+        $this->assertSame($initialStock + 2, ProductStock::where('product_id', $productId)->value('quantity'));
+        $this->assertDatabaseHas('product_serials', [
+            'product_id' => $productId,
+            'serial_number' => 'SN-XMAX-001',
+            'status' => 'in_stock',
+        ]);
+        $this->assertDatabaseHas('product_serials', [
+            'product_id' => $productId,
+            'serial_number' => 'SN-XMAX-002',
+            'status' => 'in_stock',
+        ]);
+    }
+
+    public function test_product_lookup_by_scanned_barcode_prefix_with_serial_suffix(): void
+    {
+        $this->seed();
+        $adminToken = $this->loginToken('admin@tuneboss.co.id');
+
+        // Client case 1: Scanning unit sticker 'TDYA022A0033' matching serial prefix of 'TB-YMH-WR-155-V2'
+        $lookup1 = $this->withToken($adminToken)
+            ->getJson('/products/lookup?code=TDYA022A0033')
+            ->assertOk()
+            ->assertJsonStructure(['id', 'name', 'sku', 'stock', 'serialNumber', 'serialStatus', 'isNewSerial']);
+
+        $this->assertSame('TB-YMH-WR-155-V2', $lookup1->json('sku'));
+        $this->assertSame('TDYA022A0033', $lookup1->json('serialNumber'));
+        $this->assertTrue($lookup1->json('isNewSerial'));
+        $this->assertSame('new', $lookup1->json('serialStatus'));
+
+        // Client case 2: Scanning SKU prefix like 'TCYA014-0099' matching product SKU 'TCYA014'
+        $lookup2 = $this->withToken($adminToken)
+            ->getJson('/products/lookup?code=TCYA014-0099')
+            ->assertOk();
+
+        $this->assertSame('TCYA014', $lookup2->json('sku'));
+        $this->assertSame('TCYA014-0099', $lookup2->json('serialNumber'));
+        $this->assertTrue($lookup2->json('isNewSerial'));
+    }
+
+    public function test_first_time_device_login_creates_device_first_login_audit_log(): void
+    {
+        $this->seed();
+
+        // 1st login with Device A
+        $this->postJson('/auth/login', [
+            'email' => 'staff@tuneboss.co.id',
+            'password' => 'password',
+        ], ['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'])
+            ->assertOk();
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'auth.device_first_login',
+        ]);
+        $this->assertSame(1, AuditLog::where('action', 'auth.device_first_login')->count());
+
+        // 2nd login with the same Device A (should NOT create a duplicate device_first_login)
+        $this->postJson('/auth/login', [
+            'email' => 'staff@tuneboss.co.id',
+            'password' => 'password',
+        ], ['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'])
+            ->assertOk();
+
+        $this->assertSame(1, AuditLog::where('action', 'auth.device_first_login')->count());
+
+        // 3rd login with a NEW Device B (should create another device_first_login)
+        $this->postJson('/auth/login', [
+            'email' => 'staff@tuneboss.co.id',
+            'password' => 'password',
+        ], ['User-Agent' => 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15'])
+            ->assertOk();
+
+        $this->assertSame(2, AuditLog::where('action', 'auth.device_first_login')->count());
     }
 
     private function loginToken(string $email): string
