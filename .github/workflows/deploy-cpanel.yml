@@ -33,7 +33,7 @@ jobs:
           tools: composer
 
       - name: Install frontend dependencies
-        run: npm ci --legacy-peer-deps --no-audit
+        run: npm ci
 
       - name: Typecheck frontend
         run: npm run typecheck
